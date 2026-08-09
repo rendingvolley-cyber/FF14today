@@ -1,7 +1,7 @@
 import app from "./measurable-motive-wrapper.js";
 
 const AMETRINE_KEY = "gather:min81:collectable:rarefied-raw-ametrine";
-const DUR IUM_KEY = "gather:min81:collectable:rarefied-high-durium-ore";
+const DURIUM_KEY = "gather:min81:collectable:rarefied-high-durium-ore";
 const EORZEA_REAL_MS_PER_HOUR = 175 * 1000;
 const AMETRINE_WINDOW_PERIOD_MS = 12 * EORZEA_REAL_MS_PER_HOUR;
 const AMETRINE_WINDOW_LENGTH_MS = 2 * EORZEA_REAL_MS_PER_HOUR;
