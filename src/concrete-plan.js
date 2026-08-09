@@ -6,6 +6,8 @@ const LEVELING_DUNGEONS_90_100 = [
   { min: 99, max: 99, name: "魂魄工廠 オリジェニクス", level: 99 }
 ];
 
+const DPS_ROLES = new Set(["melee", "ranged", "caster"]);
+
 function pickPrimaryCombatJob(character) {
   return (character?.jobs || [])
     .filter(job => job.level !== null && job.level < 100 && !["crafter", "gatherer", "limited"].includes(job.role))
@@ -16,87 +18,164 @@ function dungeonForLevel(level) {
   return LEVELING_DUNGEONS_90_100.find(duty => level >= duty.min && level <= duty.max) || null;
 }
 
+function asNow(method) {
+  return {
+    title: method.title,
+    minutes: method.minutes,
+    reason: method.reason,
+    steps: method.steps
+  };
+}
+
+function makeDpsMethods(job, duty) {
+  const methods = [
+    {
+      rank: 1,
+      badge: "今日まだなら最優先",
+      title: `${job.name_ja}で「コンテンツルーレット：レベリング」を1回`,
+      minutes: 30,
+      reason: "1日1回の経験値ボーナスを先に取る。レベル上げの日は、まずこれを消化するのが基本。",
+      condition: "今日のレベリングルーレットが未消化なら選ぶ",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "メニュー → コンテンツ情報 → コンテンツファインダー",
+        "コンテンツルーレット → 「レベリング」を選択",
+        "1回だけ申請してクリア"
+      ]
+    },
+    {
+      rank: 2,
+      badge: "DPSの反復周回",
+      title: `${job.name_ja}で「輝ける神域 アグライア」を1周`,
+      minutes: 25,
+      reason: "DPSは適正IDの待ち時間が伸びやすいので、暁月アライアンスを反復候補にする。1周で切り上げやすい。",
+      condition: "レベリングルーレット消化済み・アグライア解放済みなら選ぶ",
+      steps: [
+        `${job.name_ja}のままコンテンツファインダーを開く`,
+        "アライアンスレイド → 「輝ける神域 アグライア」を選択",
+        "1回申請して1周クリア",
+        "まだ遊ぶなら同じ方法をもう1周。別の候補探しはしない"
+      ]
+    }
+  ];
+
+  if (duty) {
+    methods.push({
+      rank: 3,
+      badge: "待ち時間ゼロ",
+      title: `${job.name_ja}で「${duty.name}」をコンテンツサポーター1周`,
+      minutes: 35,
+      reason: `Lv${job.level}で入れるLv${duty.level}ダンジョン。マッチングを待たず、自分のペースで確実に開始できる。`,
+      condition: `「${duty.name}」解放済みなら選ぶ`,
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "メニュー → コンテンツ情報 → コンテンツサポーター",
+        `「黄金のレガシー」→「${duty.name}」を選択`,
+        "サポートNPCで1周だけクリア"
+      ]
+    });
+  } else {
+    methods.push({
+      rank: 3,
+      badge: "ソロ寄り",
+      title: `${job.name_ja}で「ピルグリム・トラバース」を10階層進める`,
+      minutes: 30,
+      reason: "Lv91～100向けのディープダンジョン。ルーレット以外の反復候補として使える。",
+      condition: "ピルグリム・トラバース解放済みなら選ぶ",
+      steps: [
+        `${job.name_ja}へジョブチェンジ`,
+        "イル・メグのヴァンサウからピルグリム・トラバースへ突入",
+        "現在進行できる10階層だけ進める",
+        "10階層区切りで終了"
+      ]
+    });
+  }
+
+  return methods;
+}
+
+function makeTankHealerMethods(job, duty) {
+  const methods = [
+    {
+      rank: 1,
+      badge: "今日まだなら最優先",
+      title: `${job.name_ja}で「コンテンツルーレット：レベリング」を1回`,
+      minutes: 30,
+      reason: "1日1回の経験値ボーナスを先に取る。",
+      condition: "今日のレベリングルーレットが未消化なら選ぶ",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "コンテンツファインダー → コンテンツルーレット → レベリング",
+        "1回だけ申請してクリア"
+      ]
+    }
+  ];
+
+  if (duty) {
+    methods.push({
+      rank: 2,
+      badge: "周回効率",
+      title: `${job.name_ja}で「${duty.name}」を1周`,
+      minutes: 25,
+      reason: "タンク・ヒーラーはマッチングが比較的短く、現在レベルに近いIDをそのまま周回しやすい。",
+      condition: `「${duty.name}」解放済みなら選ぶ`,
+      steps: [
+        `${job.name_ja}へジョブチェンジ`,
+        `コンテンツファインダーで「${duty.name}」を選択`,
+        "1回申請してクリア"
+      ]
+    });
+    methods.push({
+      rank: 3,
+      badge: "待ち時間ゼロ",
+      title: `${job.name_ja}で「${duty.name}」をコンテンツサポーター1周`,
+      minutes: 35,
+      reason: "マッチング状況に左右されたくない時の確実な方法。",
+      condition: `「${duty.name}」解放済みなら選ぶ`,
+      steps: [
+        "メニュー → コンテンツ情報 → コンテンツサポーター",
+        `「${duty.name}」を選択`,
+        "サポートNPCで1周だけクリア"
+      ]
+    });
+  }
+
+  return methods;
+}
+
 function concreteCombatPlan(character, availableMinutes, energy) {
   const primary = pickPrimaryCombatJob(character);
   if (!primary) return null;
 
   const duty = dungeonForLevel(primary.level);
-  const job = primary.name_ja;
-  const level = primary.level;
+  const methods = DPS_ROLES.has(primary.role)
+    ? makeDpsMethods(primary, duty)
+    : makeTankHealerMethods(primary, duty);
 
-  if (duty && availableMinutes >= 25) {
-    const mainMinutes = Math.min(35, availableMinutes);
-    return {
-      planner_kind: "concrete-v0.7",
-      notice: "やることをコンテンツ名・回数・入口まで固定しています。迷ったら上からそのまま実行。",
-      now: {
-        title: `${job}で「${duty.name}」を1周`,
-        minutes: mainMinutes,
-        reason: `現在Lv${level}。Lv${duty.level}のレベリングダンジョンを1回だけ。DPSの待ち時間を避けるためコンテンツサポーター使用を優先。`,
-        steps: [
-          `${job}（Lv${level}）へジョブチェンジ`,
-          `メニュー → コンテンツ情報 → コンテンツサポーターを開く`,
-          `「黄金のレガシー」→「${duty.name}」を選ぶ`,
-          `NPC編成で1回だけクリアする`,
-          `クリアしたらそこで終了。続きはNEXTへ`
-        ]
-      },
-      next: availableMinutes >= 60 ? {
-        title: `${job}で「コンテンツルーレット：レベリング」を1回`,
-        minutes: 30,
-        reason: "NOWを終えたあとだけ。コンテンツファインダーから1回申請してクリア。今日のボーナス消化済みでも、次の候補を自分で探さずこれを実行。"
-      } : null,
-      fallback: {
-        title: `${job}に着替えて「コンテンツルーレット：レベリング」を申請するだけ`,
-        minutes: 2,
-        reason: "気力が落ちたら、申請までをゴールにする。シャキったらそのまま1回だけ遊ぶ。"
-      },
-      skip_today: [
-        "別ジョブの育成先を自分で比較する",
-        "効率サイトを見て最適解を探す",
-        "複数のルーレットを全部消化しようとする"
-      ]
-    };
-  }
+  if (!methods.length) return null;
 
-  if (availableMinutes >= 25) {
-    return {
-      planner_kind: "concrete-v0.7",
-      notice: "短い判断で開始できるよう、最初の1コンテンツだけ固定しています。",
-      now: {
-        title: `${job}で「コンテンツルーレット：レベリング」を1回`,
-        minutes: Math.min(35, availableMinutes),
-        reason: `現在Lv${level}。まず1回だけレベリングルーレットを消化。`,
-        steps: [
-          `${job}（Lv${level}）へジョブチェンジ`,
-          "メニュー → コンテンツファインダー → コンテンツルーレット",
-          "「レベリング」を選んで1回申請",
-          "1回クリアしたら終了"
-        ]
-      },
-      next: null,
-      fallback: { title: "コンテンツファインダーを開くところまで", minutes: 2, reason: "開始だけでOK。" },
-      skip_today: ["他ジョブとの効率比較", "複数ルーレットの全消化"]
-    };
-  }
-
+  const recommended = methods[0];
   return {
-    planner_kind: "concrete-v0.7",
-    notice: "15分枠では長いIDを無理に始めません。",
-    now: {
-      title: `${job}の装備更新とホットバー確認だけして終了`,
-      minutes: Math.min(15, availableMinutes),
-      reason: `Lv${level}。次回すぐIDへ入れる状態を作る短時間タスク。`,
-      steps: [
-        `${job}へジョブチェンジ`,
-        "さいきょう装備を実行",
-        "壊れかけ装備があれば修理",
-        "次回はレベリングダンジョン1周から開始"
-      ]
+    planner_kind: "concrete-3ways-v0.7",
+    notice: `Lv${primary.level} ${primary.name_ja}向けに、効率と始めやすさで3つまで具体化。#1を基本に、条件に合わなければ#2→#3。`,
+    focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
+    methods,
+    now: asNow(recommended),
+    next: availableMinutes >= 60 && methods[1] ? {
+      title: methods[1].title,
+      minutes: methods[1].minutes,
+      reason: `#1が終わってまだ遊べるなら#2。${methods[1].condition}`
+    } : null,
+    fallback: {
+      title: methods[2]?.title || `${primary.name_ja}に着替えるだけ`,
+      minutes: 2,
+      reason: "気力が落ちたら、候補を探し直さず#3の入口まで進めばOK。"
     },
-    next: null,
-    fallback: { title: "Lodestone同期だけ", minutes: 1, reason: "今日は情報更新だけで終了。" },
-    skip_today: ["15分を超えるダンジョン"]
+    skip_today: [
+      "攻略サイトを何個も開いて効率比較する",
+      "別ジョブの育成先をその場で考え直す",
+      "候補を増やして迷う"
+    ]
   };
 }
 
