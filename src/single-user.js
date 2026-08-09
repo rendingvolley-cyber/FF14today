@@ -88,6 +88,22 @@ async function ensureActivitySchema(env) {
   return activitySchemaReady;
 }
 
+async function getCompletedTaskKeysToday(env) {
+  await ensureActivitySchema(env);
+  const date = japanDateKey();
+  const result = await env.DB.prepare(`
+    SELECT DISTINCT task_key
+    FROM activity_history
+    WHERE lodestone_id=? AND activity_date=?
+    ORDER BY task_key
+    LIMIT 100
+  `).bind(OWNER_LODESTONE_ID, date).all();
+
+  return (result.results || [])
+    .map(row => String(row.task_key || "").trim())
+    .filter(Boolean);
+}
+
 async function getOwnerCharacter(env) {
   const row = await env.DB.prepare(`
     SELECT lodestone_id, lodestone_url, name, world, data_center, jobs_json,
@@ -142,7 +158,15 @@ async function rewritePlanResponse(response, env, payload) {
       const minutes = clampNumber(payload.available_minutes, 60, 0, 240);
       const energy = clampNumber(payload.energy, 2, 1, 5);
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
-      data.plan = makeConcretePlan(character, minutes, energy, data.plan, completedDaily);
+      const completedTaskKeys = await getCompletedTaskKeysToday(env);
+      data.plan = makeConcretePlan(
+        character,
+        minutes,
+        energy,
+        data.plan,
+        completedDaily,
+        completedTaskKeys
+      );
     }
   }
 
@@ -242,7 +266,7 @@ async function rewriteApiRequest(request, env) {
     return json({
       ok: true,
       service: "ff14-today",
-      version: "0.8.0",
+      version: "0.8.1",
       single_user: true,
       owner_lodestone_id: OWNER_LODESTONE_ID,
       lodestone_achievements: true,
@@ -251,6 +275,7 @@ async function rewriteApiRequest(request, env) {
       daily_checklist: true,
       task_completion: true,
       activity_history: true,
+      suppress_completed_todos: true,
       screenshot_import: false
     });
   }
@@ -283,12 +308,14 @@ async function rewriteApiRequest(request, env) {
       const character = await getOwnerCharacter(env);
       if (!character) return json({ error: "Sync Lodestone first." }, 409);
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
+      const completedTaskKeys = await getCompletedTaskKeysToday(env);
       const plan = makeConcretePlan(
         character,
         requestedMinutes,
         clampNumber(payload.energy, 2, 1, 5),
         null,
-        completedDaily
+        completedDaily,
+        completedTaskKeys
       );
       return json({ ok: true, plan });
     }
