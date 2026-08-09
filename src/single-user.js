@@ -88,20 +88,24 @@ async function ensureActivitySchema(env) {
   return activitySchemaReady;
 }
 
-async function getCompletedTaskKeysToday(env) {
+async function getTaskCompletionCountsToday(env) {
   await ensureActivitySchema(env);
   const date = japanDateKey();
   const result = await env.DB.prepare(`
-    SELECT DISTINCT task_key
+    SELECT task_key, COUNT(*) AS completion_count
     FROM activity_history
     WHERE lodestone_id=? AND activity_date=?
+    GROUP BY task_key
     ORDER BY task_key
     LIMIT 100
   `).bind(OWNER_LODESTONE_ID, date).all();
 
-  return (result.results || [])
-    .map(row => String(row.task_key || "").trim())
-    .filter(Boolean);
+  const counts = {};
+  for (const row of result.results || []) {
+    const key = String(row.task_key || "").trim();
+    if (key) counts[key] = Math.max(0, Number(row.completion_count) || 0);
+  }
+  return counts;
 }
 
 async function getOwnerCharacter(env) {
@@ -127,7 +131,7 @@ async function getOwnerCharacter(env) {
   };
 }
 
-async function rewriteStateResponse(response, completedDaily) {
+async function rewriteStateResponse(response, env, completedDaily) {
   const type = response.headers.get("content-type") || "";
   if (!type.includes("application/json")) return response;
 
@@ -138,7 +142,15 @@ async function rewriteStateResponse(response, completedDaily) {
   if (data?.character && data?.plan) {
     const minutes = Number(data.preferences?.available_minutes) || 60;
     const energy = Number(data.preferences?.energy) || 2;
-    data.plan = makeConcretePlan(data.character, minutes, energy, data.plan, completedDaily);
+    const completionCounts = await getTaskCompletionCountsToday(env);
+    data.plan = makeConcretePlan(
+      data.character,
+      minutes,
+      energy,
+      data.plan,
+      completedDaily,
+      completionCounts
+    );
   }
 
   return json(data, response.status);
@@ -158,14 +170,14 @@ async function rewritePlanResponse(response, env, payload) {
       const minutes = clampNumber(payload.available_minutes, 60, 0, 240);
       const energy = clampNumber(payload.energy, 2, 1, 5);
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
-      const completedTaskKeys = await getCompletedTaskKeysToday(env);
+      const completionCounts = await getTaskCompletionCountsToday(env);
       data.plan = makeConcretePlan(
         character,
         minutes,
         energy,
         data.plan,
         completedDaily,
-        completedTaskKeys
+        completionCounts
       );
     }
   }
@@ -275,7 +287,7 @@ async function rewriteApiRequest(request, env) {
       daily_checklist: true,
       task_completion: true,
       activity_history: true,
-      suppress_completed_todos: true,
+      repeat_priority_penalty: true,
       screenshot_import: false
     });
   }
@@ -284,7 +296,7 @@ async function rewriteApiRequest(request, env) {
     const completedDaily = completedDailyFromUrl(url);
     url.searchParams.set("lodestone_id", OWNER_LODESTONE_ID);
     const response = await app.fetch(new Request(url.toString(), request), singleUserEnv(env));
-    return rewriteStateResponse(response, completedDaily);
+    return rewriteStateResponse(response, env, completedDaily);
   }
 
   if (url.pathname === "/api/sync" && request.method === "POST") {
@@ -308,14 +320,14 @@ async function rewriteApiRequest(request, env) {
       const character = await getOwnerCharacter(env);
       if (!character) return json({ error: "Sync Lodestone first." }, 409);
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
-      const completedTaskKeys = await getCompletedTaskKeysToday(env);
+      const completionCounts = await getTaskCompletionCountsToday(env);
       const plan = makeConcretePlan(
         character,
         requestedMinutes,
         clampNumber(payload.energy, 2, 1, 5),
         null,
         completedDaily,
-        completedTaskKeys
+        completionCounts
       );
       return json({ ok: true, plan });
     }
