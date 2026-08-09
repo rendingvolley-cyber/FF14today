@@ -8,6 +8,7 @@
   <title>FF14 Today</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/reasons.css">
+  <link rel="stylesheet" href="/context-inbox.css">
 </head>
 <body>
   <main class="shell">
@@ -19,7 +20,7 @@
           <h1>FF14 Today</h1>
         </div>
       </div>
-      <span class="version">v1.3 · DECIDE</span>
+      <span class="version">v1.4 · CONTEXT</span>
     </header>
 
     <section id="identity" class="identity hidden">
@@ -65,6 +66,16 @@
             <button type="button" data-energy="5">5</button>
           </div>
         </div>
+      </div>
+
+      <div id="contextInbox" class="context-inbox" tabindex="0" role="button" aria-label="FF14スクリーンショットを貼り付けて判断材料に追加">
+        <div class="context-inbox-head">
+          <div class="context-inbox-title"><span class="context-inbox-icon">▣</span><span>スクショを判断材料に追加</span></div>
+          <span class="context-inbox-shortcut">Ctrl+V</span>
+        </div>
+        <p class="context-inbox-copy">ジャーナル、製作ステータス、採集ステータスをそのまま貼り付け。名前や数値を手入力しなくてOK。</p>
+        <p id="contextInboxStatus" class="context-inbox-status" data-kind="idle">FF14でスクショをコピーして、このページで Ctrl+V。</p>
+        <div id="contextInboxSaved" class="context-inbox-saved" aria-live="polite"></div>
       </div>
 
       <div class="mode-picker">
@@ -128,7 +139,7 @@
           <div class="focus-left"><span class="label">今回の対象</span><span id="focusJob" class="focus-job"></span></div>
           <div class="session-meta"><span id="sessionRemaining" class="session-pill">まだ開始していません</span><span id="todayCompletedCount" class="session-pill">今日完了 0件</span></div>
         </div>
-        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> 各候補に「なぜ今これ？」を表示。違えば#2/#3を開いて選び直せる。</p>
+        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> 各候補に「なぜ今これ？」を表示。貼ったジャーナルも候補の1つとして比較する。</p>
         <div id="methodList" class="methods-grid"></div>
         <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
@@ -164,5 +175,6 @@
   </main>
   <script src="/app.js" type="module"></script>
   <script src="/choice-reasons.js" type="module"></script>
+  <script src="/context-inbox.js" type="module"></script>
 </body>
 </html>
