@@ -113,35 +113,7 @@ function renderAchievements(achievements) {
   }));
 }
 
-function makeMethodCard(method, index) {
-  const card = document.createElement("article");
-  card.className = `method-card ${index === 0 ? "recommended" : ""}`;
-
-  const top = document.createElement("div");
-  top.className = "method-top";
-
-  const rank = document.createElement("span");
-  rank.className = "method-rank";
-  rank.textContent = String(method.rank || index + 1);
-  top.append(rank);
-
-  if (index === 0) {
-    const recommended = document.createElement("span");
-    recommended.className = "recommended-label";
-    recommended.textContent = "今日はこれ";
-    top.append(recommended);
-  }
-
-  if (method.badge) {
-    const badge = document.createElement("span");
-    badge.className = "method-badge";
-    badge.textContent = method.badge;
-    top.append(badge);
-  }
-
-  const title = document.createElement("h3");
-  title.textContent = method.title || "候補";
-
+function appendMethodBody(container, method, compact = false) {
   const meta = document.createElement("div");
   meta.className = "method-meta";
   if (method.minutes) {
@@ -149,30 +121,102 @@ function makeMethodCard(method, index) {
     minutes.textContent = `目安 ${method.minutes}分`;
     meta.append(minutes);
   }
+  container.append(meta);
 
-  const reason = document.createElement("p");
-  reason.className = "method-reason";
-  reason.textContent = method.reason || "";
-
-  card.append(top, title, meta, reason);
+  if (method.reason) {
+    const reason = document.createElement("p");
+    reason.className = "method-reason";
+    reason.textContent = method.reason;
+    container.append(reason);
+  }
 
   if (method.condition) {
     const condition = document.createElement("p");
     condition.className = "method-condition";
     condition.textContent = `選ぶ条件：${method.condition}`;
-    card.append(condition);
+    container.append(condition);
   }
 
-  const steps = document.createElement("ol");
-  steps.className = "method-steps";
-  steps.replaceChildren(...(method.steps || []).map(step => {
-    const li = document.createElement("li");
-    li.textContent = step;
-    return li;
-  }));
-  card.append(steps);
+  if (!compact && method.steps?.length) {
+    const steps = document.createElement("ol");
+    steps.className = "method-steps";
+    steps.replaceChildren(...method.steps.map(step => {
+      const li = document.createElement("li");
+      li.textContent = step;
+      return li;
+    }));
+    container.append(steps);
+  }
+}
 
+function makePrimaryMethod(method) {
+  const card = document.createElement("article");
+  card.className = "method-card recommended";
+
+  const top = document.createElement("div");
+  top.className = "method-top";
+  const rank = document.createElement("span");
+  rank.className = "method-rank";
+  rank.textContent = "1";
+  const recommended = document.createElement("span");
+  recommended.className = "recommended-label";
+  recommended.textContent = "今日はこれ";
+  if (method.badge) {
+    const badge = document.createElement("span");
+    badge.className = "method-badge";
+    badge.textContent = method.badge;
+    top.append(rank, recommended, badge);
+  } else {
+    top.append(rank, recommended);
+  }
+
+  const title = document.createElement("h3");
+  title.textContent = method.title || "候補";
+  card.append(top, title);
+  appendMethodBody(card, method, false);
   return card;
+}
+
+function makeAlternativeMethod(method, index) {
+  const details = document.createElement("details");
+  details.className = "method-alternative";
+
+  const summary = document.createElement("summary");
+  const rank = document.createElement("span");
+  rank.className = "method-rank small";
+  rank.textContent = String(method.rank || index + 1);
+  const text = document.createElement("span");
+  text.className = "alternative-title";
+  text.textContent = method.title || "代替案";
+  const minutes = document.createElement("span");
+  minutes.className = "alternative-minutes";
+  minutes.textContent = method.minutes ? `約${method.minutes}分` : "";
+  summary.append(rank, text, minutes);
+  details.append(summary);
+
+  const body = document.createElement("div");
+  body.className = "alternative-body";
+  if (method.badge) {
+    const badge = document.createElement("p");
+    badge.className = "method-badge";
+    badge.textContent = method.badge;
+    body.append(badge);
+  }
+  appendMethodBody(body, method, true);
+
+  if (method.steps?.length) {
+    const steps = document.createElement("ol");
+    steps.className = "method-steps";
+    steps.replaceChildren(...method.steps.map(step => {
+      const li = document.createElement("li");
+      li.textContent = step;
+      return li;
+    }));
+    body.append(steps);
+  }
+
+  details.append(body);
+  return details;
 }
 
 function renderPlan(plan) {
@@ -185,21 +229,17 @@ function renderPlan(plan) {
   $("planNotice").textContent = plan.notice || "";
 
   const focus = plan.focus_job;
-  $("focusJob").textContent = focus
-    ? `${focus.name} Lv${focus.level}`
-    : state.character
-      ? "現在の育成候補"
-      : "";
+  $("focusJob").textContent = focus ? `${focus.name} Lv${focus.level}` : "現在の育成候補";
 
   const methods = Array.isArray(plan.methods) && plan.methods.length
     ? plan.methods.slice(0, 3)
-    : [
-        plan.now ? { rank: 1, badge: "おすすめ", ...plan.now } : null,
-        plan.next ? { rank: 2, badge: "次点", ...plan.next, steps: [] } : null,
-        plan.fallback ? { rank: 3, badge: "低気力", ...plan.fallback, steps: [] } : null
-      ].filter(Boolean);
+    : [plan.now ? { rank: 1, ...plan.now } : null].filter(Boolean);
 
-  $("methodList").replaceChildren(...methods.map(makeMethodCard));
+  const nodes = [];
+  if (methods[0]) nodes.push(makePrimaryMethod(methods[0]));
+  methods.slice(1).forEach((method, index) => nodes.push(makeAlternativeMethod(method, index + 1)));
+  $("methodList").replaceChildren(...nodes);
+
   $("nextTask").textContent = plan.next
     ? `${plan.next.title}（約${plan.next.minutes}分）`
     : "#1だけで終了してOK";
@@ -283,7 +323,7 @@ $("planButton").addEventListener("click", async () => {
   if (!state.character) return;
   const button = $("planButton");
   button.disabled = true;
-  button.textContent = "調べて絞っています…";
+  button.textContent = "絞っています…";
   setStatus("");
   try {
     const data = await api("/api/plan", {
@@ -295,7 +335,7 @@ $("planButton").addEventListener("click", async () => {
       })
     });
     renderPlan(data.plan);
-    setStatus("具体的な候補を3つまで絞りました。基本は#1をそのまま実行でOK。");
+    setStatus("#1をそのまま実行。合わない時だけ下の代替案を開けばOK。");
   } catch (error) {
     setStatus(`プラン生成失敗: ${error.message}`, true);
   } finally {
