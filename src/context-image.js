@@ -1,5 +1,9 @@
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_PROFILE_ANALYSES_PER_DAY = 12;
+const MAX_GLOBAL_ANALYSES_PER_DAY = 50;
+const JOURNAL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const STATS_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 let schemaReady = null;
@@ -48,10 +52,21 @@ async function requireProfileHash(request) {
   return sha256Hex(token);
 }
 
+function japanDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 async function ensureSchema(env) {
   if (!schemaReady) {
-    schemaReady = env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS decision_context (
+    const statements = [
+      `CREATE TABLE IF NOT EXISTS decision_context (
         profile_hash TEXT NOT NULL,
         context_type TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -59,8 +74,26 @@ async function ensureSchema(env) {
         observed_at TEXT NOT NULL,
         source TEXT NOT NULL DEFAULT 'clipboard_image',
         PRIMARY KEY (profile_hash, context_type)
-      )
-    `).run().catch(error => {
+      )`,
+      `CREATE TABLE IF NOT EXISTS decision_context_usage (
+        usage_date TEXT NOT NULL,
+        profile_hash TEXT NOT NULL,
+        analyses INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (usage_date, profile_hash)
+      )`,
+      `CREATE TABLE IF NOT EXISTS decision_context_global_usage (
+        usage_date TEXT PRIMARY KEY,
+        analyses INTEGER NOT NULL DEFAULT 0
+      )`,
+      `CREATE TABLE IF NOT EXISTS decision_context_image_cache (
+        profile_hash TEXT NOT NULL,
+        image_sha256 TEXT NOT NULL,
+        analysis_json TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        PRIMARY KEY (profile_hash, image_sha256)
+      )`
+    ];
+    schemaReady = env.DB.batch(statements.map(sql => env.DB.prepare(sql))).catch(error => {
       schemaReady = null;
       throw error;
     });
@@ -170,7 +203,7 @@ function sanitizeAnalysis(parsed, model) {
   };
 }
 
-async function analyzeWithGemini(env, file) {
+async function analyzeWithGemini(env, file, bytes) {
   if (!env.GEMINI_API_KEY) {
     const error = new Error("Gemini APIキーがCloudflare Secretに未設定です。");
     error.status = 503;
@@ -178,7 +211,6 @@ async function analyzeWithGemini(env, file) {
   }
 
   const model = env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-  const bytes = await file.arrayBuffer();
   const prompt = [
     "FINAL FANTASY XIVの日本語クライアントのスクリーンショットを、意思決定支援用の事実として構造化してください。",
     "画面に見えている文字と数値だけを抽出し、推測・補完・攻略知識による穴埋めは禁止です。",
@@ -251,8 +283,62 @@ async function storeContext(env, profileHash, analysis) {
   return true;
 }
 
+async function cachedAnalysis(env, profileHash, imageSha) {
+  const row = await env.DB.prepare(`
+    SELECT analysis_json FROM decision_context_image_cache
+    WHERE profile_hash=? AND image_sha256=?
+    LIMIT 1
+  `).bind(profileHash, imageSha).first();
+  if (!row?.analysis_json) return null;
+  try { return JSON.parse(row.analysis_json); }
+  catch { return null; }
+}
+
+async function cacheAnalysis(env, profileHash, imageSha, analysis) {
+  await env.DB.prepare(`
+    INSERT INTO decision_context_image_cache (profile_hash, image_sha256, analysis_json, observed_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(profile_hash, image_sha256) DO UPDATE SET
+      analysis_json=excluded.analysis_json,
+      observed_at=excluded.observed_at
+  `).bind(profileHash, imageSha, JSON.stringify(analysis), new Date().toISOString()).run();
+}
+
+async function reserveAnalysisBudget(env, profileHash) {
+  const day = japanDateKey();
+  const [profileRow, globalRow] = await Promise.all([
+    env.DB.prepare(`SELECT analyses FROM decision_context_usage WHERE usage_date=? AND profile_hash=?`).bind(day, profileHash).first(),
+    env.DB.prepare(`SELECT analyses FROM decision_context_global_usage WHERE usage_date=?`).bind(day).first()
+  ]);
+  const profileCount = Number(profileRow?.analyses || 0);
+  const globalCount = Number(globalRow?.analyses || 0);
+  if (profileCount >= MAX_PROFILE_ANALYSES_PER_DAY) {
+    const error = new Error(`今日のスクショ解析は${MAX_PROFILE_ANALYSES_PER_DAY}回までです。同じ画像の貼り直しは回数に含まれません。`);
+    error.status = 429;
+    throw error;
+  }
+  if (globalCount >= MAX_GLOBAL_ANALYSES_PER_DAY) {
+    const error = new Error("今日の画像解析枠を使い切りました。時間を置いて試してください。");
+    error.status = 429;
+    throw error;
+  }
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT INTO decision_context_usage (usage_date, profile_hash, analyses)
+      VALUES (?, ?, 1)
+      ON CONFLICT(usage_date, profile_hash) DO UPDATE SET analyses=analyses+1
+    `).bind(day, profileHash),
+    env.DB.prepare(`
+      INSERT INTO decision_context_global_usage (usage_date, analyses)
+      VALUES (?, 1)
+      ON CONFLICT(usage_date) DO UPDATE SET analyses=analyses+1
+    `).bind(day)
+  ]);
+}
+
 export async function analyzeDecisionContextImage(request, env) {
   const profileHash = await requireProfileHash(request);
+  await ensureSchema(env);
   let form;
   try { form = await request.formData(); }
   catch {
@@ -277,14 +363,35 @@ export async function analyzeDecisionContextImage(request, env) {
     throw error;
   }
 
-  const analysis = await analyzeWithGemini(env, file);
+  const bytes = await file.arrayBuffer();
+  const imageSha = await sha256Hex(bytes);
+  const duplicate = await cachedAnalysis(env, profileHash, imageSha);
+  if (duplicate) {
+    const saved = await storeContext(env, profileHash, duplicate);
+    return {
+      ok: true,
+      duplicate: true,
+      image_saved: false,
+      context_saved: saved,
+      analysis: duplicate
+    };
+  }
+
+  await reserveAnalysisBudget(env, profileHash);
+  const analysis = await analyzeWithGemini(env, file, bytes);
+  await cacheAnalysis(env, profileHash, imageSha, analysis);
   const saved = await storeContext(env, profileHash, analysis);
   return {
     ok: true,
+    duplicate: false,
     image_saved: false,
     context_saved: saved,
     analysis
   };
+}
+
+function maxAgeForContext(type) {
+  return type === "journal" ? JOURNAL_MAX_AGE_MS : STATS_MAX_AGE_MS;
 }
 
 export async function getDecisionContext(request, env) {
@@ -298,7 +405,10 @@ export async function getDecisionContext(request, env) {
   `).bind(profileHash).all();
 
   const context = {};
+  const now = Date.now();
   for (const row of result.results || []) {
+    const observed = new Date(row.observed_at).getTime();
+    if (!Number.isFinite(observed) || now - observed > maxAgeForContext(row.context_type)) continue;
     let payload;
     try { payload = JSON.parse(row.payload_json); }
     catch { continue; }
