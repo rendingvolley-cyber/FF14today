@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ff14-today",
-  "main": "src/gather-ui-wrapper.js",
+  "main": "src/grounded-discovery-wrapper.js",
   "compatibility_date": "2026-08-09",
   "assets": {
     "directory": "./public",
