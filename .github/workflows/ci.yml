@@ -27,8 +27,13 @@ jobs:
           node --check src/single-user.js
           node --check src/lodestone-achievements.js
           node --check src/concrete-plan.js
+          node --check src/context-image.js
+          node --check src/context-opportunities.js
           node --check public/app.js
           node --check public/choice-reasons.js
+          node --check public/context-inbox.js
+      - name: Context planning rules
+        run: node scripts/test-context-opportunities.mjs
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
       - name: Secret pattern scan
