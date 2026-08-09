@@ -7,6 +7,7 @@ import { makeConcretePlan } from "./concrete-plan.js";
 
 const OWNER_LODESTONE_ID = "3091607";
 const OWNER_LODESTONE_URL = "https://jp.finalfantasyxiv.com/lodestone/character/3091607/";
+const MODES = new Set(["efficient", "craft", "gather", "discover"]);
 
 let activitySchemaReady = null;
 
@@ -30,6 +31,10 @@ function normalizeCompletedDaily(value) {
     leveling: Boolean(value?.leveling),
     alliance: Boolean(value?.alliance)
   };
+}
+
+function normalizeMode(value) {
+  return MODES.has(value) ? value : "efficient";
 }
 
 function completedDailyFromUrl(url) {
@@ -131,7 +136,7 @@ async function getOwnerCharacter(env) {
   };
 }
 
-async function rewriteStateResponse(response, env, completedDaily) {
+async function rewriteStateResponse(response, env, completedDaily, mode) {
   const type = response.headers.get("content-type") || "";
   if (!type.includes("application/json")) return response;
 
@@ -149,7 +154,8 @@ async function rewriteStateResponse(response, env, completedDaily) {
       energy,
       data.plan,
       completedDaily,
-      completionCounts
+      completionCounts,
+      mode
     );
   }
 
@@ -171,13 +177,15 @@ async function rewritePlanResponse(response, env, payload) {
       const energy = clampNumber(payload.energy, 2, 1, 5);
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
       const completionCounts = await getTaskCompletionCountsToday(env);
+      const mode = normalizeMode(payload.planner_mode);
       data.plan = makeConcretePlan(
         character,
         minutes,
         energy,
         data.plan,
         completedDaily,
-        completionCounts
+        completionCounts,
+        mode
       );
     }
   }
@@ -278,11 +286,12 @@ async function rewriteApiRequest(request, env) {
     return json({
       ok: true,
       service: "ff14-today",
-      version: "0.8.1",
+      version: "0.9.0",
       single_user: true,
       owner_lodestone_id: OWNER_LODESTONE_ID,
       lodestone_achievements: true,
-      concrete_planner: true,
+      category_first_planner: true,
+      planner_modes: ["efficient", "craft", "gather", "discover"],
       ranked_methods: 3,
       daily_checklist: true,
       task_completion: true,
@@ -294,9 +303,10 @@ async function rewriteApiRequest(request, env) {
 
   if (url.pathname === "/api/state" && request.method === "GET") {
     const completedDaily = completedDailyFromUrl(url);
+    const mode = normalizeMode(url.searchParams.get("planner_mode"));
     url.searchParams.set("lodestone_id", OWNER_LODESTONE_ID);
     const response = await app.fetch(new Request(url.toString(), request), singleUserEnv(env));
-    return rewriteStateResponse(response, env, completedDaily);
+    return rewriteStateResponse(response, env, completedDaily, mode);
   }
 
   if (url.pathname === "/api/sync" && request.method === "POST") {
@@ -314,6 +324,7 @@ async function rewriteApiRequest(request, env) {
     let payload = {};
     try { payload = await request.clone().json(); } catch {}
     payload.lodestone_id = OWNER_LODESTONE_ID;
+    payload.planner_mode = normalizeMode(payload.planner_mode);
 
     const requestedMinutes = clampNumber(payload.available_minutes, 60, 0, 240);
     if (requestedMinutes < 15) {
@@ -327,7 +338,8 @@ async function rewriteApiRequest(request, env) {
         clampNumber(payload.energy, 2, 1, 5),
         null,
         completedDaily,
-        completionCounts
+        completionCounts,
+        payload.planner_mode
       );
       return json({ ok: true, plan });
     }
@@ -366,7 +378,7 @@ async function rewriteApiRequest(request, env) {
   if (url.pathname.startsWith("/api/achievement-import/")) {
     return json({
       error: "screenshot_import_removed",
-      detail: "v0.8ではアチーブメントをLodestoneから直接同期します。"
+      detail: "アチーブメントはLodestoneから直接同期します。"
     }, 410);
   }
 

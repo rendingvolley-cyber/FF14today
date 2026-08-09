@@ -1,6 +1,8 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const DAILY_CHECKLIST_PREFIX = "ff14_today_daily_checklist_";
 const SESSION_PREFIX = "ff14_today_session_";
+const MODE_KEY = "ff14_today_planner_mode_v1";
+const VALID_MODES = new Set(["efficient", "craft", "gather", "discover"]);
 
 function japanDateKey() {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -48,9 +50,15 @@ function loadSession(dateKey = japanDateKey()) {
   }
 }
 
+function loadPlannerMode() {
+  const value = localStorage.getItem(MODE_KEY);
+  return VALID_MODES.has(value) ? value : "efficient";
+}
+
 const state = {
   minutes: 60,
   energy: 2,
+  plannerMode: loadPlannerMode(),
   character: null,
   achievements: null,
   plan: null,
@@ -147,7 +155,10 @@ function ensureDailyDateCurrent() {
 }
 
 function stateQuery() {
-  const params = new URLSearchParams({ lodestone_id: "3091607" });
+  const params = new URLSearchParams({
+    lodestone_id: "3091607",
+    planner_mode: state.plannerMode
+  });
   if (state.dailyCompletion.leveling) params.set("completed_leveling", "1");
   if (state.dailyCompletion.alliance) params.set("completed_alliance", "1");
   return `/api/state?${params.toString()}`;
@@ -236,8 +247,23 @@ function renderDailyChecklist() {
   } else if (done === 1) {
     $("dailyCheckStatus").textContent = "1つ消化済み。残っている日課を優先します。";
   } else {
-    $("dailyCheckStatus").textContent = "日課2つ完了。反復できる候補へ切り替えます。";
+    $("dailyCheckStatus").textContent = "日課2つ完了。適正IDなどへ切り替えます。";
   }
+}
+
+function modeHelpText(mode) {
+  if (mode === "craft") return "製作：手帳・レベル上げ・軽い準備から#1〜#3を出します。";
+  if (mode === "gather") return "採集：採集手帳・レベル上げ・素材集めから#1〜#3を出します。";
+  if (mode === "discover") return "おまかせ発見：普段選ばなそうな遊びを、進捗と履歴から#1〜#3で提案します。";
+  return "効率：経験値や日次ボーナスを優先。その中からおすすめ#1〜#3を出します。";
+}
+
+function renderModeUI() {
+  document.querySelectorAll("#modeChoices button[data-mode]").forEach(button => {
+    button.classList.toggle("active", button.dataset.mode === state.plannerMode);
+  });
+  $("modeHelp").textContent = modeHelpText(state.plannerMode);
+  $("dailyChecklist").classList.toggle("hidden", state.plannerMode !== "efficient");
 }
 
 function appendMethodBody(container, method, compact = false) {
@@ -346,6 +372,13 @@ function makeAlternativeMethod(method, index) {
     }));
     body.append(steps);
   }
+
+  const choose = document.createElement("button");
+  choose.type = "button";
+  choose.className = "choose-method";
+  choose.dataset.chooseMethodIndex = String(index);
+  choose.textContent = "この案にする";
+  body.append(choose);
   details.append(body);
   return details;
 }
@@ -378,17 +411,29 @@ function startTaskTimer(method) {
   state.activeTaskStartedAt = Date.now();
 }
 
+function focusFromMethod(method) {
+  if (!method?.job_name) return null;
+  return {
+    code: method.job_code,
+    name: method.job_name,
+    level: method.job_level,
+    role: method.job_role
+  };
+}
+
 function renderPlan(plan, { startTimer = false } = {}) {
   state.plan = plan;
   if (!plan) return;
 
   $("emptyState").classList.add("hidden");
   $("planContent").classList.remove("hidden");
-  $("planKind").textContent = plan.planner_kind || "PLAN";
+  $("planKind").textContent = plan.selected_mode
+    ? plan.selected_mode.toUpperCase()
+    : (plan.planner_kind || "PLAN");
   $("planNotice").textContent = plan.notice || "";
 
   const focus = plan.focus_job;
-  $("focusJob").textContent = focus ? `${focus.name} Lv${focus.level}` : "現在の育成候補";
+  $("focusJob").textContent = focus ? `${focus.name} Lv${focus.level}` : "ジョブ指定なし";
   renderSessionMeta();
 
   if (plan.session_complete) {
@@ -396,8 +441,6 @@ function renderPlan(plan, { startTimer = false } = {}) {
     state.activeTaskKey = null;
     state.activeTaskStartedAt = null;
     $("methodList").replaceChildren(makeSessionCompleteCard(plan));
-    $("nextTask").textContent = "今日は追加しなくてOK";
-    $("fallbackTask").textContent = "ゲームを閉じてもOK";
     $("skipList").replaceChildren(...(plan.skip_today || []).map(item => {
       const li = document.createElement("li");
       li.textContent = item;
@@ -413,13 +456,9 @@ function renderPlan(plan, { startTimer = false } = {}) {
   state.currentMethod = methods[0] || null;
   const nodes = [];
   if (methods[0]) nodes.push(makePrimaryMethod(methods[0]));
-  methods.slice(1).forEach((method, index) => nodes.push(makeAlternativeMethod(method, index + 1)));
+  methods.slice(1).forEach((method, offset) => nodes.push(makeAlternativeMethod(method, offset + 1)));
   $("methodList").replaceChildren(...nodes);
 
-  $("nextTask").textContent = plan.next
-    ? `${plan.next.title}（約${plan.next.minutes}分）`
-    : "#1だけで終了してOK";
-  $("fallbackTask").textContent = plan.fallback?.title || "Lodestone同期だけして終了";
   $("skipList").replaceChildren(...(plan.skip_today || []).map(item => {
     const li = document.createElement("li");
     li.textContent = item;
@@ -429,6 +468,25 @@ function renderPlan(plan, { startTimer = false } = {}) {
   if (startTimer && state.currentMethod) startTaskTimer(state.currentMethod);
 }
 
+function chooseAlternative(index) {
+  const methods = Array.isArray(state.plan?.methods) ? state.plan.methods.slice(0, 3) : [];
+  if (!methods[index]) return;
+  const chosen = methods[index];
+  const reordered = [chosen, ...methods.filter((_, methodIndex) => methodIndex !== index)]
+    .map((method, methodIndex) => ({ ...method, rank: methodIndex + 1 }));
+  const nextPlan = {
+    ...state.plan,
+    methods: reordered,
+    now: reordered[0],
+    focus_job: focusFromMethod(reordered[0]),
+    notice: `「${chosen.title}」を今回の#1にしました。終わったら「✓ 完了！」。`
+  };
+  state.activeTaskKey = null;
+  state.activeTaskStartedAt = null;
+  renderPlan(nextPlan, { startTimer: true });
+  setStatus(`#${index + 1}の案を「今日これ」に切り替えました。`);
+}
+
 function setActive() {
   document.querySelectorAll("#timeChoices button").forEach(button => {
     button.classList.toggle("active", Number(button.dataset.minutes) === state.minutes);
@@ -436,6 +494,7 @@ function setActive() {
   document.querySelectorAll("#energyChoices button").forEach(button => {
     button.classList.toggle("active", Number(button.dataset.energy) === state.energy);
   });
+  renderModeUI();
 }
 
 async function loadSavedState() {
@@ -491,7 +550,7 @@ async function generatePlan({ silent = false, resetSession = false, startTimer =
 
   const button = $("planButton");
   button.disabled = true;
-  if (!silent) button.textContent = "絞っています…";
+  if (!silent) button.textContent = "候補を選んでいます…";
   if (!silent) setStatus("");
 
   try {
@@ -502,16 +561,17 @@ async function generatePlan({ silent = false, resetSession = false, startTimer =
         lodestone_id: "3091607",
         available_minutes: availableMinutes,
         energy: state.energy,
+        planner_mode: state.plannerMode,
         completed_daily: state.dailyCompletion
       })
     });
     renderPlan(data.plan, { startTimer });
-    if (!silent) setStatus("#1をそのまま実行。終わったら「✓ 完了！」だけ押せば次へ進みます。");
+    if (!silent) setStatus("#1が本命。違う気分なら#2/#3の「この案にする」で切り替えられます。");
   } catch (error) {
     setStatus(`プラン生成失敗: ${error.message}`, true);
   } finally {
     button.disabled = false;
-    button.textContent = "今日やることを決める / やり直す";
+    button.textContent = "この気分でおすすめを出す";
   }
 }
 
@@ -523,9 +583,9 @@ async function handleDailyChecklistChange() {
   };
   saveDailyCompletion();
   renderDailyChecklist();
-  if (state.character) {
+  if (state.character && state.plannerMode === "efficient") {
     await generatePlan({ silent: true, startTimer: true });
-    setStatus("日課チェックを更新しました。おすすめ順位を入れ替えました。");
+    setStatus("日課チェックを更新しました。効率モードの#1〜#3を並べ替えました。");
   }
 }
 
@@ -549,7 +609,6 @@ async function handleCompleteCurrent() {
 
   const actualMinutes = measuredActualMinutes();
   const plannedMinutes = Math.max(1, Number(method.minutes) || 15);
-  const focus = state.plan?.focus_job || {};
   const completionId = crypto.randomUUID().replace(/-/g, "_");
 
   try {
@@ -560,8 +619,8 @@ async function handleCompleteCurrent() {
         task_key: method.task_key || `todo:${Date.now()}`,
         task_title: method.title || "TODO",
         daily_key: method.daily_key || null,
-        job_code: focus.code || null,
-        job_level: focus.level || null,
+        job_code: method.job_code || state.plan?.focus_job?.code || null,
+        job_level: method.job_level || state.plan?.focus_job?.level || null,
         planned_minutes: plannedMinutes,
         actual_minutes: actualMinutes
       })
@@ -588,7 +647,7 @@ async function handleCompleteCurrent() {
 
     const actualText = actualMinutes ? `（経過 約${actualMinutes}分）` : "";
     const remaining = Math.max(0, Math.round(state.session.remainingMinutes));
-    setStatus(`✓ 「${method.title}」完了 ${actualText}。残り約${remaining}分に合わせて次を更新しました。`);
+    setStatus(`✓ 「${method.title}」完了 ${actualText}。残り約${remaining}分で同じカテゴリの#1〜#3を更新しました。`);
   } catch (error) {
     setStatus(`完了記録失敗: ${error.message}`, true);
     if (button) {
@@ -612,12 +671,29 @@ $("energyChoices").addEventListener("click", event => {
   setActive();
 });
 
+$("modeChoices").addEventListener("click", async event => {
+  const button = event.target.closest("button[data-mode]");
+  if (!button || !VALID_MODES.has(button.dataset.mode)) return;
+  state.plannerMode = button.dataset.mode;
+  localStorage.setItem(MODE_KEY, state.plannerMode);
+  renderModeUI();
+  if (state.character) {
+    await generatePlan({ silent: true, startTimer: true });
+    setStatus(`${button.textContent}モードに切り替えました。#1〜#3を更新しました。`);
+  }
+});
+
 $("dailyLeveling").addEventListener("change", handleDailyChecklistChange);
 $("dailyAlliance").addEventListener("change", handleDailyChecklistChange);
 $("syncButton").addEventListener("click", () => syncEverything(true));
 $("planButton").addEventListener("click", () => generatePlan({ resetSession: true, startTimer: true }));
 $("methodList").addEventListener("click", event => {
-  if (event.target.closest("[data-complete-current]")) void handleCompleteCurrent();
+  if (event.target.closest("[data-complete-current]")) {
+    void handleCompleteCurrent();
+    return;
+  }
+  const choose = event.target.closest("[data-choose-method-index]");
+  if (choose) chooseAlternative(Number(choose.dataset.chooseMethodIndex));
 });
 
 window.addEventListener("focus", async () => {
