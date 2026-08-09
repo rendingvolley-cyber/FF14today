@@ -1,28 +1,55 @@
 const KNOWN_REQUIREMENTS = {
   "craft:alc90:leve:ginseng-angle-brush": {
-    min_job_level: 91,
     recommended_craftsmanship: 3366,
     source_label: "公式エオルゼアDBの製作成功目安"
   },
   "craft:alc90:leve:growth-formula-lambda": {
-    min_job_level: 91,
     recommended_craftsmanship: 3366,
     source_label: "公式エオルゼアDBの製作成功目安"
   },
   "craft:alc91:collectable:loboskin-grimoire": {
-    min_job_level: 91,
     recommended_craftsmanship: 3366,
     source_label: "公式エオルゼアDBの製作成功目安"
   }
 };
 
+const REPLACEMENTS = new Map([
+  ["Ginseng Angle Brush", "ウコギ・アングルブラシ"],
+  ["Big Brush, Big Dreams", "製作依頼：巨大な絵筆を試したい"],
+  ["Growth Formula Lambda", "グロースフォーミュラ・ラムダ"],
+  ["Fast-forwarding Flora", "製作依頼：新薬研究のための成長促進剤"],
+  ["Rarefied Loboskin Grimoire", "収集用のシルバリオ・グリモア"],
+  ["Rarefied Raw Ametrine", "収集用のアメトリン原石"],
+  ["Rarefied High Durium Ore", "収集用の輝翠銀鉱"],
+  ["Tuliyollal", "トライヨラ"],
+  ["Labyrinthos", "ラヴィリンソス"],
+  ["Thavnair", "サベネア島"],
+  ["The Great Work", "デミールの遺烈郷"]
+]);
+
 function text(value, max = 240) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+function localizeText(value) {
+  let output = String(value ?? "");
+  for (const [from, to] of REPLACEMENTS) output = output.split(from).join(to);
+  return output;
+}
+
+function localizeKnownMethod(method) {
+  return {
+    ...method,
+    title: localizeText(method.title),
+    reason: localizeText(method.reason),
+    condition: localizeText(method.condition),
+    steps: Array.isArray(method.steps) ? method.steps.map(localizeText) : method.steps
+  };
+}
+
 function joinCondition(original, gearCheck) {
   const parts = [];
-  const base = text(original, 400);
+  const base = text(original, 500);
   if (base) parts.push(base);
   if (gearCheck) parts.push(`装備判定：${gearCheck}`);
   return parts.join("｜");
@@ -34,7 +61,6 @@ function craftingGearCheck(method, context) {
   const craftsmanship = Number(stats.craftsmanship);
   const control = Number(stats.control);
   const cp = Number(stats.cp);
-  const level = Number(stats.level);
   const statText = [
     Number.isFinite(craftsmanship) ? `作業精度${craftsmanship}` : null,
     Number.isFinite(control) ? `加工精度${control}` : null,
@@ -44,21 +70,18 @@ function craftingGearCheck(method, context) {
 
   if (!requirement) {
     return statText
-      ? `${statText}を画像から取得済み。必要値データが未登録なので合否は断定しません。`
+      ? `${statText}を画像から取得済み。候補側の必要値データが未登録なので合否は断定しません。`
       : "画像は読み取りましたが、主要能力値を確定できませんでした。";
   }
 
-  if (Number.isFinite(level) && level < requirement.min_job_level) {
-    return `Lv${level}。この候補はLv${requirement.min_job_level}レシピなので、現状は製作対象外です。`;
-  }
   if (!Number.isFinite(craftsmanship)) {
-    return `必要目安は作業精度${requirement.recommended_craftsmanship}。画像から作業精度を確定できませんでした。`;
+    return `${requirement.source_label}は作業精度${requirement.recommended_craftsmanship}。画像から作業精度を確定できませんでした。`;
   }
   const delta = craftsmanship - requirement.recommended_craftsmanship;
   if (delta >= 0) {
-    return `${requirement.source_label} 作業精度${requirement.recommended_craftsmanship}をクリア（現在${craftsmanship}、+${delta}）。加工精度/CPは製作手順の余裕として別途使います。`;
+    return `${requirement.source_label}の作業精度${requirement.recommended_craftsmanship}をクリア（現在${craftsmanship}、+${delta}）。加工精度/CPは読み取れていても、候補別の安定HQ/収集価値ラインは未登録なので過剰判定しません。`;
   }
-  return `${requirement.source_label} 作業精度${requirement.recommended_craftsmanship}を${Math.abs(delta)}下回っています（現在${craftsmanship}）。この候補は優先度を下げます。`;
+  return `${requirement.source_label}の作業精度${requirement.recommended_craftsmanship}を${Math.abs(delta)}下回っています（現在${craftsmanship}）。製作不能とは断定しませんが、安定性に不安があるため優先度を下げます。`;
 }
 
 function gatheringGearCheck(context) {
@@ -73,16 +96,16 @@ function gatheringGearCheck(context) {
     Number.isFinite(gp) ? `GP${gp}` : null
   ].filter(Boolean).join(" / ");
   return statText
-    ? `${statText}を画像から取得済み。現在の採集候補は必要獲得力/技術力の確定データをまだ持っていないため、合否は断定しません。`
+    ? `${statText}を画像から取得済み。現在の採集候補は必要獲得力/技術力の確定データをまだ持っていないため、「足りる」とは推測せず判定保留にします。`
     : "画像は読み取りましたが、主要能力値を確定できませんでした。";
 }
 
 function annotateGear(method, context) {
-  const next = { ...method };
+  const next = localizeKnownMethod(method);
   let check = null;
-  if (method.job_role === "crafter") check = craftingGearCheck(method, context);
-  if (method.job_role === "gatherer") check = gatheringGearCheck(context);
-  if (check) next.condition = joinCondition(method.condition, check);
+  if (next.job_role === "crafter") check = craftingGearCheck(next, context);
+  if (next.job_role === "gatherer") check = gatheringGearCheck(context);
+  if (check) next.condition = joinCondition(next.condition, check);
   return next;
 }
 
@@ -90,9 +113,7 @@ function requirementPenalty(method, context) {
   const requirement = KNOWN_REQUIREMENTS[method.task_key];
   if (!requirement) return 0;
   const stats = context?.crafter_stats?.crafter_stats;
-  const knownLevel = Number(stats?.level ?? method.job_level);
   const craftsmanship = Number(stats?.craftsmanship);
-  if (Number.isFinite(knownLevel) && knownLevel < requirement.min_job_level) return 100;
   if (Number.isFinite(craftsmanship) && craftsmanship < requirement.recommended_craftsmanship) return 20;
   return 0;
 }
