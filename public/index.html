@@ -9,14 +9,14 @@
   <link rel="stylesheet" href="/styles.css">
   <style>
     .achievement-panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:22px;margin:18px 0}.achievement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.achievement-metrics{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}.achievement-metric strong{display:block;font-size:2rem}.achievement-metric span{color:var(--muted);font-size:.9rem}.recent-achievements{margin:0;padding-left:1.25rem;line-height:1.8}.recent-achievements li+li{margin-top:6px}.recent-achievements time{color:var(--muted);font-size:.85rem;margin-left:8px}.sync-state{color:var(--muted);font-size:.9rem}.source-note{color:var(--muted);line-height:1.7;margin:12px 0 0}
-    .focus-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 20px}.focus-job{font-size:1.1rem;font-weight:800}.methods-grid{display:grid;grid-template-columns:1fr;gap:12px;margin:16px 0 20px}.method-card{border:1px solid var(--line);border-radius:16px;padding:18px;background:#12171e}.method-card.recommended{border-color:var(--accent);background:#171a1e}.method-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.method-rank{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:800}.method-badge{font-size:.78rem;color:var(--accent);letter-spacing:.03em}.method-card h3{font-size:1.35rem;margin:12px 0 6px}.method-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}.method-condition{margin:10px 0 0;color:var(--accent);font-size:.9rem}.method-reason{margin:10px 0;color:var(--muted);line-height:1.65}.method-steps{margin:12px 0 0;padding-left:1.4rem;line-height:1.8}.recommended-label{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#111;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900}.methods-help{color:var(--muted);line-height:1.7;margin:0 0 8px}@media(min-width:900px){.methods-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.method-card h3{font-size:1.15rem}.method-steps{font-size:.92rem}}
+    .focus-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 20px}.focus-job{font-size:1.1rem;font-weight:800}.methods-grid{display:flex;flex-direction:column;gap:10px;margin:16px 0 20px}.method-card{border:1px solid var(--line);border-radius:16px;padding:20px;background:#12171e}.method-card.recommended{border-color:var(--accent);background:#171a1e}.method-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.method-rank{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:800;flex:0 0 auto}.method-rank.small{width:28px;height:28px;font-size:.85rem}.method-badge{font-size:.78rem;color:var(--accent);letter-spacing:.03em}.method-card h3{font-size:1.4rem;margin:12px 0 6px}.method-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}.method-condition{margin:10px 0 0;color:var(--accent);font-size:.9rem}.method-reason{margin:10px 0;color:var(--muted);line-height:1.65}.method-steps{margin:12px 0 0;padding-left:1.4rem;line-height:1.8}.recommended-label{display:inline-flex;align-items:center;background:var(--accent);color:#111;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900}.methods-help{color:var(--muted);line-height:1.7;margin:0 0 8px}.method-alternative{border:1px solid var(--line);border-radius:14px;background:#12171e;overflow:hidden}.method-alternative summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;list-style:none}.method-alternative summary::-webkit-details-marker{display:none}.method-alternative summary::after{content:"＋";color:var(--accent);font-weight:800;grid-column:4}.method-alternative[open] summary::after{content:"－"}.alternative-title{font-weight:800;line-height:1.4}.alternative-minutes{color:var(--muted);font-size:.85rem;white-space:nowrap}.alternative-body{border-top:1px solid var(--line);padding:14px 16px 16px}.alternative-body .method-badge{margin:0 0 6px}.method-alternative .method-steps{font-size:.94rem}@media(max-width:640px){.method-alternative summary{grid-template-columns:auto minmax(0,1fr) auto}.alternative-minutes{display:none}.method-alternative summary::after{grid-column:3}.method-card h3{font-size:1.2rem}}
   </style>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div><p class="eyebrow">EORZEA PERSONAL PLANNER</p><h1>FF14 Today</h1></div>
-      <span class="version">v0.7 · PERSONAL</span>
+      <span class="version">v0.7.1 · PERSONAL</span>
     </header>
 
     <section class="connect-panel">
@@ -67,12 +67,12 @@
     </section>
 
     <section id="nowPanel" class="now-panel hidden">
-      <div class="now-heading"><span>おすすめ3つ</span><span id="planKind" class="badge">READY</span></div>
-      <div id="emptyState" class="empty"><p class="big">今日はどれくらい遊べる？</p><p>時間と気力を選んだら、効率のいい具体案を3つまで出します。</p></div>
+      <div class="now-heading"><span>NOW</span><span id="planKind" class="badge">READY</span></div>
+      <div id="emptyState" class="empty"><p class="big">今日はどれくらい遊べる？</p><p>時間と気力を選んだら、まず「今日これ」を1つ決めます。</p></div>
       <div id="planContent" class="hidden">
         <p id="planNotice" class="notice"></p>
         <div class="focus-line"><span class="label">育成対象</span><span id="focusJob" class="focus-job"></span></div>
-        <p class="methods-help">基本は <strong>#1</strong>。条件に合わない・消化済みなら #2 → #3 の順で、そのまま選べばOK。</p>
+        <p class="methods-help"><strong>#1だけ見ればOK。</strong> 消化済み・気分に合わない時だけ、下の代替案を開いてください。</p>
         <div id="methodList" class="methods-grid"></div>
         <div class="secondary-grid">
           <div><p class="label">NEXT</p><p id="nextTask" class="secondary-text">なし</p></div>
@@ -89,7 +89,7 @@
 
     <section class="roadmap">
       <p class="label">BUILD STATUS</p>
-      <div class="roadmap-line"><span class="done">Lodestone実績</span><span>→</span><span class="done">具体案3つ</span><span>→</span><strong>日課済み判定</strong><span>→</span><span>未達実績</span><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
+      <div class="roadmap-line"><span class="done">Lodestone実績</span><span>→</span><span class="done">具体案</span><span>→</span><strong>日課済み判定</strong><span>→</span><span>未達実績</span><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
     </section>
 
     <p id="statusMessage" class="status"></p>
