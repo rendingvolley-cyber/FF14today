@@ -24,6 +24,8 @@ jobs:
       - name: JavaScript syntax
         run: |
           node --check src/index.js
+          node --check src/single-user.js
+          node --check src/lodestone-achievements.js
           node --check public/app.js
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
