@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f1217">
+  <title>FF14 Today</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">EORZEA PERSONAL PLANNER</p>
+        <h1>FF14 Today</h1>
+      </div>
+    </header>
+
+    <section class="connect-panel">
+      <div class="connect-copy">
+        <p class="label">LODestone CHARACTER</p>
+        <h2>自分のキャラを読み込む</h2>
+        <p class="muted">LodestoneのキャラクターページURLを貼るだけ。ブラウザごとに最後に使ったキャラを覚えます。</p>
+      </div>
+      <form id="lodestoneForm" class="lodestone-form">
+        <input
+          id="lodestoneInput"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          placeholder="https://na.finalfantasyxiv.com/lodestone/character/3091607/"
+          required
+        >
+        <button id="syncButton" class="primary-button" type="submit">読み込む</button>
+      </form>
+    </section>
+
+    <section id="identity" class="identity hidden">
+      <div>
+        <p class="label">CHARACTER</p>
+        <h2 id="characterName"></h2>
+        <p id="characterWorld" class="muted"></p>
+      </div>
+      <div class="sync-meta">
+        <span id="syncDot" class="dot"></span>
+        <span id="syncText">未同期</span>
+      </div>
+    </section>
+
+    <section id="planner" class="planner hidden">
+      <div class="planner-inputs">
+        <div>
+          <p class="label">今日はどれくらい？</p>
+          <div id="timeChoices" class="segmented">
+            <button type="button" data-minutes="15">15分</button>
+            <button type="button" data-minutes="30">30分</button>
+            <button type="button" data-minutes="60" class="active">60分</button>
+            <button type="button" data-minutes="90">90分</button>
+            <button type="button" data-minutes="120">2時間+</button>
+          </div>
+        </div>
+
+        <div>
+          <p class="label">気力</p>
+          <div id="energyChoices" class="energy">
+            <button type="button" data-energy="1">1</button>
+            <button type="button" data-energy="2" class="active">2</button>
+            <button type="button" data-energy="3">3</button>
+            <button type="button" data-energy="4">4</button>
+            <button type="button" data-energy="5">5</button>
+          </div>
+        </div>
+      </div>
+      <button id="planButton" class="primary-button">今日やることを決める</button>
+    </section>
+
+    <section id="nowPanel" class="now-panel hidden">
+      <div class="now-heading">
+        <span>NOW</span>
+        <span id="planKind" class="badge">READY</span>
+      </div>
+
+      <div id="emptyState" class="empty">
+        <p class="big">今日はどれくらい遊べる？</p>
+        <p>時間と気力を選んだら、やることはこちらで絞ります。</p>
+      </div>
+
+      <div id="planContent" class="hidden">
+        <p id="planNotice" class="notice"></p>
+        <h3 id="nowTitle"></h3>
+        <div class="meta-line">
+          <span id="nowMinutes"></span>
+          <span id="nowReason"></span>
+        </div>
+        <ol id="nowSteps" class="steps"></ol>
+
+        <div class="secondary-grid">
+          <div>
+            <p class="label">NEXT</p>
+            <p id="nextTask" class="secondary-text">なし</p>
+          </div>
+          <div>
+            <p class="label">気力ゼロなら</p>
+            <p id="fallbackTask" class="secondary-text"></p>
+          </div>
+        </div>
+
+        <details class="skip-box">
+          <summary>今日は考えなくていいもの</summary>
+          <ul id="skipList"></ul>
+        </details>
+      </div>
+    </section>
+
+    <details id="jobsPanel" class="jobs-panel hidden">
+      <summary>
+        <span>ジョブ進捗</span>
+        <span id="jobsSummary" class="muted"></span>
+      </summary>
+      <div id="jobsGrid" class="jobs-grid"></div>
+    </details>
+
+    <section class="roadmap">
+      <p class="label">NEXT BUILD</p>
+      <div class="roadmap-line">
+        <span class="done">Lodestone URL</span><span>→</span>
+        <span class="done">複数キャラ</span><span>→</span>
+        <strong>実績SS Import</strong><span>→</span>
+        <span>Big Fish</span><span>→</span><span>Gemini</span>
+      </div>
+    </section>
+
+    <p id="statusMessage" class="status"></p>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>
