@@ -14,5 +14,8 @@
       "database_id": "a5743cba-f99f-4c7e-9b9f-10eec34f2fa9",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "vars": {
+    "GEMINI_MODEL": "gemini-2.5-flash"
+  }
 }
