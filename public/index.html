@@ -7,6 +7,7 @@
   <meta name="description" content="Lodestoneの進捗から、今日ちょっとやってみたいFF14の遊び方を見つける個人向けプランナー。">
   <title>FF14 Today</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/reasons.css">
 </head>
 <body>
   <main class="shell">
@@ -18,7 +19,7 @@
           <h1>FF14 Today</h1>
         </div>
       </div>
-      <span class="version">v1.1 · LIGHT</span>
+      <span class="version">v1.2 · WHY</span>
     </header>
 
     <section id="identity" class="identity hidden">
@@ -127,7 +128,7 @@
           <div class="focus-left"><span class="label">今回の対象</span><span id="focusJob" class="focus-job"></span></div>
           <div class="session-meta"><span id="sessionRemaining" class="session-pill">まだ開始していません</span><span id="todayCompletedCount" class="session-pill">今日完了 0件</span></div>
         </div>
-        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> 違えば#2/#3を開いて選び直せる。</p>
+        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> 各候補に「なぜ今これ？」を表示。違えば#2/#3を開いて選び直せる。</p>
         <div id="methodList" class="methods-grid"></div>
         <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
@@ -162,5 +163,6 @@
     <p id="statusMessage" class="status"></p>
   </main>
   <script src="/app.js" type="module"></script>
+  <script src="/choice-reasons.js" type="module"></script>
 </body>
 </html>
