@@ -8,10 +8,29 @@ const LEVELING_DUNGEONS_90_100 = [
 
 const DPS_ROLES = new Set(["melee", "ranged", "caster"]);
 
-function pickPrimaryCombatJob(character) {
+function pickHighestJob(character, predicate) {
   return (character?.jobs || [])
-    .filter(job => job.level !== null && job.level < 100 && !["crafter", "gatherer", "limited"].includes(job.role))
+    .filter(job => job.level !== null && job.level < 100 && predicate(job))
     .sort((a, b) => (b.level - a.level) || a.code.localeCompare(b.code))[0] || null;
+}
+
+function pickPrimaryCombatJob(character) {
+  return pickHighestJob(
+    character,
+    job => !["crafter", "gatherer", "limited"].includes(job.role)
+  );
+}
+
+function pickCrafterJob(character) {
+  return pickHighestJob(character, job => job.role === "crafter");
+}
+
+function pickGathererJob(character) {
+  const nonFisher = pickHighestJob(
+    character,
+    job => job.role === "gatherer" && job.code !== "FSH"
+  );
+  return nonFisher || pickHighestJob(character, job => job.role === "gatherer");
 }
 
 function dungeonForLevel(level) {
@@ -36,11 +55,22 @@ function normalizeCompletionCounts(value) {
   return result;
 }
 
+function withJob(method, job) {
+  return {
+    ...method,
+    job_code: job.code,
+    job_name: job.name_ja,
+    job_level: job.level,
+    job_role: job.role
+  };
+}
+
 function asNow(method) {
   if (!method) return null;
   return {
     task_key: method.task_key,
     daily_key: method.daily_key,
+    lane: method.lane,
     title: method.title,
     minutes: method.minutes,
     reason: method.reason,
@@ -50,7 +80,8 @@ function asNow(method) {
 }
 
 function rouletteMethod(job, dailyKey, kind, badge, minutes, reason) {
-  return {
+  return withJob({
+    lane: "combat",
     task_key: `roulette:${dailyKey}`,
     daily_key: dailyKey,
     badge,
@@ -65,28 +96,29 @@ function rouletteMethod(job, dailyKey, kind, badge, minutes, reason) {
       "1回だけ申請してクリア",
       "終わったらこのカードの「✓ 完了！」を押す"
     ]
-  };
+  }, job);
 }
 
 function repeatDungeonMethod(job, duty) {
   if (!duty) return null;
   const dps = DPS_ROLES.has(job.role);
-  return {
+  return withJob({
+    lane: "combat",
     task_key: `leveling-dungeon:${job.code}:${duty.level}`,
     daily_key: null,
-    badge: dps ? "日課後の反復" : "日課後の本命",
+    badge: "効率本命・戦闘",
     title: `${job.name_ja}で「${duty.name}」を1周`,
     minutes: dps ? 35 : 25,
     reason: dps
-      ? `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課ボーナス後は、現在レベルに近いレベリングIDを反復候補にする。DPSで待ちたくない時は同じIDをコンテンツサポーターで開始できる。`
-      : `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課ボーナス後の反復候補。`,
+      ? `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課ボーナス後の経験値効率を優先したい時の候補。DPSで待ちたくない時は同じIDをコンテンツサポーターで開始できる。`
+      : `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課ボーナス後の経験値効率を優先したい時の候補。`,
     condition: dps
       ? `「${duty.name}」解放済み。CF待ちが気にならなければCF、すぐ始めたいならコンテンツサポーター`
       : `「${duty.name}」解放済みならCFで1周`,
     steps: dps
       ? [
           `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-          `まずコンテンツファインダーで「${duty.name}」を確認`,
+          `コンテンツファインダーで「${duty.name}」を確認`,
           "待ち時間を許容できるならそのままCFで1周",
           `すぐ始めたいなら メニュー → コンテンツ情報 → コンテンツサポーター → 「${duty.name}」`,
           "どちらか片方で1周したら「✓ 完了！」"
@@ -97,16 +129,67 @@ function repeatDungeonMethod(job, duty) {
           "1回申請してクリア",
           "終わったら「✓ 完了！」"
         ]
-  };
+  }, job);
 }
 
-function makeMethods(job, duty) {
+function crafterMethod(job) {
+  if (!job) return null;
+  return withJob({
+    lane: "craft",
+    task_key: `craft-log:${job.code}:${job.level}`,
+    daily_key: null,
+    badge: "作る・別方向",
+    title: `${job.name_ja}で製作手帳を20分だけ進める`,
+    minutes: 20,
+    reason: "戦闘の気分じゃない時の別方向。効率競争より、手帳に見える進捗を作って一区切りつける。",
+    condition: `Lv${job.level}以下で、今ある素材か店売り素材で作れるものを選ぶ`,
+    steps: [
+      `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+      "製作手帳を開く",
+      "未製作マークがあるレシピを、作りやすい順に3種類だけ製作する",
+      "未製作が見つからなければ、現在レベル帯の作りやすいレシピを3回製作する",
+      "3種類または3回終わったら「✓ 完了！」"
+    ]
+  }, job);
+}
+
+function gathererMethod(job) {
+  if (!job) return null;
+  const fisher = job.code === "FSH";
+  return withJob({
+    lane: "gather",
+    task_key: `${fisher ? "fishing-log" : "gather-log"}:${job.code}:${job.level}`,
+    daily_key: null,
+    badge: fisher ? "釣る・まったり" : "採る・まったり",
+    title: fisher
+      ? `${job.name_ja}で釣り手帳の未釣りを3種類埋める`
+      : `${job.name_ja}で採集手帳の未採集を5種類埋める`,
+    minutes: 20,
+    reason: "戦闘や製作から離れて、手帳を少しずつ埋める気分転換枠。短時間で終点が見える量だけに絞る。",
+    condition: `Lv${job.level}以下の手帳項目から、移動しやすい場所を優先する`,
+    steps: fisher
+      ? [
+          `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+          "釣り手帳を開く",
+          "未釣りのうち、今すぐ行ける釣り場から3種類だけ狙う",
+          "3種類埋まったら「✓ 完了！」"
+        ]
+      : [
+          `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+          "採集手帳を開く",
+          "未採集のうち、今すぐ行ける場所から5種類だけ採る",
+          "5種類埋まったら「✓ 完了！」"
+        ]
+  }, job);
+}
+
+function makeCombatMethods(job, duty) {
   const methods = [
     rouletteMethod(
       job,
       "leveling",
       "レベリング",
-      "今日まだなら最優先",
+      "効率本命・今日まだなら最優先",
       30,
       "1日1回の経験値ボーナスを先に取る。まずここを消化してから反復周回を考える。"
     )
@@ -118,9 +201,9 @@ function makeMethods(job, duty) {
         job,
         "alliance",
         "アライアンスレイド",
-        "日課の次点",
+        "効率本命・日課の次点",
         35,
-        "アライアンスレイドは個別コンテンツ周回ではなく、ルーレットの日次ボーナス目的で1回だけ使う。"
+        "個別アライアンス周回ではなく、ルーレットの日次ボーナス目的で1回だけ使う。"
       )
     );
   }
@@ -147,7 +230,7 @@ function applyRepeatPriority(methods, completionCounts) {
         ...method,
         repeat_count: repeatCount,
         badge: repeatCount > 0
-          ? `今日${repeatCount}回済み・再周回候補`
+          ? `${method.badge} · 今日${repeatCount}回済み`
           : method.badge,
         _base_index: baseIndex
       };
@@ -169,10 +252,20 @@ function completedLabel(completedDaily) {
   return done;
 }
 
+function focusFromMethod(method, fallback) {
+  if (!method) return fallback;
+  return {
+    code: method.job_code,
+    name: method.job_name,
+    level: method.job_level,
+    role: method.job_role
+  };
+}
+
 function sessionCompletePlan(primary, availableMinutes, completedDaily, deferredMethod = null) {
   const remaining = Math.max(0, Math.round(Number(availableMinutes) || 0));
   return {
-    planner_kind: "session-complete-v0.8.1",
+    planner_kind: "session-complete-v0.9",
     session_complete: true,
     remaining_minutes: remaining,
     notice: deferredMethod
@@ -189,52 +282,69 @@ function sessionCompletePlan(primary, availableMinutes, completedDaily, deferred
   };
 }
 
-function concreteCombatPlan(character, availableMinutes, energy, completedDailyInput, completionCountsInput) {
+function concretePlan(character, availableMinutes, energy, completedDailyInput, completionCountsInput) {
   const primary = pickPrimaryCombatJob(character);
   if (!primary) return null;
 
   const completedDaily = normalizeCompletedDaily(completedDailyInput);
   const completionCounts = normalizeCompletionCounts(completionCountsInput);
   const duty = dungeonForLevel(primary.level);
-  const afterDaily = removeCompletedDaily(makeMethods(primary, duty), completedDaily);
-  if (!afterDaily.length) return sessionCompletePlan(primary, availableMinutes, completedDaily);
 
-  const fits = fitToRemainingTime(afterDaily, availableMinutes);
-  if (!fits.length) return sessionCompletePlan(primary, availableMinutes, completedDaily, afterDaily[0]);
+  const combatCandidates = fitToRemainingTime(
+    removeCompletedDaily(makeCombatMethods(primary, duty), completedDaily),
+    availableMinutes
+  );
+  const combatLane = combatCandidates[0] || null;
+  const craftLane = crafterMethod(pickCrafterJob(character));
+  const gatherLane = gathererMethod(pickGathererJob(character));
 
-  const methods = applyRepeatPriority(fits, completionCounts);
+  const lanePool = fitToRemainingTime(
+    [combatLane, craftLane, gatherLane].filter(Boolean),
+    availableMinutes
+  );
+
+  if (!lanePool.length) {
+    const deferred = combatCandidates[0] || craftLane || gatherLane || null;
+    return sessionCompletePlan(primary, availableMinutes, completedDaily, deferred);
+  }
+
+  const methods = applyRepeatPriority(lanePool, completionCounts).slice(0, 3);
   const recommended = methods[0];
   const completed = completedLabel(completedDaily);
   const completionNote = completed.length
-    ? ` ${completed.join("・")}を除外して並べ替え済み。`
-    : " 日課チェックはまだ未完了。";
+    ? `${completed.join("・")}を反映済み。`
+    : "日課チェックはまだ未完了。";
   const repeatNote = recommended.repeat_count > 0
-    ? " 別候補が無いため再周回が先頭ですが、同じTODOの2回目以降は別候補が追加された時点で自動的に下へ降がります。"
-    : " 今日すでに完了したTODOは優先度を下げています。";
+    ? "候補3方向を一通り触っているため、最も回数が少ない再候補を先頭にしています。"
+    : "同じTODOの2回目より、まだやっていない方向を優先します。";
 
   return {
-    planner_kind: "complete-next-v0.8.1",
+    planner_kind: "diverse-lanes-v0.9",
     session_complete: false,
     remaining_minutes: Math.max(0, Math.round(Number(availableMinutes) || 0)),
-    notice: `Lv${primary.level} ${primary.name_ja}向け。${completionNote}${repeatNote} 終わったら「✓ 完了！」だけ押せば次へ進みます。`,
-    focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
+    notice: `${completionNote} ${repeatNote} #1が気分じゃなければ#2/#3へ逃げてOK。`,
+    focus_job: focusFromMethod(recommended, {
+      code: primary.code,
+      name: primary.name_ja,
+      level: primary.level,
+      role: primary.role
+    }),
     completed_daily: completedDaily,
     methods,
     now: asNow(recommended),
     next: methods[1] ? {
       title: methods[1].title,
       minutes: methods[1].minutes,
-      reason: `#1が終わって時間が残っていれば自動でこちらへ切り替え。${methods[1].condition || "次の候補。"}`
+      reason: "#1の気分じゃない時は、方向の違うこちらを選んでOK。"
     } : null,
     fallback: {
       title: methods[methods.length - 1]?.title || `${primary.name_ja}に着替えるだけ`,
-      minutes: 2,
-      reason: "気力が落ちたら、候補を探し直さず今表示されている最後の候補の入口まで進めばOK。"
+      minutes: methods[methods.length - 1]?.minutes || 2,
+      reason: "今日は本命の気分じゃなくても、別方向から1個進めれば十分。"
     },
     skip_today: [
-      "同じTODOの2回目を、別候補があるのに最優先へ置く",
-      "完了後にもう一度「今日やることを決める」を押す",
-      "チェック済みの日課をもう一度おすすめ候補として考える",
+      "同じIDの2周目を、未実行の別方向より先に置く",
+      "3つ全部やろうとする",
       "攻略サイトを何個も開いて効率比較する"
     ]
   };
@@ -248,13 +358,13 @@ export function makeConcretePlan(
   completedDaily = null,
   completionCounts = null
 ) {
-  const combat = concreteCombatPlan(
+  const plan = concretePlan(
     character,
     availableMinutes,
     energy,
     completedDaily,
     completionCounts
   );
-  if (combat) return combat;
+  if (plan) return plan;
   return basePlan;
 }
