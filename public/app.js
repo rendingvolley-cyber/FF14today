@@ -1,4 +1,33 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
+const DAILY_CHECKLIST_PREFIX = "ff14_today_daily_checklist_";
+
+function japanDateKey() {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const get = type => parts.find(part => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function dailyStorageKey(dateKey = japanDateKey()) {
+  return `${DAILY_CHECKLIST_PREFIX}${dateKey}`;
+}
+
+function loadDailyCompletion(dateKey = japanDateKey()) {
+  try {
+    const raw = localStorage.getItem(dailyStorageKey(dateKey));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      leveling: Boolean(parsed.leveling),
+      alliance: Boolean(parsed.alliance)
+    };
+  } catch {
+    return { leveling: false, alliance: false };
+  }
+}
 
 const state = {
   minutes: 60,
@@ -6,7 +35,9 @@ const state = {
   character: null,
   achievements: null,
   plan: null,
-  profileToken: getOrCreateProfileToken()
+  profileToken: getOrCreateProfileToken(),
+  dailyDate: japanDateKey(),
+  dailyCompletion: loadDailyCompletion()
 };
 
 const $ = id => document.getElementById(id);
@@ -111,6 +142,41 @@ function renderAchievements(achievements) {
     }
     return li;
   }));
+}
+
+function renderDailyChecklist() {
+  $("dailyLeveling").checked = state.dailyCompletion.leveling;
+  $("dailyAlliance").checked = state.dailyCompletion.alliance;
+  $("dailyDate").textContent = state.dailyDate;
+
+  const done = Number(state.dailyCompletion.leveling) + Number(state.dailyCompletion.alliance);
+  if (done === 0) {
+    $("dailyCheckStatus").textContent = "終わったらチェック。おすすめ順位がすぐ変わります。";
+  } else if (done === 1) {
+    $("dailyCheckStatus").textContent = "1つ消化済み。残っている日課を優先して並べ替えます。";
+  } else {
+    $("dailyCheckStatus").textContent = "日課2つ完了。反復できる具体案を#1に切り替えます。";
+  }
+}
+
+function saveDailyCompletion() {
+  localStorage.setItem(dailyStorageKey(state.dailyDate), JSON.stringify(state.dailyCompletion));
+}
+
+function ensureDailyDateCurrent() {
+  const today = japanDateKey();
+  if (today === state.dailyDate) return false;
+  state.dailyDate = today;
+  state.dailyCompletion = loadDailyCompletion(today);
+  renderDailyChecklist();
+  return true;
+}
+
+function stateQuery() {
+  const params = new URLSearchParams({ lodestone_id: "3091607" });
+  if (state.dailyCompletion.leveling) params.set("completed_leveling", "1");
+  if (state.dailyCompletion.alliance) params.set("completed_alliance", "1");
+  return `/api/state?${params.toString()}`;
 }
 
 function appendMethodBody(container, method, compact = false) {
@@ -263,7 +329,7 @@ function setActive() {
 async function loadSavedState() {
   try {
     const [characterData, achievementData] = await Promise.all([
-      api("/api/state?lodestone_id=3091607"),
+      api(stateQuery()),
       api("/api/achievements")
     ]);
     if (characterData.character) renderCharacter(characterData.character);
@@ -303,6 +369,48 @@ async function syncEverything(force = false) {
   }
 }
 
+async function generatePlan({ silent = false } = {}) {
+  if (!state.character) return;
+  ensureDailyDateCurrent();
+  const button = $("planButton");
+  button.disabled = true;
+  if (!silent) button.textContent = "絞っています…";
+  if (!silent) setStatus("");
+
+  try {
+    const data = await api("/api/plan", {
+      method: "POST",
+      body: JSON.stringify({
+        lodestone_id: "3091607",
+        available_minutes: state.minutes,
+        energy: state.energy,
+        completed_daily: state.dailyCompletion
+      })
+    });
+    renderPlan(data.plan);
+    if (!silent) setStatus("#1をそのまま実行。日課が終わったらチェックするだけで次へ切り替わります。");
+  } catch (error) {
+    setStatus(`プラン生成失敗: ${error.message}`, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "今日やることを決める";
+  }
+}
+
+async function handleDailyChecklistChange() {
+  ensureDailyDateCurrent();
+  state.dailyCompletion = {
+    leveling: $("dailyLeveling").checked,
+    alliance: $("dailyAlliance").checked
+  };
+  saveDailyCompletion();
+  renderDailyChecklist();
+  if (state.character) {
+    await generatePlan({ silent: true });
+    setStatus("日課チェックを更新しました。おすすめ順位を入れ替えました。");
+  }
+}
+
 $("timeChoices").addEventListener("click", event => {
   const button = event.target.closest("button[data-minutes]");
   if (!button) return;
@@ -317,35 +425,22 @@ $("energyChoices").addEventListener("click", event => {
   setActive();
 });
 
+$("dailyLeveling").addEventListener("change", handleDailyChecklistChange);
+$("dailyAlliance").addEventListener("change", handleDailyChecklistChange);
 $("syncButton").addEventListener("click", () => syncEverything(true));
+$("planButton").addEventListener("click", () => generatePlan());
 
-$("planButton").addEventListener("click", async () => {
-  if (!state.character) return;
-  const button = $("planButton");
-  button.disabled = true;
-  button.textContent = "絞っています…";
-  setStatus("");
-  try {
-    const data = await api("/api/plan", {
-      method: "POST",
-      body: JSON.stringify({
-        lodestone_id: "3091607",
-        available_minutes: state.minutes,
-        energy: state.energy
-      })
-    });
-    renderPlan(data.plan);
-    setStatus("#1をそのまま実行。合わない時だけ下の代替案を開けばOK。");
-  } catch (error) {
-    setStatus(`プラン生成失敗: ${error.message}`, true);
-  } finally {
-    button.disabled = false;
-    button.textContent = "今日やることを決める";
+window.addEventListener("focus", async () => {
+  if (ensureDailyDateCurrent() && state.character) {
+    await generatePlan({ silent: true });
+    setStatus("日付が変わったので、今日の日課チェックをリセットしました。");
   }
 });
 
 setActive();
+renderDailyChecklist();
 void (async function boot() {
   await loadSavedState();
   await syncEverything(false);
+  if (state.character) await generatePlan({ silent: true });
 })();
