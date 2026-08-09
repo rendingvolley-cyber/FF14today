@@ -1,6 +1,7 @@
 import app from "./measurable-motive-wrapper.js";
 
 const AMETRINE_KEY = "gather:min81:collectable:rarefied-raw-ametrine";
+const DUR IUM_KEY = "gather:min81:collectable:rarefied-high-durium-ore";
 const EORZEA_REAL_MS_PER_HOUR = 175 * 1000;
 const AMETRINE_WINDOW_PERIOD_MS = 12 * EORZEA_REAL_MS_PER_HOUR;
 const AMETRINE_WINDOW_LENGTH_MS = 2 * EORZEA_REAL_MS_PER_HOUR;
@@ -37,12 +38,11 @@ export function ametrineWindow(nowMs = Date.now()) {
   const open = nowMs >= cycleStart && nowMs < cycleEnd;
   const startMs = open ? cycleStart : (cycle + 1) * AMETRINE_WINDOW_PERIOD_MS;
   const endMs = startMs + AMETRINE_WINDOW_LENGTH_MS;
-  const waitMinutes = open ? 0 : Math.max(1, Math.ceil((startMs - nowMs) / 60_000));
   return {
     open,
     startMs,
     endMs,
-    waitMinutes,
+    waitMinutes: open ? 0 : Math.max(1, Math.ceil((startMs - nowMs) / 60_000)),
     nextStartMs: startMs + AMETRINE_WINDOW_PERIOD_MS
   };
 }
@@ -62,101 +62,125 @@ function levelExpPercent(level) {
   return Math.round((AMETRINE_EXP_1000 / needed) * 1000) / 10;
 }
 
-function enrichAmetrine(method, nowMs) {
+function rewardText(level) {
+  const pct = levelExpPercent(level);
+  return pct == null
+    ? "収集価値1000で EXP 1,110,780＋ギャザラースクリップ紫貨22"
+    : `収集価値1000で EXP 1,110,780＋紫貨22（Lv${level}→次Lv必要EXPの約${pct}%）`;
+}
+
+function localizeRegularMethod(method) {
+  if (method?.task_key !== DURIUM_KEY) return method;
+  return {
+    ...method,
+    title: "サベネア島で「収集用の輝翠銀鉱」を1回採って納品する",
+    reason: "いつでも採れるLv81収集品。時間限定ノードを待つ必要がなく、今すぐ経験値とギャザラースクリップ紫貨を進められるため、時限候補がプレイ枠に入らない時の通常候補にします。",
+    condition: "目的：待ち時間なしで採集経験値と紫貨を確実に積む。",
+    steps: [
+      `${method.job_name || "採掘師"}（Lv${method.job_level || 81}）へジョブチェンジ`,
+      "サベネア島「グレートワーク」へテレポ",
+      "Lv85採掘ポイント（X:17.2 Y:19.2付近）へ移動",
+      "「収集用の輝翠銀鉱」を収集価値1000目標で1回採集",
+      "収集品取引窓口へ納品して「✓ 完了！」"
+    ]
+  };
+}
+
+function checklistItem(key, title, detail, timing = null, important = false) {
+  return { key, title, detail, timing, important };
+}
+
+function buildTimedChecklist(methods, availableMinutes, nowMs) {
   const window = ametrineWindow(nowMs);
   const start = jstTime(window.startMs);
   const end = jstTime(window.endMs);
   const nextStart = jstTime(window.nextStartMs);
-  const expPercent = levelExpPercent(method.job_level);
-  const expText = expPercent == null
-    ? "収集価値1000で経験値1,110,780＋紫貨22"
-    : `収集価値1000で経験値1,110,780＋紫貨22。Lv${method.job_level}の1レベル分の約${expPercent}%`;
+  const ametrine = methods.find(method => method.task_key === AMETRINE_KEY);
+  const regular = methods.find(method => method.task_key === DURIUM_KEY);
+  if (!ametrine) return null;
 
+  const level = ametrine.job_level || 81;
+  const reward = rewardText(level);
+  const windowFitsSession = window.open || (window.waitMinutes + 10 <= availableMinutes + 5);
+  if (!windowFitsSession) return null;
+
+  const items = [];
   if (window.open) {
-    return {
-      ...method,
-      badge: "今が採集窓",
-      title: "「収集用のアメトリン原石」を収集価値1000目標で採る",
-      minutes: 12,
-      reason: `いま採集可能（JST ${start}〜${end} / ET 00:00-02:00 または12:00-14:00）。${expText}。窓が開いている今は、待ち時間ゼロで高い経験値と紫貨を同時回収できるため優先します。`,
-      condition: `目的：時間限定ノードを待たずに回収する。この窓を逃しても次の開始はJST ${nextStart}なので、希少性だけを誇張しません。`,
-      steps: [
-        `${method.job_name || "採掘師"}（Lv${method.job_level || 81}）へジョブチェンジ`,
-        "ラヴィリンソス「アルケイオン保管院」へテレポ",
-        "プシケ送風塔（X:32.5 Y:21.2）へ移動",
-        "時間限定の採掘ノードで「収集用のアメトリン原石」を収集価値1000目標で採集",
-        "収集品取引窓口へ納品して「✓ 完了！」"
-      ],
-      window_priority: 100,
-      window_wait_minutes: 0,
-      progress_metric: expPercent == null ? "EXP 1,110,780 / 紫貨22" : `1回でLv${method.job_level}バー約${expPercent}%相当`
-    };
+    items.push(checklistItem(
+      "gather:ametrine:window",
+      "今の窓で「収集用のアメトリン原石」を1回採って納品",
+      `${reward}。ラヴィリンソス・プシケ送風塔（X:32.5 Y:21.2）。`,
+      `JST ${start}〜${end}`,
+      true
+    ));
+    if (regular && availableMinutes >= 30) {
+      items.push(checklistItem(
+        "gather:durium:after",
+        "残り時間で「収集用の輝翠銀鉱」を1回採って納品",
+        "サベネア島・グレートワーク付近。待ち時間なしで経験値と紫貨を追加回収。",
+        "アメトリンのあと"
+      ));
+    }
+  } else {
+    if (window.waitMinutes > 15 && regular) {
+      items.push(checklistItem(
+        "gather:durium:before",
+        "まず「収集用の輝翠銀鉱」を1回採って納品",
+        "時限ノードを待つだけにしない。サベネア島・グレートワーク付近で先に経験値と紫貨を回収。",
+        "今から"
+      ));
+    }
+    items.push(checklistItem(
+      "gather:ametrine:next-window",
+      "「収集用のアメトリン原石」を1回採って納品",
+      `${reward}。ラヴィリンソス・プシケ送風塔（X:32.5 Y:21.2）。`,
+      `JST ${start}〜${end}`,
+      true
+    ));
   }
 
-  const totalMinutes = window.waitMinutes + 10;
-  const longWait = window.waitMinutes > 15;
   return {
-    ...method,
-    badge: longWait ? `次窓 ${start}・今は待たない` : `次窓まで約${window.waitMinutes}分`,
-    title: "次の「収集用のアメトリン原石」採集窓を狙う",
-    minutes: totalMinutes,
-    reason: `次の採集窓はJST ${start}〜${end}（あと約${window.waitMinutes}分）。${expText}。${longWait ? "ただし今から待機するのは時間効率が悪いので、常設候補を先にしてこの候補の順位を下げます。" : "窓が近いため、今から移動準備を始めれば待ち時間を小さくできます。"}`,
-    condition: `目的：時間窓を正確な時刻で管理する。今回を逃しても次の開始はJST ${nextStart}で、窓は約35分周期。`,
-    steps: longWait
-      ? [
-          `今は待機しない。次の窓はJST ${start}〜${end}`, 
-          `窓開始の約10分前までは、#1の常設採集候補を進める`,
-          `${method.job_name || "採掘師"}へジョブチェンジしてラヴィリンソス「アルケイオン保管院」へテレポ`,
-          "プシケ送風塔（X:32.5 Y:21.2）へ移動",
-          "窓が開いたら「収集用のアメトリン原石」を収集価値1000目標で採集して納品"
-        ]
-      : [
-          `${method.job_name || "採掘師"}（Lv${method.job_level || 81}）へジョブチェンジ`,
-          "ラヴィリンソス「アルケイオン保管院」へテレポ",
-          "プシケ送風塔（X:32.5 Y:21.2）へ移動",
-          `JST ${start}の窓開始を待ち、収集価値1000目標で採集`,
-          "収集品取引窓口へ納品して「✓ 完了！」"
-        ],
-    window_priority: longWait ? 5 : 90,
-    window_wait_minutes: window.waitMinutes,
-    progress_metric: expPercent == null ? "EXP 1,110,780 / 紫貨22" : `1回でLv${method.job_level}バー約${expPercent}%相当`
+    title: "このプレイ枠の採集タスク",
+    subtitle: window.open
+      ? "時限ノードが今開いているので、先に回収します。"
+      : `次の時限ノードが約${window.waitMinutes}分後に入るので、待ち時間を含めてタスク化しました。`,
+    items,
+    next_window_note: `今回を逃した場合、次の開始はJST ${nextStart}。`
   };
 }
 
-function updatePlan(plan, nowMs = Date.now()) {
+export function updatePlan(plan, nowMs = Date.now()) {
   if (!plan || plan.session_complete || plan.selected_mode !== "gather" || !Array.isArray(plan.methods)) return plan;
-  const available = Number(plan.remaining_minutes || 0);
-  let methods = plan.methods.map((method, index) => {
-    if (method.task_key === AMETRINE_KEY) return enrichAmetrine(method, nowMs);
-    return { ...method, window_priority: 50 - index };
-  });
+  const available = Math.max(0, Number(plan.remaining_minutes || 0));
+  const methods = plan.methods.map(localizeRegularMethod);
+  const checklist = buildTimedChecklist(methods, available, nowMs);
 
-  methods = methods
-    .filter(method => !available || Number(method.minutes || 0) <= available + 5)
-    .sort((a, b) => Number(b.window_priority || 0) - Number(a.window_priority || 0))
-    .slice(0, 3)
-    .map((method, index) => ({ ...method, rank: index + 1 }));
+  if (!checklist) {
+    const ordinary = methods
+      .filter(method => method.task_key !== AMETRINE_KEY)
+      .slice(0, 3)
+      .map((method, index) => ({ ...method, rank: index + 1 }));
+    const recommended = ordinary[0] || null;
+    return {
+      ...plan,
+      planner_kind: "gather-efficient-v1.5.1",
+      notice: "このプレイ枠に時限採集が入らないので、今すぐ進められる効率のいい採集候補を出しています。",
+      gather_checklist: null,
+      methods: ordinary,
+      now: recommended ? { ...recommended } : null,
+      next: ordinary[1] ? { title: ordinary[1].title, minutes: ordinary[1].minutes, reason: ordinary[1].reason } : null,
+      fallback: ordinary[2] ? { title: ordinary[2].title, minutes: ordinary[2].minutes, reason: ordinary[2].reason } : plan.fallback
+    };
+  }
 
-  const recommended = methods[0] || null;
   return {
     ...plan,
-    planner_kind: "gather-window-v1.5.1",
-    notice: recommended?.task_key === AMETRINE_KEY
-      ? "採集は、報酬量だけでなく実時間の待ち時間まで含めて順位を決めています。"
-      : "時間限定ノードの待ち時間が長いので、今すぐ進められる常設採集を先にしています。",
+    planner_kind: "gather-checklist-v1.5.1",
+    notice: "時限採集がプレイ時間内にあるので、#1/#2ではなくチェック式の採集タスクにしました。",
+    gather_checklist: checklist,
     methods,
-    now: recommended ? {
-      task_key: recommended.task_key,
-      daily_key: recommended.daily_key,
-      title: recommended.title,
-      minutes: recommended.minutes,
-      reason: recommended.reason,
-      condition: recommended.condition,
-      steps: recommended.steps,
-      repeat_count: recommended.repeat_count || 0
-    } : null,
-    next: methods[1] ? { title: methods[1].title, minutes: methods[1].minutes, reason: methods[1].reason } : null,
-    fallback: methods[2] ? { title: methods[2].title, minutes: methods[2].minutes, reason: methods[2].reason } : plan.fallback
+    now: null,
+    next: null
   };
 }
 
@@ -168,8 +192,6 @@ async function rewritePlanResponse(response, nowMs = Date.now()) {
   if (data?.plan) data.plan = updatePlan(data.plan, nowMs);
   return json(data, response.status);
 }
-
-export { updatePlan };
 
 export default {
   async fetch(request, env) {
@@ -183,7 +205,7 @@ export default {
       let data;
       try { data = await response.clone().json(); }
       catch { return response; }
-      return json({ ...data, version: "1.5.1", gather_window_ux: true }, response.status);
+      return json({ ...data, version: "1.5.1", gather_checklist_planner: true }, response.status);
     }
     return response;
   }
