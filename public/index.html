@@ -3,85 +3,99 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0f1217">
-  <meta name="description" content="Lodestoneの進捗から今日のFF14を決める個人向けプランナー。">
+  <meta name="theme-color" content="#f4f8ff">
+  <meta name="description" content="Lodestoneの進捗から、今日ちょっとやってみたいFF14の遊び方を見つける個人向けプランナー。">
   <title>FF14 Today</title>
   <link rel="stylesheet" href="/styles.css">
-  <style>
-    .achievement-panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:22px;margin:18px 0}.achievement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.achievement-metrics{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}.achievement-metric strong{display:block;font-size:2rem}.achievement-metric span{color:var(--muted);font-size:.9rem}.recent-achievements{margin:0;padding-left:1.25rem;line-height:1.8}.recent-achievements li+li{margin-top:6px}.recent-achievements time{color:var(--muted);font-size:.85rem;margin-left:8px}.sync-state{color:var(--muted);font-size:.9rem}.source-note{color:var(--muted);line-height:1.7;margin:12px 0 0}
-    .mode-picker{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.mode-picker .segmented{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.mode-picker .segmented button{width:100%;min-height:76px;text-align:left;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:13px 15px}.mode-picker .segmented button::after{content:attr(data-caption);display:block;font-size:.76rem;font-weight:500;color:var(--muted);line-height:1.45}.mode-picker .segmented button.active::after{color:inherit;opacity:.8}.mode-kicker{margin:4px 0 0;color:var(--muted);font-size:.84rem;line-height:1.6}.mode-help{color:var(--muted);font-size:.84rem;line-height:1.6;margin:8px 0 0}.focus-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 20px}.focus-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.focus-job{font-size:1.1rem;font-weight:800}.session-meta{display:flex;gap:8px;flex-wrap:wrap}.session-pill{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:.82rem;background:#11161c}.methods-grid{display:flex;flex-direction:column;gap:10px;margin:16px 0 20px}.method-card{border:1px solid var(--line);border-radius:16px;padding:20px;background:#12171e}.method-card.recommended{border-color:var(--accent);background:#171a1e}.method-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.method-rank{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:800;flex:0 0 auto}.method-rank.small{width:28px;height:28px;font-size:.85rem}.method-badge{font-size:.78rem;color:var(--accent);letter-spacing:.03em}.method-card h3{font-size:1.4rem;margin:12px 0 6px}.method-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}.method-condition{margin:10px 0 0;color:var(--muted);font-size:.9rem;line-height:1.6}.method-reason{margin:10px 0;color:var(--muted);line-height:1.65}.method-steps{margin:12px 0 0;padding-left:1.4rem;line-height:1.8}.recommended-label{display:inline-flex;align-items:center;background:var(--accent);color:#111;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900}.methods-help{color:var(--muted);line-height:1.7;margin:0 0 8px}.complete-button,.choose-method{width:100%;margin-top:18px;border-radius:13px;padding:14px 18px;font:inherit;font-weight:900;font-size:1rem;cursor:pointer}.complete-button{border:0;background:var(--accent);color:#111}.choose-method{border:1px solid var(--accent);background:transparent;color:var(--accent);margin-top:14px}.complete-button:hover,.choose-method:hover{filter:brightness(1.05)}.complete-button:disabled{opacity:.55;cursor:wait}.method-alternative{border:1px solid var(--line);border-radius:14px;background:#12171e;overflow:hidden}.method-alternative summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;list-style:none}.method-alternative summary::-webkit-details-marker{display:none}.method-alternative summary::after{content:"＋";color:var(--accent);font-weight:800;grid-column:4}.method-alternative[open] summary::after{content:"－"}.alternative-title{font-weight:800;line-height:1.4}.alternative-minutes{color:var(--muted);font-size:.85rem;white-space:nowrap}.alternative-body{border-top:1px solid var(--line);padding:14px 16px 16px}.alternative-body .method-badge{margin:0 0 6px}.method-alternative .method-steps{font-size:.94rem}.nudge-label{display:block;margin-bottom:4px;color:var(--accent);font-size:.72rem;font-weight:900;letter-spacing:.07em}.first-step-nudge{margin:12px 0 4px;border-left:3px solid var(--accent);padding:10px 12px;background:#11161c;border-radius:0 10px 10px 0;line-height:1.55}.first-step-nudge strong{display:block;color:var(--accent);font-size:.76rem;letter-spacing:.06em;margin-bottom:3px}
-    .daily-checklist{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:18px;padding-top:16px}.daily-checklist-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.daily-date{color:var(--muted);font-size:.82rem}.daily-checks{display:flex;gap:10px;flex-wrap:wrap}.daily-check{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:9px 13px;background:#12171e;cursor:pointer;user-select:none;font-weight:700}.daily-check input{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}.daily-check:has(input:checked){border-color:var(--accent);background:#191a18;color:var(--accent)}.daily-check-status{color:var(--muted);font-size:.82rem;margin-top:6px}.session-complete-card{border:1px solid var(--accent);border-radius:16px;padding:28px 22px;background:#171a1e;text-align:center}.session-complete-mark{width:48px;height:48px;border-radius:999px;display:grid;place-items:center;margin:0 auto 12px;background:var(--accent);color:#111;font-size:1.4rem;font-weight:900}.session-complete-card h3{margin:0 0 8px;font-size:1.4rem}.session-complete-card p{line-height:1.7}
-    @media(max-width:640px){.method-alternative summary{grid-template-columns:auto minmax(0,1fr) auto}.alternative-minutes{display:none}.method-alternative summary::after{grid-column:3}.method-card h3{font-size:1.2rem}.daily-checklist{align-items:flex-start;flex-direction:column}.daily-checks{width:100%}.daily-check{flex:1;justify-content:center}.focus-line{align-items:flex-start;flex-direction:column}.session-meta{width:100%}.mode-picker .segmented{grid-template-columns:1fr}.mode-picker .segmented button{min-height:68px}}
-  </style>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div><p class="eyebrow">EORZEA PERSONAL PLANNER</p><h1>FF14 Today</h1></div>
-      <span class="version">v1.0 · NUDGE</span>
+      <div class="brand">
+        <span class="brand-mark">✦</span>
+        <div>
+          <p class="eyebrow">EORZEA PERSONAL PLANNER</p>
+          <h1>FF14 Today</h1>
+        </div>
+      </div>
+      <span class="version">v1.1 · LIGHT</span>
     </header>
 
-    <section class="connect-panel">
-      <div class="connect-copy">
-        <p class="label">LODESTONE CHARACTER</p>
-        <h2>Kanade Tachibana</h2>
-        <p class="muted">プロフィール・ジョブ・アチーブメントをLodestoneから自動同期します。</p>
-      </div>
-      <button id="syncButton" class="primary-button" type="button">Lodestone再同期</button>
-    </section>
-
     <section id="identity" class="identity hidden">
-      <div><p class="label">CHARACTER</p><h2 id="characterName"></h2><p id="characterWorld" class="muted"></p></div>
-      <div class="sync-meta"><span id="syncDot" class="dot"></span><span id="syncText">未同期</span></div>
-    </section>
-
-    <section id="achievementPanel" class="achievement-panel">
-      <div class="achievement-head">
-        <div><p class="label">LODESTONE ACHIEVEMENTS</p><h2>アチーブメント</h2></div>
-        <span id="achievementSyncText" class="sync-state">同期中…</span>
+      <div class="identity-main">
+        <div class="avatar-orb">K</div>
+        <div>
+          <p class="label">TODAY'S CHARACTER</p>
+          <h2 id="characterName"></h2>
+          <p id="characterWorld" class="muted"></p>
+        </div>
       </div>
-      <div class="achievement-metrics">
-        <div class="achievement-metric"><strong id="achievementCount">—</strong><span>達成件数</span></div>
-        <div class="achievement-metric"><strong id="achievementPoints">—</strong><span>Achievement Points</span></div>
-        <div class="achievement-metric"><strong id="achievementPages">—</strong><span>Lodestone pages</span></div>
+      <div class="identity-actions">
+        <div class="sync-meta"><span id="syncDot" class="dot"></span><span id="syncText">未同期</span></div>
+        <button id="syncButton" class="quiet-button" type="button">Lodestone同期</button>
       </div>
-      <p class="label">最近の達成</p>
-      <ol id="recentAchievements" class="recent-achievements"><li class="muted">同期結果を待っています。</li></ol>
-      <p class="source-note">達成済み実績はLodestoneを正本にします。未達実績との照合は「おまかせ発見」に順次使います。</p>
     </section>
 
     <section id="planner" class="planner hidden">
-      <div class="planner-inputs">
-        <div>
-          <p class="label">今日はどれくらい？</p>
-          <div id="timeChoices" class="segmented">
-            <button type="button" data-minutes="15">15分</button><button type="button" data-minutes="30">30分</button><button type="button" data-minutes="60" class="active">60分</button><button type="button" data-minutes="90">90分</button><button type="button" data-minutes="120">2時間+</button>
+      <div class="planner-hero">
+        <p class="eyebrow">PICK A VIBE</p>
+        <h2>今日は、どんな遊び方にする？</h2>
+        <p class="planner-lead">正解を選ばなくていい。ちょっと気になる入口を押せば、その先の「最初の一歩」までこちらで決める。</p>
+      </div>
+
+      <div class="quick-settings">
+        <div class="setting-block">
+          <p class="label">遊べる時間</p>
+          <div id="timeChoices" class="segmented time-segmented">
+            <button type="button" data-minutes="15">15分</button>
+            <button type="button" data-minutes="30">30分</button>
+            <button type="button" data-minutes="60" class="active">60分</button>
+            <button type="button" data-minutes="90">90分</button>
+            <button type="button" data-minutes="120">2h+</button>
           </div>
         </div>
-        <div>
+        <div class="setting-block energy-block">
           <p class="label">気力</p>
           <div id="energyChoices" class="energy">
-            <button type="button" data-energy="1">1</button><button type="button" data-energy="2" class="active">2</button><button type="button" data-energy="3">3</button><button type="button" data-energy="4">4</button><button type="button" data-energy="5">5</button>
+            <button type="button" data-energy="1">1</button>
+            <button type="button" data-energy="2" class="active">2</button>
+            <button type="button" data-energy="3">3</button>
+            <button type="button" data-energy="4">4</button>
+            <button type="button" data-energy="5">5</button>
           </div>
         </div>
       </div>
 
       <div class="mode-picker">
-        <p class="label">気になる入口を選ぶ</p>
-        <p class="mode-kicker">正解探しじゃなくてOK。今ちょっと気になる方向を1つ押すと、その中の#1〜#3と最初の一歩を出します。</p>
-        <div id="modeChoices" class="segmented">
-          <button type="button" data-mode="efficient" data-caption="レベル上げ・日課・進捗効率を取りにいく" class="active">効率よく進める</button>
-          <button type="button" data-mode="craft" data-caption="作る・手帳を埋める・次回の準備をする">何か作る</button>
-          <button type="button" data-mode="gather" data-caption="採る・釣る・手帳や素材を少し進める">採集・釣り</button>
-          <button type="button" data-mode="discover" data-caption="GATE・オーシャン・ボズヤなど普段選ばない遊び">知らない遊びを発見</button>
+        <div id="modeChoices" class="mode-grid">
+          <button type="button" data-mode="efficient" class="mode-card active">
+            <span class="mode-icon">⚡</span>
+            <span class="mode-copy"><strong>効率よく進める</strong><small>日課・レベル上げ・短時間で伸びるもの</small></span>
+            <span class="mode-arrow">→</span>
+          </button>
+          <button type="button" data-mode="craft" class="mode-card">
+            <span class="mode-icon">✦</span>
+            <span class="mode-copy"><strong>何か作る</strong><small>製作手帳・レベル上げ・具体的な製作品</small></span>
+            <span class="mode-arrow">→</span>
+          </button>
+          <button type="button" data-mode="gather" class="mode-card">
+            <span class="mode-icon">♧</span>
+            <span class="mode-copy"><strong>採集・釣り</strong><small>素材名・場所・個数まで指定して案内</small></span>
+            <span class="mode-arrow">→</span>
+          </button>
+          <button type="button" data-mode="discover" class="mode-card">
+            <span class="mode-icon">◎</span>
+            <span class="mode-copy"><strong>知らない遊びを発見</strong><small>普段選ばないコンテンツを理由つきで提案</small></span>
+            <span class="mode-arrow">→</span>
+          </button>
         </div>
-        <p id="modeHelp" class="mode-help">効率：経験値や日次ボーナスを優先。その中からおすすめ#1〜#3を出します。</p>
+        <p id="modeHelp" class="mode-help">効率：経験値や日次ボーナスを優先。その中から始めやすい候補を出します。</p>
       </div>
 
       <div id="dailyChecklist" class="daily-checklist">
         <div>
           <div class="daily-checklist-head"><p class="label">今日の日課</p><span id="dailyDate" class="daily-date"></span></div>
-          <div id="dailyCheckStatus" class="daily-check-status">完了ボタンを押すと該当日課も自動でチェックされます。</div>
+          <div id="dailyCheckStatus" class="daily-check-status">終わった日課だけチェック。おすすめがその場で入れ替わります。</div>
         </div>
         <div class="daily-checks">
           <label class="daily-check"><input id="dailyLeveling" type="checkbox"><span>レベルレ済み</span></label>
@@ -89,37 +103,64 @@
         </div>
       </div>
 
-      <button id="planButton" class="primary-button">この方向をもう少し見てみる</button>
+      <button id="planButton" class="primary-button hero-button">この方向を見てみる</button>
     </section>
 
     <section id="nowPanel" class="now-panel hidden">
-      <div class="now-heading"><span>NOW</span><span id="planKind" class="badge">READY</span></div>
-      <div id="emptyState" class="empty"><p class="big">どれがちょっと気になる？</p><p>入口を1つ選ぶと、その遊び方の#1〜#3と「まず何をするか」を具体的に出します。</p></div>
+      <div class="now-heading">
+        <div>
+          <p class="eyebrow">YOUR NEXT STEP</p>
+          <h2>気になったら、ここから。</h2>
+        </div>
+        <span id="planKind" class="badge">READY</span>
+      </div>
+
+      <div id="emptyState" class="empty">
+        <div class="empty-icon">→</div>
+        <p class="big">入口を1つ選んでみて</p>
+        <p>その遊び方の候補と、最初に何を押せばいいかまで出す。</p>
+      </div>
+
       <div id="planContent" class="hidden">
         <p id="planNotice" class="notice"></p>
         <div class="focus-line">
           <div class="focus-left"><span class="label">今回の対象</span><span id="focusJob" class="focus-job"></span></div>
           <div class="session-meta"><span id="sessionRemaining" class="session-pill">まだ開始していません</span><span id="todayCompletedCount" class="session-pill">今日完了 0件</span></div>
         </div>
-        <p class="methods-help"><strong>順位は「正解」ではなく始めやすさ順。</strong> 気になった案を選んで、まず最初の一歩だけやればOK。</p>
+        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> 違えば#2/#3を開いて選び直せる。</p>
         <div id="methodList" class="methods-grid"></div>
         <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
     </section>
+
+    <details id="achievementPanel" class="achievement-panel">
+      <summary>
+        <div>
+          <p class="label">LODESTONE PROGRESS</p>
+          <strong>アチーブメント進捗</strong>
+        </div>
+        <div class="achievement-summary-metrics">
+          <span><strong id="achievementCount">—</strong> 件</span>
+          <span><strong id="achievementPoints">—</strong> pt</span>
+        </div>
+      </summary>
+      <div class="achievement-content">
+        <div class="achievement-head">
+          <span id="achievementSyncText" class="sync-state">同期中…</span>
+          <span><strong id="achievementPages">—</strong> pages</span>
+        </div>
+        <p class="label recent-label">最近の達成</p>
+        <ol id="recentAchievements" class="recent-achievements"><li class="muted">同期結果を待っています。</li></ol>
+      </div>
+    </details>
 
     <details id="jobsPanel" class="jobs-panel hidden">
       <summary><span>ジョブ進捗</span><span id="jobsSummary" class="muted"></span></summary>
       <div id="jobsGrid" class="jobs-grid"></div>
     </details>
 
-    <section class="roadmap">
-      <p class="label">BUILD STATUS</p>
-      <div class="roadmap-line"><span class="done">Lodestone実績</span><span>→</span><span class="done">完了履歴</span><span>→</span><span class="done">発見→興味→一歩目</span><span>→</span><strong>未達実績照合</strong><span>→</span><span>Big Fish窓</span><span>→</span><span>Gemini発見</span></div>
-    </section>
-
     <p id="statusMessage" class="status"></p>
   </main>
   <script src="/app.js" type="module"></script>
-  <script src="/nudge.js" type="module"></script>
 </body>
 </html>
