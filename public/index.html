@@ -4,42 +4,47 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0f1217">
-  <meta name="description" content="Lodestone進捗とゲーム内スクリーンショットから、今日のFF14を決める個人向けプランナー。">
+  <meta name="description" content="Lodestoneの進捗から今日のFF14を決める個人向けプランナー。">
   <title>FF14 Today</title>
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    .achievement-panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:22px;margin:18px 0}.achievement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.achievement-metrics{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}.achievement-metric strong{display:block;font-size:2rem}.achievement-metric span{color:var(--muted);font-size:.9rem}.recent-achievements{margin:0;padding-left:1.25rem;line-height:1.8}.recent-achievements li+li{margin-top:6px}.recent-achievements time{color:var(--muted);font-size:.85rem;margin-left:8px}.sync-state{color:var(--muted);font-size:.9rem}.source-note{color:var(--muted);line-height:1.7;margin:12px 0 0}
+  </style>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">EORZEA PERSONAL PLANNER</p>
-        <h1>FF14 Today</h1>
-      </div>
-      <span class="version">v0.5 · PERSONAL</span>
+      <div><p class="eyebrow">EORZEA PERSONAL PLANNER</p><h1>FF14 Today</h1></div>
+      <span class="version">v0.6 · PERSONAL</span>
     </header>
 
     <section class="connect-panel">
       <div class="connect-copy">
         <p class="label">LODESTONE CHARACTER</p>
         <h2>Kanade Tachibana</h2>
-        <p class="muted">LodestoneはKanade Tachibanaに固定。ページを開くだけで同期します。</p>
+        <p class="muted">プロフィール・ジョブ・アチーブメントをLodestoneから自動同期します。スクショ取込は不要です。</p>
       </div>
-      <form id="lodestoneForm" class="lodestone-form">
-        <input id="lodestoneInput" type="url" value="https://na.finalfantasyxiv.com/lodestone/character/3091607/" hidden required>
-        <button id="syncButton" class="primary-button" type="submit">Lodestone再同期</button>
-      </form>
+      <button id="syncButton" class="primary-button" type="button">Lodestone再同期</button>
     </section>
 
     <section id="identity" class="identity hidden">
-      <div>
-        <p class="label">CHARACTER</p>
-        <h2 id="characterName"></h2>
-        <p id="characterWorld" class="muted"></p>
+      <div><p class="label">CHARACTER</p><h2 id="characterName"></h2><p id="characterWorld" class="muted"></p></div>
+      <div class="sync-meta"><span id="syncDot" class="dot"></span><span id="syncText">未同期</span></div>
+    </section>
+
+    <section id="achievementPanel" class="achievement-panel">
+      <div class="achievement-head">
+        <div><p class="label">LODESTONE ACHIEVEMENTS</p><h2>アチーブメント</h2></div>
+        <span id="achievementSyncText" class="sync-state">同期中…</span>
       </div>
-      <div class="sync-meta">
-        <span id="syncDot" class="dot"></span>
-        <span id="syncText">未同期</span>
+      <div class="achievement-metrics">
+        <div class="achievement-metric"><strong id="achievementCount">—</strong><span>達成件数</span></div>
+        <div class="achievement-metric"><strong id="achievementPoints">—</strong><span>Achievement Points</span></div>
+        <div class="achievement-metric"><strong id="achievementPages">—</strong><span>Lodestone pages</span></div>
       </div>
+      <p class="label">最近の達成</p>
+      <ol id="recentAchievements" class="recent-achievements"><li class="muted">同期結果を待っています。</li></ol>
+      <p class="source-note">達成済み実績はLodestoneを正本にします。次に公式アチーブメント全件と照合して、未達だけを今日の候補へ回します。</p>
     </section>
 
     <section id="planner" class="planner hidden">
@@ -47,181 +52,43 @@
         <div>
           <p class="label">今日はどれくらい？</p>
           <div id="timeChoices" class="segmented">
-            <button type="button" data-minutes="15">15分</button>
-            <button type="button" data-minutes="30">30分</button>
-            <button type="button" data-minutes="60" class="active">60分</button>
-            <button type="button" data-minutes="90">90分</button>
-            <button type="button" data-minutes="120">2時間+</button>
+            <button type="button" data-minutes="15">15分</button><button type="button" data-minutes="30">30分</button><button type="button" data-minutes="60" class="active">60分</button><button type="button" data-minutes="90">90分</button><button type="button" data-minutes="120">2時間+</button>
           </div>
         </div>
-
         <div>
           <p class="label">気力</p>
           <div id="energyChoices" class="energy">
-            <button type="button" data-energy="1">1</button>
-            <button type="button" data-energy="2" class="active">2</button>
-            <button type="button" data-energy="3">3</button>
-            <button type="button" data-energy="4">4</button>
-            <button type="button" data-energy="5">5</button>
+            <button type="button" data-energy="1">1</button><button type="button" data-energy="2" class="active">2</button><button type="button" data-energy="3">3</button><button type="button" data-energy="4">4</button><button type="button" data-energy="5">5</button>
           </div>
         </div>
       </div>
       <button id="planButton" class="primary-button">今日やることを決める</button>
     </section>
 
-    <section id="evidencePanel" class="evidence-panel hidden">
-      <div class="evidence-head">
-        <div>
-          <p class="label">ACCURACY UP</p>
-          <h2>スクショしたら、そのまま Ctrl+V</h2>
-        </div>
-        <span id="factCount" class="fact-count">実績 0件</span>
-      </div>
-
-      <div class="request-card">
-        <div class="request-number">01</div>
-        <div class="request-main">
-          <h3 id="evidenceTitle" class="evidence-title">実績 → もうすぐ達成！</h3>
-          <p id="evidenceReason" class="muted">全実績を順番に撮る必要はありません。まず今日の候補になりやすい実績だけ拾います。</p>
-          <ol id="evidenceSteps" class="evidence-steps">
-            <li>FF14で「実績」画面を開く</li>
-            <li>上の「もうすぐ達成！」タブを選ぶ</li>
-            <li>いま見えている範囲を1枚スクショする</li>
-            <li>ブラウザへ戻って Ctrl+V</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="import-grid">
-        <label id="dropZone" class="drop-zone" for="achievementImage">
-          <span class="drop-icon">＋</span>
-          <strong>Ctrl+V でSSを貼り付け</strong>
-          <span>貼り付けたら自動で解析開始</span>
-          <small>ドラッグ＆ドロップ / クリック選択も残しています</small>
-          <input id="achievementImage" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-        </label>
-
-        <div class="ai-access">
-          <p class="label">AI IMPORT</p>
-          <input id="aiAccessCode" type="password" hidden>
-          <p class="privacy-note">Gemini APIキーはCloudflare Secretからだけ使用します。ブラウザやGitHubには配信しません。SS画像本体もD1には保存しません。</p>
-          <button id="analyzeButton" class="primary-button wide-button" type="button" disabled>SSを解析する</button>
-        </div>
-      </div>
-
-      <p id="selectedFile" class="selected-file">SS未選択</p>
-
-      <section id="importPreview" class="import-preview hidden">
-        <div class="preview-head">
-          <div>
-            <p class="label">IMPORT PREVIEW</p>
-            <h3 class="preview-title">読み取り結果を確認</h3>
-          </div>
-          <div id="importMeta" class="muted"></div>
-        </div>
-        <p class="preview-help">90%以上は自動選択。自信の低い行は勝手に登録しません。必要な行だけチェックしてください。</p>
-        <div id="candidateList" class="candidate-list"></div>
-        <div class="preview-actions">
-          <span id="previewSummary" class="muted"></span>
-          <button id="confirmImportButton" class="primary-button" type="button">選択した実績をインポート</button>
-        </div>
-      </section>
-    </section>
-
     <section id="nowPanel" class="now-panel hidden">
-      <div class="now-heading">
-        <span>NOW</span>
-        <span id="planKind" class="badge">READY</span>
-      </div>
-
-      <div id="emptyState" class="empty">
-        <p class="big">今日はどれくらい遊べる？</p>
-        <p>時間と気力を選んだら、やることはこちらで絞ります。</p>
-      </div>
-
+      <div class="now-heading"><span>NOW</span><span id="planKind" class="badge">READY</span></div>
+      <div id="emptyState" class="empty"><p class="big">今日はどれくらい遊べる？</p><p>時間と気力を選んだら、やることはこちらで絞ります。</p></div>
       <div id="planContent" class="hidden">
-        <p id="planNotice" class="notice"></p>
-        <h3 id="nowTitle"></h3>
-        <div class="meta-line">
-          <span id="nowMinutes"></span>
-          <span id="nowReason"></span>
-        </div>
+        <p id="planNotice" class="notice"></p><h3 id="nowTitle"></h3>
+        <div class="meta-line"><span id="nowMinutes"></span><span id="nowReason"></span></div>
         <ol id="nowSteps" class="steps"></ol>
-
-        <div class="secondary-grid">
-          <div>
-            <p class="label">NEXT</p>
-            <p id="nextTask" class="secondary-text">なし</p>
-          </div>
-          <div>
-            <p class="label">気力ゼロなら</p>
-            <p id="fallbackTask" class="secondary-text"></p>
-          </div>
-        </div>
-
-        <details class="skip-box">
-          <summary>今日は考えなくていいもの</summary>
-          <ul id="skipList"></ul>
-        </details>
+        <div class="secondary-grid"><div><p class="label">NEXT</p><p id="nextTask" class="secondary-text">なし</p></div><div><p class="label">気力ゼロなら</p><p id="fallbackTask" class="secondary-text"></p></div></div>
+        <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
     </section>
 
     <details id="jobsPanel" class="jobs-panel hidden">
-      <summary>
-        <span>ジョブ進捗</span>
-        <span id="jobsSummary" class="muted"></span>
-      </summary>
+      <summary><span>ジョブ進捗</span><span id="jobsSummary" class="muted"></span></summary>
       <div id="jobsGrid" class="jobs-grid"></div>
     </details>
 
     <section class="roadmap">
       <p class="label">BUILD STATUS</p>
-      <div class="roadmap-line">
-        <span class="done">Kanade Lodestone</span><span>→</span>
-        <span class="done">Ctrl+V SS</span><span>→</span>
-        <strong>もうすぐ達成</strong><span>→</span>
-        <span>Big Fish</span><span>→</span><span>Gemini Planner</span>
-      </div>
+      <div class="roadmap-line"><span class="done">Kanade Lodestone</span><span>→</span><span class="done">実績履歴同期</span><span>→</span><strong>未達実績照合</strong><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
     </section>
 
     <p id="statusMessage" class="status"></p>
   </main>
-
-  <script>
-    localStorage.setItem("ff14_today_lodestone_url", "https://na.finalfantasyxiv.com/lodestone/character/3091607/");
-    localStorage.setItem("ff14_today_ai_access_code", "ff14-today-single-user");
-
-    document.addEventListener("paste", event => {
-      const items = [...(event.clipboardData?.items || [])];
-      const imageItem = items.find(item => item.type && item.type.startsWith("image/"));
-      if (!imageItem) return;
-
-      const blob = imageItem.getAsFile();
-      if (!blob) return;
-
-      event.preventDefault();
-      const ext = blob.type === "image/jpeg" ? "jpg" : blob.type === "image/webp" ? "webp" : "png";
-      const file = new File([blob], `clipboard-${Date.now()}.${ext}`, { type: blob.type || "image/png" });
-      const transfer = new DataTransfer();
-      transfer.items.add(file);
-
-      const input = document.getElementById("achievementImage");
-      input.files = transfer.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-
-      const dropZone = document.getElementById("dropZone");
-      dropZone?.classList.add("dragging");
-      setTimeout(() => dropZone?.classList.remove("dragging"), 450);
-
-      const status = document.getElementById("statusMessage");
-      if (status) status.textContent = "SSを貼り付けました。解析を開始します。";
-
-      setTimeout(() => {
-        const analyze = document.getElementById("analyzeButton");
-        if (analyze && !analyze.disabled) analyze.click();
-      }, 80);
-    });
-  </script>
   <script src="/app.js" defer></script>
 </body>
 </html>
