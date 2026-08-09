@@ -181,7 +181,7 @@ async function syncEverything(force = false) {
     ]);
     renderCharacter(characterData.character);
     renderAchievements(achievementData.achievements);
-    setStatus(`Lodestone同期完了。アチーブメント ${achievementData.achievements.total_achievements.toLocaleString("ja-JP")}件を取得しました。`);
+    setStatus(`Lodestone同期完了。アチーブメント ${Number(achievementData.achievements.total_achievements).toLocaleString("ja-JP")}件を取得しました。`);
   } catch (error) {
     $("achievementSyncText").textContent = "同期失敗";
     setStatus(`Lodestone同期失敗: ${error.message}`, true);
@@ -233,5 +233,7 @@ $("planButton").addEventListener("click", async () => {
 });
 
 setActive();
-await loadSavedState();
-await syncEverything(false);
+void (async function boot() {
+  await loadSavedState();
+  await syncEverything(false);
+})();
