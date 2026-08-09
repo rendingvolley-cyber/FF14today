@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0f1217">
+  <meta name="description" content="Lodestone進捗とゲーム内スクリーンショットから、今日のFF14を決める個人向けプランナー。">
   <title>FF14 Today</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -14,23 +15,17 @@
         <p class="eyebrow">EORZEA PERSONAL PLANNER</p>
         <h1>FF14 Today</h1>
       </div>
+      <span class="version">v0.3</span>
     </header>
 
     <section class="connect-panel">
       <div class="connect-copy">
-        <p class="label">LODestone CHARACTER</p>
+        <p class="label">LODESTONE CHARACTER</p>
         <h2>自分のキャラを読み込む</h2>
-        <p class="muted">LodestoneのキャラクターページURLを貼るだけ。ブラウザごとに最後に使ったキャラを覚えます。</p>
+        <p class="muted">FF14公式LodestoneのキャラクターページURLを貼るだけ。最後に使ったキャラはこのブラウザにだけ記憶します。</p>
       </div>
       <form id="lodestoneForm" class="lodestone-form">
-        <input
-          id="lodestoneInput"
-          type="url"
-          inputmode="url"
-          autocomplete="url"
-          placeholder="https://na.finalfantasyxiv.com/lodestone/character/3091607/"
-          required
-        >
+        <input id="lodestoneInput" type="url" inputmode="url" autocomplete="url" placeholder="https://na.finalfantasyxiv.com/lodestone/character/3091607/" required>
         <button id="syncButton" class="primary-button" type="submit">読み込む</button>
       </form>
     </section>
@@ -59,7 +54,6 @@
             <button type="button" data-minutes="120">2時間+</button>
           </div>
         </div>
-
         <div>
           <p class="label">気力</p>
           <div id="energyChoices" class="energy">
@@ -74,59 +68,93 @@
       <button id="planButton" class="primary-button">今日やることを決める</button>
     </section>
 
-    <section id="nowPanel" class="now-panel hidden">
-      <div class="now-heading">
-        <span>NOW</span>
-        <span id="planKind" class="badge">READY</span>
+    <section id="evidencePanel" class="evidence-panel hidden">
+      <div class="evidence-head">
+        <div>
+          <p class="label">ACCURACY UP</p>
+          <h2>このページのSSを撮ってください</h2>
+        </div>
+        <span id="factCount" class="fact-count">実績 0件</span>
       </div>
 
+      <div class="request-card">
+        <div class="request-number">01</div>
+        <div class="request-main">
+          <h3 id="evidenceTitle" class="evidence-title">実績 → バトル</h3>
+          <p id="evidenceReason" class="muted"></p>
+          <ol id="evidenceSteps" class="evidence-steps"></ol>
+        </div>
+      </div>
+
+      <div class="import-grid">
+        <label id="dropZone" class="drop-zone" for="achievementImage">
+          <span class="drop-icon">＋</span>
+          <strong>SSをここへドロップ</strong>
+          <span>またはクリックして選択</span>
+          <small>PNG / JPEG / WebP・8MB以下</small>
+          <input id="achievementImage" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        </label>
+
+        <div class="ai-access">
+          <p class="label">AI IMPORT</p>
+          <label for="aiAccessCode">共有AIアクセスコード</label>
+          <input id="aiAccessCode" type="password" autocomplete="off" placeholder="管理者から共有されたコード">
+          <p class="privacy-note">Gemini APIキーそのものはブラウザへ配信しません。SS画像本体もD1には保存しません。</p>
+          <button id="analyzeButton" class="primary-button wide-button" type="button" disabled>SSを解析する</button>
+        </div>
+      </div>
+
+      <p id="selectedFile" class="selected-file">SS未選択</p>
+
+      <section id="importPreview" class="import-preview hidden">
+        <div class="preview-head">
+          <div>
+            <p class="label">IMPORT PREVIEW</p>
+            <h3 class="preview-title">読み取り結果を確認</h3>
+          </div>
+          <div id="importMeta" class="muted"></div>
+        </div>
+        <p class="preview-help">90%以上は自動選択。自信の低い行は勝手に登録しません。必要な行だけチェックしてください。</p>
+        <div id="candidateList" class="candidate-list"></div>
+        <div class="preview-actions">
+          <span id="previewSummary" class="muted"></span>
+          <button id="confirmImportButton" class="primary-button" type="button">選択した実績をインポート</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="nowPanel" class="now-panel hidden">
+      <div class="now-heading"><span>NOW</span><span id="planKind" class="badge">READY</span></div>
       <div id="emptyState" class="empty">
         <p class="big">今日はどれくらい遊べる？</p>
         <p>時間と気力を選んだら、やることはこちらで絞ります。</p>
       </div>
-
       <div id="planContent" class="hidden">
         <p id="planNotice" class="notice"></p>
         <h3 id="nowTitle"></h3>
-        <div class="meta-line">
-          <span id="nowMinutes"></span>
-          <span id="nowReason"></span>
-        </div>
+        <div class="meta-line"><span id="nowMinutes"></span><span id="nowReason"></span></div>
         <ol id="nowSteps" class="steps"></ol>
-
         <div class="secondary-grid">
-          <div>
-            <p class="label">NEXT</p>
-            <p id="nextTask" class="secondary-text">なし</p>
-          </div>
-          <div>
-            <p class="label">気力ゼロなら</p>
-            <p id="fallbackTask" class="secondary-text"></p>
-          </div>
+          <div><p class="label">NEXT</p><p id="nextTask" class="secondary-text">なし</p></div>
+          <div><p class="label">気力ゼロなら</p><p id="fallbackTask" class="secondary-text"></p></div>
         </div>
-
-        <details class="skip-box">
-          <summary>今日は考えなくていいもの</summary>
-          <ul id="skipList"></ul>
-        </details>
+        <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
     </section>
 
     <details id="jobsPanel" class="jobs-panel hidden">
-      <summary>
-        <span>ジョブ進捗</span>
-        <span id="jobsSummary" class="muted"></span>
-      </summary>
+      <summary><span>ジョブ進捗</span><span id="jobsSummary" class="muted"></span></summary>
       <div id="jobsGrid" class="jobs-grid"></div>
     </details>
 
     <section class="roadmap">
-      <p class="label">NEXT BUILD</p>
+      <p class="label">BUILD STATUS</p>
       <div class="roadmap-line">
         <span class="done">Lodestone URL</span><span>→</span>
-        <span class="done">複数キャラ</span><span>→</span>
-        <strong>実績SS Import</strong><span>→</span>
-        <span>Big Fish</span><span>→</span><span>Gemini</span>
+        <span class="done">匿名プロフィール</span><span>→</span>
+        <span class="done">実績SS Import</span><span>→</span>
+        <strong>実績データ照合</strong><span>→</span>
+        <span>Big Fish</span><span>→</span><span>Gemini Planner</span>
       </div>
     </section>
 
