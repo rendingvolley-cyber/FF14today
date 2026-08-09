@@ -34,10 +34,12 @@ jobs:
           node --check src/gather-window-wrapper.js
           node --check src/gather-ui-wrapper.js
           node --check src/grounded-discovery-wrapper.js
+          node --check src/retainer-market-wrapper.js
           node --check public/app.js
           node --check public/choice-reasons.js
           node --check public/context-inbox.js
           node --check public/gather-checklist.js
+          node --check public/retainer-advice.js
       - name: Context planning rules
         run: node scripts/test-context-opportunities.mjs
       - name: Measurable motive rules
