@@ -25,6 +25,17 @@ function normalizeCompletedDaily(value) {
   };
 }
 
+function normalizeCompletionCounts(value) {
+  const result = {};
+  if (!value || typeof value !== "object") return result;
+  for (const [key, count] of Object.entries(value)) {
+    const safeKey = String(key || "").trim();
+    const safeCount = Math.max(0, Math.min(99, Number(count) || 0));
+    if (safeKey) result[safeKey] = safeCount;
+  }
+  return result;
+}
+
 function asNow(method) {
   if (!method) return null;
   return {
@@ -33,7 +44,8 @@ function asNow(method) {
     title: method.title,
     minutes: method.minutes,
     reason: method.reason,
-    steps: method.steps
+    steps: method.steps,
+    repeat_count: method.repeat_count || 0
   };
 }
 
@@ -127,8 +139,27 @@ function fitToRemainingTime(methods, availableMinutes) {
   return methods.filter(method => Number(method.minutes || 0) <= minutes + 5);
 }
 
-function rerankMethods(methods) {
-  return methods.map((method, index) => ({ ...method, rank: index + 1 }));
+function applyRepeatPriority(methods, completionCounts) {
+  return methods
+    .map((method, baseIndex) => {
+      const repeatCount = completionCounts[method.task_key] || 0;
+      return {
+        ...method,
+        repeat_count: repeatCount,
+        badge: repeatCount > 0
+          ? `今日${repeatCount}回済み・再周回候補`
+          : method.badge,
+        _base_index: baseIndex
+      };
+    })
+    .sort((a, b) => {
+      const aRepeated = a.repeat_count > 0 ? 1 : 0;
+      const bRepeated = b.repeat_count > 0 ? 1 : 0;
+      return (aRepeated - bRepeated)
+        || (a.repeat_count - b.repeat_count)
+        || (a._base_index - b._base_index);
+    })
+    .map(({ _base_index, ...method }, index) => ({ ...method, rank: index + 1 }));
 }
 
 function completedLabel(completedDaily) {
@@ -141,7 +172,7 @@ function completedLabel(completedDaily) {
 function sessionCompletePlan(primary, availableMinutes, completedDaily, deferredMethod = null) {
   const remaining = Math.max(0, Math.round(Number(availableMinutes) || 0));
   return {
-    planner_kind: "session-complete-v0.8",
+    planner_kind: "session-complete-v0.8.1",
     session_complete: true,
     remaining_minutes: remaining,
     notice: deferredMethod
@@ -158,29 +189,34 @@ function sessionCompletePlan(primary, availableMinutes, completedDaily, deferred
   };
 }
 
-function concreteCombatPlan(character, availableMinutes, energy, completedDailyInput) {
+function concreteCombatPlan(character, availableMinutes, energy, completedDailyInput, completionCountsInput) {
   const primary = pickPrimaryCombatJob(character);
   if (!primary) return null;
 
   const completedDaily = normalizeCompletedDaily(completedDailyInput);
+  const completionCounts = normalizeCompletionCounts(completionCountsInput);
   const duty = dungeonForLevel(primary.level);
   const afterDaily = removeCompletedDaily(makeMethods(primary, duty), completedDaily);
   if (!afterDaily.length) return sessionCompletePlan(primary, availableMinutes, completedDaily);
 
-  const methods = rerankMethods(fitToRemainingTime(afterDaily, availableMinutes));
-  if (!methods.length) return sessionCompletePlan(primary, availableMinutes, completedDaily, afterDaily[0]);
+  const fits = fitToRemainingTime(afterDaily, availableMinutes);
+  if (!fits.length) return sessionCompletePlan(primary, availableMinutes, completedDaily, afterDaily[0]);
 
+  const methods = applyRepeatPriority(fits, completionCounts);
   const recommended = methods[0];
   const completed = completedLabel(completedDaily);
   const completionNote = completed.length
     ? ` ${completed.join("・")}を除外して並べ替え済み。`
     : " 日課チェックはまだ未完了。";
+  const repeatNote = recommended.repeat_count > 0
+    ? " 別候補が無いため再周回が先頭ですが、同じTODOの2回目以降は別候補が追加された時点で自動的に下へ降がります。"
+    : " 今日すでに完了したTODOは優先度を下げています。";
 
   return {
-    planner_kind: "complete-next-v0.8",
+    planner_kind: "complete-next-v0.8.1",
     session_complete: false,
     remaining_minutes: Math.max(0, Math.round(Number(availableMinutes) || 0)),
-    notice: `Lv${primary.level} ${primary.name_ja}向け。${completionNote}終わったら「✓ 完了！」だけ押せば次へ進みます。`,
+    notice: `Lv${primary.level} ${primary.name_ja}向け。${completionNote}${repeatNote} 終わったら「✓ 完了！」だけ押せば次へ進みます。`,
     focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
     completed_daily: completedDaily,
     methods,
@@ -196,16 +232,29 @@ function concreteCombatPlan(character, availableMinutes, energy, completedDailyI
       reason: "気力が落ちたら、候補を探し直さず今表示されている最後の候補の入口まで進めばOK。"
     },
     skip_today: [
+      "同じTODOの2回目を、別候補があるのに最優先へ置く",
       "完了後にもう一度「今日やることを決める」を押す",
       "チェック済みの日課をもう一度おすすめ候補として考える",
-      "攻略サイトを何個も開いて効率比較する",
-      "別ジョブの育成先をその場で考え直す"
+      "攻略サイトを何個も開いて効率比較する"
     ]
   };
 }
 
-export function makeConcretePlan(character, availableMinutes, energy, basePlan = null, completedDaily = null) {
-  const combat = concreteCombatPlan(character, availableMinutes, energy, completedDaily);
+export function makeConcretePlan(
+  character,
+  availableMinutes,
+  energy,
+  basePlan = null,
+  completedDaily = null,
+  completionCounts = null
+) {
+  const combat = concreteCombatPlan(
+    character,
+    availableMinutes,
+    energy,
+    completedDaily,
+    completionCounts
+  );
   if (combat) return combat;
   return basePlan;
 }
