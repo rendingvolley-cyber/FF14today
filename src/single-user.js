@@ -4,6 +4,8 @@ import {
   syncLodestoneAchievements
 } from "./lodestone-achievements.js";
 import { makeConcretePlan } from "./concrete-plan.js";
+import { analyzeDecisionContextImage, getDecisionContext } from "./context-image.js";
+import { applyDecisionContextToPlan } from "./context-opportunities.js";
 
 const OWNER_LODESTONE_ID = "3091607";
 const OWNER_LODESTONE_URL = "https://jp.finalfantasyxiv.com/lodestone/character/3091607/";
@@ -162,7 +164,7 @@ async function rewriteStateResponse(response, env, completedDaily, mode) {
   return json(data, response.status);
 }
 
-async function rewritePlanResponse(response, env, payload) {
+async function rewritePlanResponse(response, env, payload, decisionContext) {
   const type = response.headers.get("content-type") || "";
   if (!type.includes("application/json")) return response;
 
@@ -178,7 +180,7 @@ async function rewritePlanResponse(response, env, payload) {
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
       const completionCounts = await getTaskCompletionCountsToday(env);
       const mode = normalizeMode(payload.planner_mode);
-      data.plan = makeConcretePlan(
+      const concrete = makeConcretePlan(
         character,
         minutes,
         energy,
@@ -187,6 +189,7 @@ async function rewritePlanResponse(response, env, payload) {
         completionCounts,
         mode
       );
+      data.plan = applyDecisionContextToPlan(concrete, decisionContext, mode, minutes);
     }
   }
 
@@ -286,7 +289,7 @@ async function rewriteApiRequest(request, env) {
     return json({
       ok: true,
       service: "ff14-today",
-      version: "0.9.0",
+      version: "1.4.0",
       single_user: true,
       owner_lodestone_id: OWNER_LODESTONE_ID,
       lodestone_achievements: true,
@@ -297,7 +300,10 @@ async function rewriteApiRequest(request, env) {
       task_completion: true,
       activity_history: true,
       repeat_priority_penalty: true,
-      screenshot_import: false
+      screenshot_import: false,
+      decision_context_images: true,
+      journal_context: true,
+      gear_stat_context: true
     });
   }
 
@@ -325,6 +331,7 @@ async function rewriteApiRequest(request, env) {
     try { payload = await request.clone().json(); } catch {}
     payload.lodestone_id = OWNER_LODESTONE_ID;
     payload.planner_mode = normalizeMode(payload.planner_mode);
+    const decisionContext = await getDecisionContext(request, env);
 
     const requestedMinutes = clampNumber(payload.available_minutes, 60, 0, 240);
     if (requestedMinutes < 15) {
@@ -332,7 +339,7 @@ async function rewriteApiRequest(request, env) {
       if (!character) return json({ error: "Sync Lodestone first." }, 409);
       const completedDaily = normalizeCompletedDaily(payload.completed_daily);
       const completionCounts = await getTaskCompletionCountsToday(env);
-      const plan = makeConcretePlan(
+      const concrete = makeConcretePlan(
         character,
         requestedMinutes,
         clampNumber(payload.energy, 2, 1, 5),
@@ -341,6 +348,7 @@ async function rewriteApiRequest(request, env) {
         completionCounts,
         payload.planner_mode
       );
+      const plan = applyDecisionContextToPlan(concrete, decisionContext, payload.planner_mode, requestedMinutes);
       return json({ ok: true, plan });
     }
 
@@ -352,7 +360,15 @@ async function rewriteApiRequest(request, env) {
       body: JSON.stringify(payload)
     });
     const response = await app.fetch(rewritten, singleUserEnv(env));
-    return rewritePlanResponse(response, env, payload);
+    return rewritePlanResponse(response, env, payload, decisionContext);
+  }
+
+  if (url.pathname === "/api/context/image" && request.method === "POST") {
+    return json(await analyzeDecisionContextImage(request, env));
+  }
+
+  if (url.pathname === "/api/context" && request.method === "GET") {
+    return json({ ok: true, context: await getDecisionContext(request, env) });
   }
 
   if (url.pathname === "/api/activity/complete" && request.method === "POST") {
@@ -392,10 +408,11 @@ export default {
       try {
         return await rewriteApiRequest(request, env);
       } catch (error) {
+        const status = Number(error?.status) || 500;
         return json({
-          error: "Server error",
-          detail: error?.message || String(error)
-        }, 500);
+          error: status >= 500 ? "Server error" : (error?.message || "Request failed"),
+          detail: status >= 500 ? (error?.message || String(error)) : undefined
+        }, status);
       }
     }
     return env.ASSETS.fetch(request);

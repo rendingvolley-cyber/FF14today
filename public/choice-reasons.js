@@ -4,7 +4,8 @@ function activeMode() {
   return document.querySelector('#modeChoices [data-mode].active')?.dataset.mode || 'efficient';
 }
 
-function purposeFor(title, mode) {
+function purposeFor(title, mode, badge = '') {
+  if (badge.includes('ジャーナル')) return '進行中のジャーナル項目を、調べ直さず1段階進める';
   if (mode === 'craft') return '製作の進捗を作る';
   if (mode === 'gather') return title.includes('釣') ? '釣り・魚図鑑を進める' : '採集の進捗を作る';
   if (mode === 'discover') return '普段触れていない遊びを見つける';
@@ -12,7 +13,8 @@ function purposeFor(title, mode) {
   return '今のプレイ時間で進捗を作る';
 }
 
-function whyNowFor(title, reason, mode) {
+function whyNowFor(title, reason, mode, badge = '') {
+  if (badge.includes('ジャーナル')) return reason || '貼り付けたジャーナルに現在進行中として表示されているため。';
   if (mode === 'efficient') {
     const levelingDone = Boolean($('dailyLeveling')?.checked);
     const allianceDone = Boolean($('dailyAlliance')?.checked);
@@ -32,7 +34,12 @@ function whyNowFor(title, reason, mode) {
   return reason || '現在のカテゴリ・残り時間・進捗から候補に入ったため。';
 }
 
-function rankReason(rank, title, condition) {
+function rankReason(rank, title, condition, badge = '') {
+  if (badge.includes('ジャーナル')) {
+    return rank === 1
+      ? '貼り付けたジャーナル情報と現在の候補を比較した結果、いま着手する候補として先頭に入った。'
+      : '現在進行中の実タスクなので、普段のおすすめとは別の実行可能な選択肢として残している。';
+  }
   if (rank === 1) {
     if (title.includes('再周回') || condition.includes('再周回')) {
       return '今日すでに触っていても、同カテゴリ内でまだ効率が高いため#1に残っている。';
@@ -56,20 +63,30 @@ function addRow(box, label, text) {
   box.append(row);
 }
 
+function splitCondition(value) {
+  const raw = String(value || '').replace(/^選ぶ条件：/, '').trim();
+  if (!raw.includes('｜装備判定：')) return { condition: raw, gear: '' };
+  const [condition, gear] = raw.split('｜装備判定：', 2);
+  return { condition: condition.trim(), gear: gear.trim() };
+}
+
 function enhanceCard(card, rank) {
   if (card.dataset.reasonEnhanced === '1') return;
   const title = card.querySelector('h3,.alternative-title')?.textContent?.trim() || 'この候補';
+  const badge = card.querySelector('.method-badge')?.textContent?.trim() || '';
   const reasonNode = card.querySelector('.method-reason');
   const conditionNode = card.querySelector('.method-condition');
   const reason = reasonNode?.textContent?.trim() || '';
-  const condition = (conditionNode?.textContent || '').replace(/^選ぶ条件：/, '').trim();
+  const split = splitCondition(conditionNode?.textContent || '');
+  const condition = split.condition;
   const mode = activeMode();
 
   const box = document.createElement('div');
   box.className = 'choice-reason-box';
-  addRow(box, '目的', purposeFor(title, mode));
-  addRow(box, 'なぜ今？', whyNowFor(title, reason, mode));
-  addRow(box, 'この順位の理由', rankReason(rank, title, condition));
+  addRow(box, '目的', purposeFor(title, mode, badge));
+  addRow(box, 'なぜ今？', whyNowFor(title, reason, mode, badge));
+  addRow(box, 'この順位の理由', rankReason(rank, title, condition, badge));
+  if (split.gear) addRow(box, '装備チェック', split.gear);
   if (condition) addRow(box, '向いている時', condition);
 
   const firstStep = card.querySelector('.first-step-nudge');
