@@ -28,6 +28,7 @@ jobs:
           node --check src/lodestone-achievements.js
           node --check src/concrete-plan.js
           node --check public/app.js
+          node --check public/completion-shelf.js
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
       - name: Secret pattern scan
