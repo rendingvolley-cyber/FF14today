@@ -30,11 +30,14 @@ jobs:
           node --check src/context-image.js
           node --check src/context-history-wrapper.js
           node --check src/context-opportunities.js
+          node --check src/measurable-motive-wrapper.js
           node --check public/app.js
           node --check public/choice-reasons.js
           node --check public/context-inbox.js
       - name: Context planning rules
         run: node scripts/test-context-opportunities.mjs
+      - name: Measurable motive rules
+        run: node scripts/test-measurable-motives.mjs
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
       - name: Secret pattern scan

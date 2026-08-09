@@ -33,7 +33,15 @@ function statSummary(analysis) {
     const first = entries[0]?.title ? `「${entries[0].title}」など` : "";
     return `ジャーナルから ${entries.length}件 ${first}を判断材料に追加しました。`;
   }
-  return "この画像はジャーナル/製作ステータス/採集ステータスとして確定できませんでした。";
+  if (analysis.page_type === "achievement_progress") {
+    const entries = analysis.achievement_entries || [];
+    const first = entries[0];
+    if (first?.name && Number.isInteger(first.current) && Number.isInteger(first.target)) {
+      return `アチーブメント進捗を保存：「${first.name}」 ${first.current}/${first.target}。おすすめの残り回数計算に使います。`;
+    }
+    return `アチーブメント画面から ${entries.length}件を判断材料に追加しました。`;
+  }
+  return "この画像はジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
 
 function renderSavedContext(context) {
@@ -43,6 +51,14 @@ function renderSavedContext(context) {
   const journal = context?.journal;
   if (journal?.journal_entries?.length) {
     chips.push(`ジャーナル ${journal.journal_entries.length}件`);
+  }
+  const achievement = context?.achievement_progress;
+  if (achievement?.achievement_entries?.length) {
+    const entry = achievement.achievement_entries[0];
+    const progress = Number.isInteger(entry?.current) && Number.isInteger(entry?.target)
+      ? ` ${entry.current}/${entry.target}`
+      : "";
+    chips.push(`実績：${entry?.name || `${achievement.achievement_entries.length}件`}${progress}`);
   }
   const crafter = context?.crafter_stats?.crafter_stats;
   if (crafter) {
@@ -82,7 +98,7 @@ async function uploadImage(file) {
     setInboxState("画像が8MBを超えています。", "error");
     return;
   }
-  setInboxState("画像を解析中… ジャーナルか装備ステータスかを判定しています。", "working");
+  setInboxState("画像を解析中… ジャーナル・実績進捗・装備ステータスを自動判定しています。", "working");
   const box = $("contextInbox");
   box?.classList.add("working");
   try {
@@ -122,7 +138,7 @@ document.addEventListener("paste", event => {
 
 $("contextInbox")?.addEventListener("click", () => {
   $("contextInbox")?.focus();
-  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。画像種別は自動判定します。", "idle");
+  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。ジャーナル・実績進捗・装備情報を自動判定します。", "idle");
 });
 
 void loadSavedContext();
