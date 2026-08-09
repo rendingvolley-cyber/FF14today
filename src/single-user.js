@@ -23,6 +23,20 @@ function singleUserEnv(env) {
   return env;
 }
 
+function normalizeCompletedDaily(value) {
+  return {
+    leveling: Boolean(value?.leveling),
+    alliance: Boolean(value?.alliance)
+  };
+}
+
+function completedDailyFromUrl(url) {
+  return normalizeCompletedDaily({
+    leveling: url.searchParams.get("completed_leveling") === "1",
+    alliance: url.searchParams.get("completed_alliance") === "1"
+  });
+}
+
 async function getOwnerCharacter(env) {
   const row = await env.DB.prepare(`
     SELECT lodestone_id, lodestone_url, name, world, data_center, jobs_json,
@@ -46,7 +60,7 @@ async function getOwnerCharacter(env) {
   };
 }
 
-async function rewriteStateResponse(response) {
+async function rewriteStateResponse(response, completedDaily) {
   const type = response.headers.get("content-type") || "";
   if (!type.includes("application/json")) return response;
 
@@ -57,7 +71,7 @@ async function rewriteStateResponse(response) {
   if (data?.character && data?.plan) {
     const minutes = Number(data.preferences?.available_minutes) || 60;
     const energy = Number(data.preferences?.energy) || 2;
-    data.plan = makeConcretePlan(data.character, minutes, energy, data.plan);
+    data.plan = makeConcretePlan(data.character, minutes, energy, data.plan, completedDaily);
   }
 
   return json(data, response.status);
@@ -76,7 +90,8 @@ async function rewritePlanResponse(response, env, payload) {
     if (character) {
       const minutes = Math.max(15, Math.min(240, Number(payload.available_minutes) || 60));
       const energy = Math.max(1, Math.min(5, Number(payload.energy) || 2));
-      data.plan = makeConcretePlan(character, minutes, energy, data.plan);
+      const completedDaily = normalizeCompletedDaily(payload.completed_daily);
+      data.plan = makeConcretePlan(character, minutes, energy, data.plan, completedDaily);
     }
   }
 
@@ -90,20 +105,22 @@ async function rewriteApiRequest(request, env) {
     return json({
       ok: true,
       service: "ff14-today",
-      version: "0.7.0",
+      version: "0.7.2",
       single_user: true,
       owner_lodestone_id: OWNER_LODESTONE_ID,
       lodestone_achievements: true,
       concrete_planner: true,
       ranked_methods: 3,
+      daily_checklist: true,
       screenshot_import: false
     });
   }
 
   if (url.pathname === "/api/state" && request.method === "GET") {
+    const completedDaily = completedDailyFromUrl(url);
     url.searchParams.set("lodestone_id", OWNER_LODESTONE_ID);
     const response = await app.fetch(new Request(url.toString(), request), singleUserEnv(env));
-    return rewriteStateResponse(response);
+    return rewriteStateResponse(response, completedDaily);
   }
 
   if (url.pathname === "/api/sync" && request.method === "POST") {
