@@ -18,6 +18,13 @@ function dungeonForLevel(level) {
   return LEVELING_DUNGEONS_90_100.find(duty => level >= duty.min && level <= duty.max) || null;
 }
 
+function normalizeCompletedDaily(value) {
+  return {
+    leveling: Boolean(value?.leveling),
+    alliance: Boolean(value?.alliance)
+  };
+}
+
 function asNow(method) {
   return {
     title: method.title,
@@ -27,9 +34,9 @@ function asNow(method) {
   };
 }
 
-function rouletteMethod(job, rank, kind, badge, minutes, reason) {
+function rouletteMethod(job, dailyKey, kind, badge, minutes, reason) {
   return {
-    rank,
+    daily_key: dailyKey,
     badge,
     title: `${job.name_ja}で「コンテンツルーレット：${kind}」を1回`,
     minutes,
@@ -39,16 +46,17 @@ function rouletteMethod(job, rank, kind, badge, minutes, reason) {
       `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
       "メニュー → コンテンツ情報 → コンテンツファインダー",
       `コンテンツルーレット → 「${kind}」を選択`,
-      "1回だけ申請してクリア"
+      "1回だけ申請してクリア",
+      `終わったら上の「${kind}済み」にチェック`
     ]
   };
 }
 
-function repeatDungeonMethod(job, duty, rank = 3) {
+function repeatDungeonMethod(job, duty) {
   if (!duty) return null;
   const dps = DPS_ROLES.has(job.role);
   return {
-    rank,
+    daily_key: null,
     badge: dps ? "日課後の反復" : "日課後の本命",
     title: `${job.name_ja}で「${duty.name}」を1周`,
     minutes: dps ? 35 : 25,
@@ -78,53 +86,79 @@ function makeMethods(job, duty) {
   const methods = [
     rouletteMethod(
       job,
-      1,
+      "leveling",
       "レベリング",
       "今日まだなら最優先",
       30,
       "1日1回の経験値ボーナスを先に取る。まずここを消化してから反復周回を考える。"
-    ),
-    rouletteMethod(
-      job,
-      2,
-      "アライアンスレイド",
-      "日課の次点",
-      35,
-      "アライアンスレイドは個別コンテンツ周回ではなく、ルーレットの日次ボーナス目的で1回だけ使う。"
     )
   ];
 
-  const dungeon = repeatDungeonMethod(job, duty, 3);
+  if (job.level >= 50) {
+    methods.push(
+      rouletteMethod(
+        job,
+        "alliance",
+        "アライアンスレイド",
+        "日課の次点",
+        35,
+        "アライアンスレイドは個別コンテンツ周回ではなく、ルーレットの日次ボーナス目的で1回だけ使う。"
+      )
+    );
+  }
+
+  const dungeon = repeatDungeonMethod(job, duty);
   if (dungeon) methods.push(dungeon);
   return methods;
 }
 
-function concreteCombatPlan(character, availableMinutes, energy) {
+function rerankMethods(methods, completedDaily) {
+  return methods
+    .filter(method => !method.daily_key || !completedDaily[method.daily_key])
+    .map((method, index) => ({ ...method, rank: index + 1 }));
+}
+
+function completedLabel(completedDaily) {
+  const done = [];
+  if (completedDaily.leveling) done.push("レベルレ済み");
+  if (completedDaily.alliance) done.push("アラルレ済み");
+  return done;
+}
+
+function concreteCombatPlan(character, availableMinutes, energy, completedDailyInput) {
   const primary = pickPrimaryCombatJob(character);
   if (!primary) return null;
 
+  const completedDaily = normalizeCompletedDaily(completedDailyInput);
   const duty = dungeonForLevel(primary.level);
-  const methods = makeMethods(primary, duty);
+  const methods = rerankMethods(makeMethods(primary, duty), completedDaily);
   if (!methods.length) return null;
 
   const recommended = methods[0];
+  const completed = completedLabel(completedDaily);
+  const completionNote = completed.length
+    ? ` ${completed.join("・")}を除外して並べ替え済み。`
+    : " 日課チェックはまだ未完了。";
+
   return {
-    planner_kind: "concrete-3ways-v0.7.1",
-    notice: `Lv${primary.level} ${primary.name_ja}向け。#1だけ大きく表示し、#2/#3は代替案として下に置きます。`,
+    planner_kind: "concrete-3ways-v0.7.2",
+    notice: `Lv${primary.level} ${primary.name_ja}向け。${completionNote}#1だけ見ればOK。`,
     focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
+    completed_daily: completedDaily,
     methods,
     now: asNow(recommended),
     next: availableMinutes >= 60 && methods[1] ? {
       title: methods[1].title,
       minutes: methods[1].minutes,
-      reason: `#1が消化済み、または終わってまだ遊べる時だけ。${methods[1].condition}`
+      reason: `#1が終わってまだ遊べる時だけ。${methods[1].condition || "次の候補。"}`
     } : null,
     fallback: {
-      title: methods[2]?.title || `${primary.name_ja}に着替えるだけ`,
+      title: methods[methods.length - 1]?.title || `${primary.name_ja}に着替えるだけ`,
       minutes: 2,
-      reason: "気力が落ちたら、候補を探し直さず#3の入口まで進めばOK。"
+      reason: "気力が落ちたら、候補を探し直さず今表示されている最後の候補の入口まで進めばOK。"
     },
     skip_today: [
+      "チェック済みの日課をもう一度おすすめ候補として考える",
       "アグライア等の特定アライアンスを経験値目的で周回する",
       "攻略サイトを何個も開いて効率比較する",
       "別ジョブの育成先をその場で考え直す"
@@ -132,8 +166,8 @@ function concreteCombatPlan(character, availableMinutes, energy) {
   };
 }
 
-export function makeConcretePlan(character, availableMinutes, energy, basePlan = null) {
-  const combat = concreteCombatPlan(character, availableMinutes, energy);
+export function makeConcretePlan(character, availableMinutes, energy, basePlan = null, completedDaily = null) {
+  const combat = concreteCombatPlan(character, availableMinutes, energy, completedDaily);
   if (combat) return combat;
   return basePlan;
 }
