@@ -15,7 +15,7 @@
         <p class="eyebrow">EORZEA PERSONAL PLANNER</p>
         <h1>FF14 Today</h1>
       </div>
-      <span class="version">v0.4 · PERSONAL</span>
+      <span class="version">v0.5 · PERSONAL</span>
     </header>
 
     <section class="connect-panel">
@@ -73,7 +73,7 @@
       <div class="evidence-head">
         <div>
           <p class="label">ACCURACY UP</p>
-          <h2>このページのSSを撮ってください</h2>
+          <h2>スクショしたら、そのまま Ctrl+V</h2>
         </div>
         <span id="factCount" class="fact-count">実績 0件</span>
       </div>
@@ -81,18 +81,23 @@
       <div class="request-card">
         <div class="request-number">01</div>
         <div class="request-main">
-          <h3 id="evidenceTitle" class="evidence-title">実績 → バトル</h3>
-          <p id="evidenceReason" class="muted"></p>
-          <ol id="evidenceSteps" class="evidence-steps"></ol>
+          <h3 id="evidenceTitle" class="evidence-title">実績 → もうすぐ達成！</h3>
+          <p id="evidenceReason" class="muted">全実績を順番に撮る必要はありません。まず今日の候補になりやすい実績だけ拾います。</p>
+          <ol id="evidenceSteps" class="evidence-steps">
+            <li>FF14で「実績」画面を開く</li>
+            <li>上の「もうすぐ達成！」タブを選ぶ</li>
+            <li>いま見えている範囲を1枚スクショする</li>
+            <li>ブラウザへ戻って Ctrl+V</li>
+          </ol>
         </div>
       </div>
 
       <div class="import-grid">
         <label id="dropZone" class="drop-zone" for="achievementImage">
           <span class="drop-icon">＋</span>
-          <strong>SSをここへドロップ</strong>
-          <span>またはクリックして選択</span>
-          <small>PNG / JPEG / WebP・8MB以下</small>
+          <strong>Ctrl+V でSSを貼り付け</strong>
+          <span>貼り付けたら自動で解析開始</span>
+          <small>ドラッグ＆ドロップ / クリック選択も残しています</small>
           <input id="achievementImage" type="file" accept="image/png,image/jpeg,image/webp" hidden>
         </label>
 
@@ -173,8 +178,8 @@
       <p class="label">BUILD STATUS</p>
       <div class="roadmap-line">
         <span class="done">Kanade Lodestone</span><span>→</span>
-        <span class="done">実績SS Import</span><span>→</span>
-        <strong>実績データ照合</strong><span>→</span>
+        <span class="done">Ctrl+V SS</span><span>→</span>
+        <strong>もうすぐ達成</strong><span>→</span>
         <span>Big Fish</span><span>→</span><span>Gemini Planner</span>
       </div>
     </section>
@@ -185,6 +190,37 @@
   <script>
     localStorage.setItem("ff14_today_lodestone_url", "https://na.finalfantasyxiv.com/lodestone/character/3091607/");
     localStorage.setItem("ff14_today_ai_access_code", "ff14-today-single-user");
+
+    document.addEventListener("paste", event => {
+      const items = [...(event.clipboardData?.items || [])];
+      const imageItem = items.find(item => item.type && item.type.startsWith("image/"));
+      if (!imageItem) return;
+
+      const blob = imageItem.getAsFile();
+      if (!blob) return;
+
+      event.preventDefault();
+      const ext = blob.type === "image/jpeg" ? "jpg" : blob.type === "image/webp" ? "webp" : "png";
+      const file = new File([blob], `clipboard-${Date.now()}.${ext}`, { type: blob.type || "image/png" });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+
+      const input = document.getElementById("achievementImage");
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+
+      const dropZone = document.getElementById("dropZone");
+      dropZone?.classList.add("dragging");
+      setTimeout(() => dropZone?.classList.remove("dragging"), 450);
+
+      const status = document.getElementById("statusMessage");
+      if (status) status.textContent = "SSを貼り付けました。解析を開始します。";
+
+      setTimeout(() => {
+        const analyze = document.getElementById("analyzeButton");
+        if (analyze && !analyze.disabled) analyze.click();
+      }, 80);
+    });
   </script>
   <script src="/app.js" defer></script>
 </body>

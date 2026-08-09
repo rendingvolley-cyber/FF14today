@@ -5,6 +5,18 @@ const OWNER_LODESTONE_URL = "https://na.finalfantasyxiv.com/lodestone/character/
 const INTERNAL_AI_ACCESS_CODE = "ff14-today-single-user";
 const DAILY_AI_LIMIT = 20;
 
+const OWNER_EVIDENCE_REQUEST = {
+  kind: "achievement_screenshot",
+  title: "実績 → もうすぐ達成！",
+  reason: "全実績を順番に撮る必要はありません。今日やる候補になりやすい、達成が近い実績だけ先に読み取ります。",
+  instructions: [
+    "FF14で「実績」画面を開く",
+    "上の「もうすぐ達成！」タブを選ぶ",
+    "いま見えている範囲を1枚スクショする",
+    "ブラウザへ戻って Ctrl+V でそのまま貼り付ける"
+  ]
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -27,6 +39,24 @@ function singleUserEnv(env) {
       if (prop === "AI_ACCESS_CODE") return INTERNAL_AI_ACCESS_CODE;
       return Reflect.get(target, prop, receiver);
     }
+  });
+}
+
+async function withOwnerEvidence(response) {
+  const type = response.headers.get("content-type") || "";
+  if (!type.includes("application/json")) return response;
+
+  let data;
+  try { data = await response.clone().json(); }
+  catch { return response; }
+
+  if (data?.progress_summary) {
+    data.progress_summary.evidence_request = OWNER_EVIDENCE_REQUEST;
+  }
+
+  return new Response(JSON.stringify(data, null, 2), {
+    status: response.status,
+    headers: response.headers
   });
 }
 
@@ -65,10 +95,11 @@ async function rewriteApiRequest(request, env) {
     return json({
       ok: true,
       service: "ff14-today",
-      version: "0.4.0",
+      version: "0.5.0",
       single_user: true,
       owner_lodestone_id: OWNER_LODESTONE_ID,
       screenshot_import: true,
+      clipboard_paste: true,
       gemini_secret_configured: Boolean(env.GEMINI_API_KEY),
       daily_ai_limit: DAILY_AI_LIMIT
     });
@@ -76,7 +107,8 @@ async function rewriteApiRequest(request, env) {
 
   if (url.pathname === "/api/state" && request.method === "GET") {
     url.searchParams.set("lodestone_id", OWNER_LODESTONE_ID);
-    return app.fetch(new Request(url.toString(), request), singleUserEnv(env));
+    const response = await app.fetch(new Request(url.toString(), request), singleUserEnv(env));
+    return withOwnerEvidence(response);
   }
 
   if (url.pathname === "/api/sync" && request.method === "POST") {
@@ -87,7 +119,8 @@ async function rewriteApiRequest(request, env) {
       headers,
       body: JSON.stringify({ lodestone_url: OWNER_LODESTONE_URL })
     });
-    return app.fetch(rewritten, singleUserEnv(env));
+    const response = await app.fetch(rewritten, singleUserEnv(env));
+    return withOwnerEvidence(response);
   }
 
   if (url.pathname === "/api/plan" && request.method === "POST") {
@@ -134,7 +167,8 @@ async function rewriteApiRequest(request, env) {
   }
 
   if (url.pathname === "/api/achievement-import/confirm" && request.method === "POST") {
-    return app.fetch(request, singleUserEnv(env));
+    const response = await app.fetch(request, singleUserEnv(env));
+    return withOwnerEvidence(response);
   }
 
   return app.fetch(request, singleUserEnv(env));
