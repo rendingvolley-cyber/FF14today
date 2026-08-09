@@ -7,6 +7,11 @@ const LEVELING_DUNGEONS_90_100 = [
 ];
 
 const DPS_ROLES = new Set(["melee", "ranged", "caster"]);
+const MODES = new Set(["efficient", "craft", "gather"]);
+
+function normalizeMode(value) {
+  return MODES.has(value) ? value : "efficient";
+}
 
 function pickHighestJob(character, predicate) {
   return (character?.jobs || [])
@@ -15,10 +20,7 @@ function pickHighestJob(character, predicate) {
 }
 
 function pickPrimaryCombatJob(character) {
-  return pickHighestJob(
-    character,
-    job => !["crafter", "gatherer", "limited"].includes(job.role)
-  );
+  return pickHighestJob(character, job => !["crafter", "gatherer", "limited"].includes(job.role));
 }
 
 function pickCrafterJob(character) {
@@ -26,11 +28,8 @@ function pickCrafterJob(character) {
 }
 
 function pickGathererJob(character) {
-  const nonFisher = pickHighestJob(
-    character,
-    job => job.role === "gatherer" && job.code !== "FSH"
-  );
-  return nonFisher || pickHighestJob(character, job => job.role === "gatherer");
+  return pickHighestJob(character, job => job.role === "gatherer" && job.code !== "FSH")
+    || pickHighestJob(character, job => job.role === "gatherer");
 }
 
 function dungeonForLevel(level) {
@@ -70,7 +69,6 @@ function asNow(method) {
   return {
     task_key: method.task_key,
     daily_key: method.daily_key,
-    lane: method.lane,
     title: method.title,
     minutes: method.minutes,
     reason: method.reason,
@@ -81,7 +79,6 @@ function asNow(method) {
 
 function rouletteMethod(job, dailyKey, kind, badge, minutes, reason) {
   return withJob({
-    lane: "combat",
     task_key: `roulette:${dailyKey}`,
     daily_key: dailyKey,
     badge,
@@ -94,7 +91,7 @@ function rouletteMethod(job, dailyKey, kind, badge, minutes, reason) {
       "メニュー → コンテンツ情報 → コンテンツファインダー",
       `コンテンツルーレット → 「${kind}」を選択`,
       "1回だけ申請してクリア",
-      "終わったらこのカードの「✓ 完了！」を押す"
+      "終わったら「✓ 完了！」"
     ]
   }, job);
 }
@@ -103,114 +100,158 @@ function repeatDungeonMethod(job, duty) {
   if (!duty) return null;
   const dps = DPS_ROLES.has(job.role);
   return withJob({
-    lane: "combat",
     task_key: `leveling-dungeon:${job.code}:${duty.level}`,
     daily_key: null,
-    badge: "効率本命・戦闘",
+    badge: "日課後の反復",
     title: `${job.name_ja}で「${duty.name}」を1周`,
     minutes: dps ? 35 : 25,
-    reason: dps
-      ? `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課ボーナス後の経験値効率を優先したい時の候補。DPSで待ちたくない時は同じIDをコンテンツサポーターで開始できる。`
-      : `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課ボーナス後の経験値効率を優先したい時の候補。`,
+    reason: `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課後も経験値を優先したい時の反復候補。`,
     condition: dps
-      ? `「${duty.name}」解放済み。CF待ちが気にならなければCF、すぐ始めたいならコンテンツサポーター`
-      : `「${duty.name}」解放済みならCFで1周`,
+      ? `CF待ちを許容できればCF、すぐ始めたいならコンテンツサポーター`
+      : `解放済みならCFで1周`,
     steps: dps
       ? [
           `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
           `コンテンツファインダーで「${duty.name}」を確認`,
-          "待ち時間を許容できるならそのままCFで1周",
-          `すぐ始めたいなら メニュー → コンテンツ情報 → コンテンツサポーター → 「${duty.name}」`,
-          "どちらか片方で1周したら「✓ 完了！」"
+          "待てるならCF、すぐ始めるならコンテンツサポーターを選ぶ",
+          "1周したら「✓ 完了！」"
         ]
       : [
           `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
           `コンテンツファインダーで「${duty.name}」を選択`,
-          "1回申請してクリア",
-          "終わったら「✓ 完了！」"
+          "1周したら「✓ 完了！」"
         ]
   }, job);
 }
 
-function crafterMethod(job) {
-  if (!job) return null;
-  return withJob({
-    lane: "craft",
-    task_key: `craft-log:${job.code}:${job.level}`,
-    daily_key: null,
-    badge: "作る・別方向",
-    title: `${job.name_ja}で製作手帳を20分だけ進める`,
-    minutes: 20,
-    reason: "戦闘の気分じゃない時の別方向。効率競争より、手帳に見える進捗を作って一区切りつける。",
-    condition: `Lv${job.level}以下で、今ある素材か店売り素材で作れるものを選ぶ`,
-    steps: [
-      `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-      "製作手帳を開く",
-      "未製作マークがあるレシピを、作りやすい順に3種類だけ製作する",
-      "未製作が見つからなければ、現在レベル帯の作りやすいレシピを3回製作する",
-      "3種類または3回終わったら「✓ 完了！」"
-    ]
-  }, job);
-}
-
-function gathererMethod(job) {
-  if (!job) return null;
-  const fisher = job.code === "FSH";
-  return withJob({
-    lane: "gather",
-    task_key: `${fisher ? "fishing-log" : "gather-log"}:${job.code}:${job.level}`,
-    daily_key: null,
-    badge: fisher ? "釣る・まったり" : "採る・まったり",
-    title: fisher
-      ? `${job.name_ja}で釣り手帳の未釣りを3種類埋める`
-      : `${job.name_ja}で採集手帳の未採集を5種類埋める`,
-    minutes: 20,
-    reason: "戦闘や製作から離れて、手帳を少しずつ埋める気分転換枠。短時間で終点が見える量だけに絞る。",
-    condition: `Lv${job.level}以下の手帳項目から、移動しやすい場所を優先する`,
-    steps: fisher
-      ? [
-          `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-          "釣り手帳を開く",
-          "未釣りのうち、今すぐ行ける釣り場から3種類だけ狙う",
-          "3種類埋まったら「✓ 完了！」"
-        ]
-      : [
-          `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-          "採集手帳を開く",
-          "未採集のうち、今すぐ行ける場所から5種類だけ採る",
-          "5種類埋まったら「✓ 完了！」"
-        ]
-  }, job);
-}
-
-function makeCombatMethods(job, duty) {
+function efficientMethods(character) {
+  const job = pickPrimaryCombatJob(character);
+  if (!job) return [];
   const methods = [
-    rouletteMethod(
-      job,
-      "leveling",
-      "レベリング",
-      "効率本命・今日まだなら最優先",
-      30,
-      "1日1回の経験値ボーナスを先に取る。まずここを消化してから反復周回を考える。"
-    )
+    rouletteMethod(job, "leveling", "レベリング", "#1候補・日次ボーナス", 30,
+      "未消化なら最優先。1日1回の経験値ボーナスを先に取る。")
   ];
-
   if (job.level >= 50) {
-    methods.push(
-      rouletteMethod(
-        job,
-        "alliance",
-        "アライアンスレイド",
-        "効率本命・日課の次点",
-        35,
-        "個別アライアンス周回ではなく、ルーレットの日次ボーナス目的で1回だけ使う。"
-      )
-    );
+    methods.push(rouletteMethod(job, "alliance", "アライアンスレイド", "#2候補・日次ボーナス", 35,
+      "個別レイド周回ではなく、アライアンスルーレットの日次ボーナス目的で1回。"));
   }
-
-  const dungeon = repeatDungeonMethod(job, duty);
+  const dungeon = repeatDungeonMethod(job, dungeonForLevel(job.level));
   if (dungeon) methods.push(dungeon);
   return methods;
+}
+
+function craftMethods(character) {
+  const job = pickCrafterJob(character);
+  if (!job) return [];
+  return [
+    withJob({
+      task_key: `craft-log-new:${job.code}:${job.level}`,
+      daily_key: null,
+      badge: "手帳を埋める",
+      title: `${job.name_ja}で未製作レシピを3種類だけ作る`,
+      minutes: 20,
+      reason: "短時間で製作手帳に目に見える進捗を作る。今日は3種類で終了。",
+      condition: `Lv${job.level}以下で、素材を用意しやすい未製作レシピがある時`,
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "製作手帳を開く",
+        "未製作マークの中から素材を用意しやすいものを3種類選ぶ",
+        "3種類作ったら「✓ 完了！」"
+      ]
+    }, job),
+    withJob({
+      task_key: `craft-leveling:${job.code}:${job.level}`,
+      daily_key: null,
+      badge: "レベルを進める",
+      title: `${job.name_ja}の経験値を25分だけ稼ぐ`,
+      minutes: 25,
+      reason: "製作のレベル上げを優先する枠。25分で区切り、終わりの見えない連続製作にしない。",
+      condition: "今日は製作ジョブのレベルを進めたい時",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "現在レベル帯で経験値を得られる製作コンテンツを1つ選ぶ",
+        "25分だけ進める",
+        "時間になったら途中でも「✓ 完了！」"
+      ]
+    }, job),
+    withJob({
+      task_key: `craft-prep:${job.code}:${job.level}`,
+      daily_key: null,
+      badge: "軽めの準備",
+      title: `${job.name_ja}の次に作りたいものを3件だけ準備する`,
+      minutes: 15,
+      reason: "今日は作り込む気分じゃない時に、次回の開始コストだけ下げる。",
+      condition: "素材確認や手帳整理だけならできそうな時",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）の製作手帳を開く`,
+        "次に作りたいレシピを3件だけ決める",
+        "不足素材を確認する",
+        "3件決まったら「✓ 完了！」"
+      ]
+    }, job)
+  ];
+}
+
+function gatherMethods(character) {
+  const job = pickGathererJob(character);
+  if (!job) return [];
+  const fisher = job.code === "FSH";
+  return [
+    withJob({
+      task_key: `gather-log-new:${job.code}:${job.level}`,
+      daily_key: null,
+      badge: fisher ? "釣り手帳" : "採集手帳",
+      title: fisher
+        ? `${job.name_ja}で未釣りを3種類だけ埋める`
+        : `${job.name_ja}で未採集を5種類だけ埋める`,
+      minutes: 20,
+      reason: "手帳に見える進捗を作る。数を少なく固定して、途中でダレないようにする。",
+      condition: `Lv${job.level}以下で今行ける場所から選ぶ`,
+      steps: fisher
+        ? [
+            `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+            "釣り手帳を開く",
+            "今行ける釣り場から未釣りを3種類だけ狙う",
+            "3種類埋めたら「✓ 完了！」"
+          ]
+        : [
+            `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+            "採集手帳を開く",
+            "今行ける場所から未採集を5種類だけ採る",
+            "5種類埋めたら「✓ 完了！」"
+          ]
+    }, job),
+    withJob({
+      task_key: `gather-leveling:${job.code}:${job.level}`,
+      daily_key: null,
+      badge: "レベルを進める",
+      title: `${job.name_ja}の経験値を25分だけ稼ぐ`,
+      minutes: 25,
+      reason: "採集ジョブのレベル上げをしたい日の本命。時間で区切る。",
+      condition: "今日はギャザラーのレベルを上げたい時",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "現在レベル帯で経験値を得られる採集場所・コンテンツを1つ選ぶ",
+        "25分だけ採集する",
+        "時間になったら「✓ 完了！」"
+      ]
+    }, job),
+    withJob({
+      task_key: `gather-stock:${job.code}:${job.level}`,
+      daily_key: null,
+      badge: "素材を貯める",
+      title: `${job.name_ja}で使いそうな素材を30個だけ集める`,
+      minutes: 15,
+      reason: "目的を30個に固定した軽い採集。製作用ストック作りにもつながる。",
+      condition: "考えずに採るだけの気分の時",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "今行きやすい採集場所を1つ決める",
+        "使いそうな素材を合計30個だけ集める",
+        "30個集めたら「✓ 完了！」"
+      ]
+    }, job)
+  ];
 }
 
 function removeCompletedDaily(methods, completedDaily) {
@@ -229,9 +270,7 @@ function applyRepeatPriority(methods, completionCounts) {
       return {
         ...method,
         repeat_count: repeatCount,
-        badge: repeatCount > 0
-          ? `${method.badge} · 今日${repeatCount}回済み`
-          : method.badge,
+        badge: repeatCount > 0 ? `${method.badge} · 今日${repeatCount}回済み` : method.badge,
         _base_index: baseIndex
       };
     })
@@ -245,15 +284,12 @@ function applyRepeatPriority(methods, completionCounts) {
     .map(({ _base_index, ...method }, index) => ({ ...method, rank: index + 1 }));
 }
 
-function completedLabel(completedDaily) {
-  const done = [];
-  if (completedDaily.leveling) done.push("レベルレ済み");
-  if (completedDaily.alliance) done.push("アラルレ済み");
-  return done;
+function modeLabel(mode) {
+  return mode === "craft" ? "製作" : mode === "gather" ? "採集" : "効率";
 }
 
-function focusFromMethod(method, fallback) {
-  if (!method) return fallback;
+function focusFromMethod(method) {
+  if (!method) return null;
   return {
     code: method.job_code,
     name: method.job_name,
@@ -262,90 +298,79 @@ function focusFromMethod(method, fallback) {
   };
 }
 
-function sessionCompletePlan(primary, availableMinutes, completedDaily, deferredMethod = null) {
+function sessionCompletePlan(character, availableMinutes, completedDaily, mode, deferredMethod = null) {
+  const fallback = pickPrimaryCombatJob(character) || pickCrafterJob(character) || pickGathererJob(character);
   const remaining = Math.max(0, Math.round(Number(availableMinutes) || 0));
   return {
-    planner_kind: "session-complete-v0.9",
+    planner_kind: "category-first-v0.9",
     session_complete: true,
+    selected_mode: mode,
     remaining_minutes: remaining,
     notice: deferredMethod
-      ? `残り約${remaining}分。次の候補「${deferredMethod.title}」は目安${deferredMethod.minutes}分なので、今日はここで終了でOK。`
+      ? `残り約${remaining}分。「${deferredMethod.title}」は目安${deferredMethod.minutes}分なので、今日はここで終了でOK。`
       : `残り約${remaining}分。今日はここで終了でOK。`,
-    focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
+    focus_job: fallback ? { code: fallback.code, name: fallback.name_ja, level: fallback.level, role: fallback.role } : null,
     completed_daily: completedDaily,
     methods: [],
     now: null,
     next: null,
     deferred_task: deferredMethod ? { title: deferredMethod.title, minutes: deferredMethod.minutes } : null,
-    fallback: { title: "今日はここで終了", minutes: 0, reason: "残り時間に無理に詰め込まず、完了履歴だけ残して終わる。" },
-    skip_today: ["残り時間を超えるコンテンツを無理に始める", "次に何をするか自分で探し直す"]
+    fallback: { title: "今日はここで終了", minutes: 0 },
+    skip_today: ["残り時間を超えて無理に始める", "別カテゴリの候補まで全部やろうとする"]
   };
 }
 
-function concretePlan(character, availableMinutes, energy, completedDailyInput, completionCountsInput) {
-  const primary = pickPrimaryCombatJob(character);
-  if (!primary) return null;
-
+function concretePlan(character, availableMinutes, energy, completedDailyInput, completionCountsInput, modeInput) {
+  const mode = normalizeMode(modeInput);
   const completedDaily = normalizeCompletedDaily(completedDailyInput);
   const completionCounts = normalizeCompletionCounts(completionCountsInput);
-  const duty = dungeonForLevel(primary.level);
 
-  const combatCandidates = fitToRemainingTime(
-    removeCompletedDaily(makeCombatMethods(primary, duty), completedDaily),
-    availableMinutes
-  );
-  const combatLane = combatCandidates[0] || null;
-  const craftLane = crafterMethod(pickCrafterJob(character));
-  const gatherLane = gathererMethod(pickGathererJob(character));
+  let rawMethods = mode === "craft"
+    ? craftMethods(character)
+    : mode === "gather"
+      ? gatherMethods(character)
+      : removeCompletedDaily(efficientMethods(character), completedDaily);
 
-  const lanePool = fitToRemainingTime(
-    [combatLane, craftLane, gatherLane].filter(Boolean),
-    availableMinutes
-  );
+  if (!rawMethods.length) return null;
 
-  if (!lanePool.length) {
-    const deferred = combatCandidates[0] || craftLane || gatherLane || null;
-    return sessionCompletePlan(primary, availableMinutes, completedDaily, deferred);
-  }
+  const fits = fitToRemainingTime(rawMethods, availableMinutes);
+  if (!fits.length) return sessionCompletePlan(character, availableMinutes, completedDaily, mode, rawMethods[0]);
 
-  const methods = applyRepeatPriority(lanePool, completionCounts).slice(0, 3);
+  const methods = applyRepeatPriority(fits, completionCounts).slice(0, 3);
   const recommended = methods[0];
-  const completed = completedLabel(completedDaily);
-  const completionNote = completed.length
-    ? `${completed.join("・")}を反映済み。`
-    : "日課チェックはまだ未完了。";
+  const label = modeLabel(mode);
   const repeatNote = recommended.repeat_count > 0
-    ? "候補3方向を一通り触っているため、最も回数が少ない再候補を先頭にしています。"
-    : "同じTODOの2回目より、まだやっていない方向を優先します。";
+    ? "同じカテゴリ内の候補を一通り完了済みなので、今日の実行回数が少ないものから再提示しています。"
+    : "同じTODOの2回目より、まだやっていない候補を優先しています。";
 
   return {
-    planner_kind: "diverse-lanes-v0.9",
+    planner_kind: "category-first-v0.9",
     session_complete: false,
+    selected_mode: mode,
     remaining_minutes: Math.max(0, Math.round(Number(availableMinutes) || 0)),
-    notice: `${completionNote} ${repeatNote} #1が気分じゃなければ#2/#3へ逃げてOK。`,
-    focus_job: focusFromMethod(recommended, {
-      code: primary.code,
-      name: primary.name_ja,
-      level: primary.level,
-      role: primary.role
-    }),
+    notice: `今日は「${label}」モード。${repeatNote} この中から#1〜#3だけ見ればOK。`,
+    focus_job: focusFromMethod(recommended),
     completed_daily: completedDaily,
     methods,
     now: asNow(recommended),
     next: methods[1] ? {
       title: methods[1].title,
       minutes: methods[1].minutes,
-      reason: "#1の気分じゃない時は、方向の違うこちらを選んでOK。"
+      reason: "#1の気分じゃない時はこちら。"
     } : null,
-    fallback: {
-      title: methods[methods.length - 1]?.title || `${primary.name_ja}に着替えるだけ`,
-      minutes: methods[methods.length - 1]?.minutes || 2,
-      reason: "今日は本命の気分じゃなくても、別方向から1個進めれば十分。"
+    fallback: methods[2] ? {
+      title: methods[2].title,
+      minutes: methods[2].minutes,
+      reason: "さらに別案。"
+    } : {
+      title: "今日はここで終了",
+      minutes: 0,
+      reason: "候補を無理に増やさない。"
     },
     skip_today: [
-      "同じIDの2周目を、未実行の別方向より先に置く",
-      "3つ全部やろうとする",
-      "攻略サイトを何個も開いて効率比較する"
+      "選んでいないカテゴリのことを考える",
+      "3候補を全部やろうとする",
+      "攻略サイトを何個も開いて比較し直す"
     ]
   };
 }
@@ -356,14 +381,16 @@ export function makeConcretePlan(
   energy,
   basePlan = null,
   completedDaily = null,
-  completionCounts = null
+  completionCounts = null,
+  mode = "efficient"
 ) {
   const plan = concretePlan(
     character,
     availableMinutes,
     energy,
     completedDaily,
-    completionCounts
+    completionCounts,
+    mode
   );
   if (plan) return plan;
   return basePlan;
