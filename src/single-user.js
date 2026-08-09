@@ -7,7 +7,7 @@ import { makeConcretePlan } from "./concrete-plan.js";
 
 const OWNER_LODESTONE_ID = "3091607";
 const OWNER_LODESTONE_URL = "https://jp.finalfantasyxiv.com/lodestone/character/3091607/";
-const MODES = new Set(["efficient", "craft", "gather"]);
+const MODES = new Set(["efficient", "craft", "gather", "discover"]);
 
 let activitySchemaReady = null;
 
@@ -291,7 +291,7 @@ async function rewriteApiRequest(request, env) {
       owner_lodestone_id: OWNER_LODESTONE_ID,
       lodestone_achievements: true,
       category_first_planner: true,
-      planner_modes: ["efficient", "craft", "gather"],
+      planner_modes: ["efficient", "craft", "gather", "discover"],
       ranked_methods: 3,
       daily_checklist: true,
       task_completion: true,
