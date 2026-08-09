@@ -9,20 +9,21 @@
   <link rel="stylesheet" href="/styles.css">
   <style>
     .achievement-panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:22px;margin:18px 0}.achievement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.achievement-metrics{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}.achievement-metric strong{display:block;font-size:2rem}.achievement-metric span{color:var(--muted);font-size:.9rem}.recent-achievements{margin:0;padding-left:1.25rem;line-height:1.8}.recent-achievements li+li{margin-top:6px}.recent-achievements time{color:var(--muted);font-size:.85rem;margin-left:8px}.sync-state{color:var(--muted);font-size:.9rem}.source-note{color:var(--muted);line-height:1.7;margin:12px 0 0}
+    .focus-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 20px}.focus-job{font-size:1.1rem;font-weight:800}.methods-grid{display:grid;grid-template-columns:1fr;gap:12px;margin:16px 0 20px}.method-card{border:1px solid var(--line);border-radius:16px;padding:18px;background:#12171e}.method-card.recommended{border-color:var(--accent);background:#171a1e}.method-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.method-rank{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:800}.method-badge{font-size:.78rem;color:var(--accent);letter-spacing:.03em}.method-card h3{font-size:1.35rem;margin:12px 0 6px}.method-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}.method-condition{margin:10px 0 0;color:var(--accent);font-size:.9rem}.method-reason{margin:10px 0;color:var(--muted);line-height:1.65}.method-steps{margin:12px 0 0;padding-left:1.4rem;line-height:1.8}.recommended-label{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#111;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900}.methods-help{color:var(--muted);line-height:1.7;margin:0 0 8px}@media(min-width:900px){.methods-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.method-card h3{font-size:1.15rem}.method-steps{font-size:.92rem}}
   </style>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div><p class="eyebrow">EORZEA PERSONAL PLANNER</p><h1>FF14 Today</h1></div>
-      <span class="version">v0.6 · PERSONAL</span>
+      <span class="version">v0.7 · PERSONAL</span>
     </header>
 
     <section class="connect-panel">
       <div class="connect-copy">
         <p class="label">LODESTONE CHARACTER</p>
         <h2>Kanade Tachibana</h2>
-        <p class="muted">プロフィール・ジョブ・アチーブメントをLodestoneから自動同期します。スクショ取込は不要です。</p>
+        <p class="muted">プロフィール・ジョブ・アチーブメントをLodestoneから自動同期します。</p>
       </div>
       <button id="syncButton" class="primary-button" type="button">Lodestone再同期</button>
     </section>
@@ -44,7 +45,7 @@
       </div>
       <p class="label">最近の達成</p>
       <ol id="recentAchievements" class="recent-achievements"><li class="muted">同期結果を待っています。</li></ol>
-      <p class="source-note">達成済み実績はLodestoneを正本にします。次に公式アチーブメント全件と照合して、未達だけを今日の候補へ回します。</p>
+      <p class="source-note">達成済み実績はLodestoneを正本にします。未達実績との照合も順次追加します。</p>
     </section>
 
     <section id="planner" class="planner hidden">
@@ -66,13 +67,17 @@
     </section>
 
     <section id="nowPanel" class="now-panel hidden">
-      <div class="now-heading"><span>NOW</span><span id="planKind" class="badge">READY</span></div>
-      <div id="emptyState" class="empty"><p class="big">今日はどれくらい遊べる？</p><p>時間と気力を選んだら、やることはこちらで絞ります。</p></div>
+      <div class="now-heading"><span>おすすめ3つ</span><span id="planKind" class="badge">READY</span></div>
+      <div id="emptyState" class="empty"><p class="big">今日はどれくらい遊べる？</p><p>時間と気力を選んだら、効率のいい具体案を3つまで出します。</p></div>
       <div id="planContent" class="hidden">
-        <p id="planNotice" class="notice"></p><h3 id="nowTitle"></h3>
-        <div class="meta-line"><span id="nowMinutes"></span><span id="nowReason"></span></div>
-        <ol id="nowSteps" class="steps"></ol>
-        <div class="secondary-grid"><div><p class="label">NEXT</p><p id="nextTask" class="secondary-text">なし</p></div><div><p class="label">気力ゼロなら</p><p id="fallbackTask" class="secondary-text"></p></div></div>
+        <p id="planNotice" class="notice"></p>
+        <div class="focus-line"><span class="label">育成対象</span><span id="focusJob" class="focus-job"></span></div>
+        <p class="methods-help">基本は <strong>#1</strong>。条件に合わない・消化済みなら #2 → #3 の順で、そのまま選べばOK。</p>
+        <div id="methodList" class="methods-grid"></div>
+        <div class="secondary-grid">
+          <div><p class="label">NEXT</p><p id="nextTask" class="secondary-text">なし</p></div>
+          <div><p class="label">気力ゼロなら</p><p id="fallbackTask" class="secondary-text"></p></div>
+        </div>
         <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
     </section>
@@ -84,7 +89,7 @@
 
     <section class="roadmap">
       <p class="label">BUILD STATUS</p>
-      <div class="roadmap-line"><span class="done">Kanade Lodestone</span><span>→</span><span class="done">実績履歴同期</span><span>→</span><strong>未達実績照合</strong><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
+      <div class="roadmap-line"><span class="done">Lodestone実績</span><span>→</span><span class="done">具体案3つ</span><span>→</span><strong>日課済み判定</strong><span>→</span><span>未達実績</span><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
     </section>
 
     <p id="statusMessage" class="status"></p>

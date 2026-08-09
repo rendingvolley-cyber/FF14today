@@ -113,25 +113,97 @@ function renderAchievements(achievements) {
   }));
 }
 
-function renderPlan(plan) {
-  state.plan = plan;
-  if (!plan) return;
-  $("emptyState").classList.add("hidden");
-  $("planContent").classList.remove("hidden");
-  $("planKind").textContent = plan.planner_kind || "PLAN";
-  $("planNotice").textContent = plan.notice || "";
-  $("nowTitle").textContent = plan.now?.title || "";
-  $("nowMinutes").textContent = plan.now?.minutes ? `約 ${plan.now.minutes}分` : "";
-  $("nowReason").textContent = plan.now?.reason || "";
-  $("nowSteps").replaceChildren(...(plan.now?.steps || []).map(step => {
+function makeMethodCard(method, index) {
+  const card = document.createElement("article");
+  card.className = `method-card ${index === 0 ? "recommended" : ""}`;
+
+  const top = document.createElement("div");
+  top.className = "method-top";
+
+  const rank = document.createElement("span");
+  rank.className = "method-rank";
+  rank.textContent = String(method.rank || index + 1);
+  top.append(rank);
+
+  if (index === 0) {
+    const recommended = document.createElement("span");
+    recommended.className = "recommended-label";
+    recommended.textContent = "今日はこれ";
+    top.append(recommended);
+  }
+
+  if (method.badge) {
+    const badge = document.createElement("span");
+    badge.className = "method-badge";
+    badge.textContent = method.badge;
+    top.append(badge);
+  }
+
+  const title = document.createElement("h3");
+  title.textContent = method.title || "候補";
+
+  const meta = document.createElement("div");
+  meta.className = "method-meta";
+  if (method.minutes) {
+    const minutes = document.createElement("span");
+    minutes.textContent = `目安 ${method.minutes}分`;
+    meta.append(minutes);
+  }
+
+  const reason = document.createElement("p");
+  reason.className = "method-reason";
+  reason.textContent = method.reason || "";
+
+  card.append(top, title, meta, reason);
+
+  if (method.condition) {
+    const condition = document.createElement("p");
+    condition.className = "method-condition";
+    condition.textContent = `選ぶ条件：${method.condition}`;
+    card.append(condition);
+  }
+
+  const steps = document.createElement("ol");
+  steps.className = "method-steps";
+  steps.replaceChildren(...(method.steps || []).map(step => {
     const li = document.createElement("li");
     li.textContent = step;
     return li;
   }));
+  card.append(steps);
+
+  return card;
+}
+
+function renderPlan(plan) {
+  state.plan = plan;
+  if (!plan) return;
+
+  $("emptyState").classList.add("hidden");
+  $("planContent").classList.remove("hidden");
+  $("planKind").textContent = plan.planner_kind || "PLAN";
+  $("planNotice").textContent = plan.notice || "";
+
+  const focus = plan.focus_job;
+  $("focusJob").textContent = focus
+    ? `${focus.name} Lv${focus.level}`
+    : state.character
+      ? "現在の育成候補"
+      : "";
+
+  const methods = Array.isArray(plan.methods) && plan.methods.length
+    ? plan.methods.slice(0, 3)
+    : [
+        plan.now ? { rank: 1, badge: "おすすめ", ...plan.now } : null,
+        plan.next ? { rank: 2, badge: "次点", ...plan.next, steps: [] } : null,
+        plan.fallback ? { rank: 3, badge: "低気力", ...plan.fallback, steps: [] } : null
+      ].filter(Boolean);
+
+  $("methodList").replaceChildren(...methods.map(makeMethodCard));
   $("nextTask").textContent = plan.next
     ? `${plan.next.title}（約${plan.next.minutes}分）`
-    : "今日は追加しなくてOK";
-  $("fallbackTask").textContent = plan.fallback?.title || "同期だけして終了";
+    : "#1だけで終了してOK";
+  $("fallbackTask").textContent = plan.fallback?.title || "Lodestone同期だけして終了";
   $("skipList").replaceChildren(...(plan.skip_today || []).map(item => {
     const li = document.createElement("li");
     li.textContent = item;
@@ -172,7 +244,7 @@ async function syncEverything(force = false) {
   button.disabled = true;
   button.textContent = "同期中…";
   $("achievementSyncText").textContent = "Lodestone実績を同期中…";
-  setStatus("Lodestoneを同期しています。初回の実績同期は21ページ前後読むので少し待ちます。");
+  setStatus("Lodestoneを同期しています。");
 
   try {
     const [characterData, achievementData] = await Promise.all([
@@ -211,7 +283,7 @@ $("planButton").addEventListener("click", async () => {
   if (!state.character) return;
   const button = $("planButton");
   button.disabled = true;
-  button.textContent = "決めています…";
+  button.textContent = "調べて絞っています…";
   setStatus("");
   try {
     const data = await api("/api/plan", {
@@ -223,7 +295,7 @@ $("planButton").addEventListener("click", async () => {
       })
     });
     renderPlan(data.plan);
-    setStatus("今日の暫定プランを更新しました。次の版で未達実績も候補に入れます。");
+    setStatus("具体的な候補を3つまで絞りました。基本は#1をそのまま実行でOK。");
   } catch (error) {
     setStatus(`プラン生成失敗: ${error.message}`, true);
   } finally {
