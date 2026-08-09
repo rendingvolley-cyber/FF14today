@@ -25,6 +25,16 @@ function normalizeCompletedDaily(value) {
   };
 }
 
+function normalizeCompletedTaskKeys(value) {
+  const source = Array.isArray(value) ? value : [];
+  return new Set(
+    source
+      .map(item => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 100)
+  );
+}
+
 function asNow(method) {
   if (!method) return null;
   return {
@@ -122,6 +132,10 @@ function removeCompletedDaily(methods, completedDaily) {
   return methods.filter(method => !method.daily_key || !completedDaily[method.daily_key]);
 }
 
+function removeCompletedTasks(methods, completedTaskKeys) {
+  return methods.filter(method => !completedTaskKeys.has(method.task_key));
+}
+
 function fitToRemainingTime(methods, availableMinutes) {
   const minutes = Math.max(0, Number(availableMinutes) || 0);
   return methods.filter(method => Number(method.minutes || 0) <= minutes + 5);
@@ -141,34 +155,36 @@ function completedLabel(completedDaily) {
 function sessionCompletePlan(primary, availableMinutes, completedDaily, deferredMethod = null) {
   const remaining = Math.max(0, Math.round(Number(availableMinutes) || 0));
   return {
-    planner_kind: "session-complete-v0.8",
+    planner_kind: "session-complete-v0.8.1",
     session_complete: true,
     remaining_minutes: remaining,
     notice: deferredMethod
       ? `残り約${remaining}分。次の候補「${deferredMethod.title}」は目安${deferredMethod.minutes}分なので、今日はここで終了でOK。`
-      : `残り約${remaining}分。今日はここで終了でOK。`,
+      : `残り約${remaining}分。今日すでに完了したTODOは繰り返し表示しません。今日はここで終了でOK。`,
     focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
     completed_daily: completedDaily,
     methods: [],
     now: null,
     next: null,
     deferred_task: deferredMethod ? { title: deferredMethod.title, minutes: deferredMethod.minutes } : null,
-    fallback: { title: "今日はここで終了", minutes: 0, reason: "残り時間に無理に詰め込まず、完了履歴だけ残して終わる。" },
-    skip_today: ["残り時間を超えるコンテンツを無理に始める", "次に何をするか自分で探し直す"]
+    fallback: { title: "今日はここで終了", minutes: 0, reason: "完了済みTODOをもう一度出さず、次の違う候補が追加されるまでここで終える。" },
+    skip_today: ["完了した同じTODOをそのまま繰り返す", "次に何をするか自分で探し直す"]
   };
 }
 
-function concreteCombatPlan(character, availableMinutes, energy, completedDailyInput) {
+function concreteCombatPlan(character, availableMinutes, energy, completedDailyInput, completedTaskKeysInput) {
   const primary = pickPrimaryCombatJob(character);
   if (!primary) return null;
 
   const completedDaily = normalizeCompletedDaily(completedDailyInput);
+  const completedTaskKeys = normalizeCompletedTaskKeys(completedTaskKeysInput);
   const duty = dungeonForLevel(primary.level);
   const afterDaily = removeCompletedDaily(makeMethods(primary, duty), completedDaily);
-  if (!afterDaily.length) return sessionCompletePlan(primary, availableMinutes, completedDaily);
+  const afterCompletedTasks = removeCompletedTasks(afterDaily, completedTaskKeys);
+  if (!afterCompletedTasks.length) return sessionCompletePlan(primary, availableMinutes, completedDaily);
 
-  const methods = rerankMethods(fitToRemainingTime(afterDaily, availableMinutes));
-  if (!methods.length) return sessionCompletePlan(primary, availableMinutes, completedDaily, afterDaily[0]);
+  const methods = rerankMethods(fitToRemainingTime(afterCompletedTasks, availableMinutes));
+  if (!methods.length) return sessionCompletePlan(primary, availableMinutes, completedDaily, afterCompletedTasks[0]);
 
   const recommended = methods[0];
   const completed = completedLabel(completedDaily);
@@ -177,10 +193,10 @@ function concreteCombatPlan(character, availableMinutes, energy, completedDailyI
     : " 日課チェックはまだ未完了。";
 
   return {
-    planner_kind: "complete-next-v0.8",
+    planner_kind: "complete-next-v0.8.1",
     session_complete: false,
     remaining_minutes: Math.max(0, Math.round(Number(availableMinutes) || 0)),
-    notice: `Lv${primary.level} ${primary.name_ja}向け。${completionNote}終わったら「✓ 完了！」だけ押せば次へ進みます。`,
+    notice: `Lv${primary.level} ${primary.name_ja}向け。${completionNote}今日完了したTODOも再提示しません。終わったら「✓ 完了！」だけ押せば次へ進みます。`,
     focus_job: { code: primary.code, name: primary.name_ja, level: primary.level, role: primary.role },
     completed_daily: completedDaily,
     methods,
@@ -196,6 +212,7 @@ function concreteCombatPlan(character, availableMinutes, energy, completedDailyI
       reason: "気力が落ちたら、候補を探し直さず今表示されている最後の候補の入口まで進めばOK。"
     },
     skip_today: [
+      "完了した同じTODOをもう一度おすすめする",
       "完了後にもう一度「今日やることを決める」を押す",
       "チェック済みの日課をもう一度おすすめ候補として考える",
       "攻略サイトを何個も開いて効率比較する",
@@ -204,8 +221,21 @@ function concreteCombatPlan(character, availableMinutes, energy, completedDailyI
   };
 }
 
-export function makeConcretePlan(character, availableMinutes, energy, basePlan = null, completedDaily = null) {
-  const combat = concreteCombatPlan(character, availableMinutes, energy, completedDaily);
+export function makeConcretePlan(
+  character,
+  availableMinutes,
+  energy,
+  basePlan = null,
+  completedDaily = null,
+  completedTaskKeys = null
+) {
+  const combat = concreteCombatPlan(
+    character,
+    availableMinutes,
+    energy,
+    completedDaily,
+    completedTaskKeys
+  );
   if (combat) return combat;
   return basePlan;
 }
