@@ -28,6 +28,7 @@ jobs:
           node --check src/lodestone-achievements.js
           node --check src/concrete-plan.js
           node --check src/context-image.js
+          node --check src/context-history-wrapper.js
           node --check src/context-opportunities.js
           node --check public/app.js
           node --check public/choice-reasons.js
