@@ -9,16 +9,16 @@
   <link rel="stylesheet" href="/styles.css">
   <style>
     .achievement-panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:22px;margin:18px 0}.achievement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.achievement-metrics{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}.achievement-metric strong{display:block;font-size:2rem}.achievement-metric span{color:var(--muted);font-size:.9rem}.recent-achievements{margin:0;padding-left:1.25rem;line-height:1.8}.recent-achievements li+li{margin-top:6px}.recent-achievements time{color:var(--muted);font-size:.85rem;margin-left:8px}.sync-state{color:var(--muted);font-size:.9rem}.source-note{color:var(--muted);line-height:1.7;margin:12px 0 0}
-    .focus-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 20px}.focus-job{font-size:1.1rem;font-weight:800}.methods-grid{display:flex;flex-direction:column;gap:10px;margin:16px 0 20px}.method-card{border:1px solid var(--line);border-radius:16px;padding:20px;background:#12171e}.method-card.recommended{border-color:var(--accent);background:#171a1e}.method-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.method-rank{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:800;flex:0 0 auto}.method-rank.small{width:28px;height:28px;font-size:.85rem}.method-badge{font-size:.78rem;color:var(--accent);letter-spacing:.03em}.method-card h3{font-size:1.4rem;margin:12px 0 6px}.method-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}.method-condition{margin:10px 0 0;color:var(--accent);font-size:.9rem}.method-reason{margin:10px 0;color:var(--muted);line-height:1.65}.method-steps{margin:12px 0 0;padding-left:1.4rem;line-height:1.8}.recommended-label{display:inline-flex;align-items:center;background:var(--accent);color:#111;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900}.methods-help{color:var(--muted);line-height:1.7;margin:0 0 8px}.method-alternative{border:1px solid var(--line);border-radius:14px;background:#12171e;overflow:hidden}.method-alternative summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;list-style:none}.method-alternative summary::-webkit-details-marker{display:none}.method-alternative summary::after{content:"＋";color:var(--accent);font-weight:800;grid-column:4}.method-alternative[open] summary::after{content:"－"}.alternative-title{font-weight:800;line-height:1.4}.alternative-minutes{color:var(--muted);font-size:.85rem;white-space:nowrap}.alternative-body{border-top:1px solid var(--line);padding:14px 16px 16px}.alternative-body .method-badge{margin:0 0 6px}.method-alternative .method-steps{font-size:.94rem}
-    .daily-checklist{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:18px;padding-top:16px}.daily-checklist-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.daily-date{color:var(--muted);font-size:.82rem}.daily-checks{display:flex;gap:10px;flex-wrap:wrap}.daily-check{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:9px 13px;background:#12171e;cursor:pointer;user-select:none;font-weight:700}.daily-check input{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}.daily-check:has(input:checked){border-color:var(--accent);background:#191a18;color:var(--accent)}.daily-check-status{color:var(--muted);font-size:.82rem;margin-top:6px}
-    @media(max-width:640px){.method-alternative summary{grid-template-columns:auto minmax(0,1fr) auto}.alternative-minutes{display:none}.method-alternative summary::after{grid-column:3}.method-card h3{font-size:1.2rem}.daily-checklist{align-items:flex-start;flex-direction:column}.daily-checks{width:100%}.daily-check{flex:1;justify-content:center}}
+    .focus-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 20px}.focus-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.focus-job{font-size:1.1rem;font-weight:800}.session-meta{display:flex;gap:8px;flex-wrap:wrap}.session-pill{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:.82rem;background:#11161c}.methods-grid{display:flex;flex-direction:column;gap:10px;margin:16px 0 20px}.method-card{border:1px solid var(--line);border-radius:16px;padding:20px;background:#12171e}.method-card.recommended{border-color:var(--accent);background:#171a1e}.method-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.method-rank{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:800;flex:0 0 auto}.method-rank.small{width:28px;height:28px;font-size:.85rem}.method-badge{font-size:.78rem;color:var(--accent);letter-spacing:.03em}.method-card h3{font-size:1.4rem;margin:12px 0 6px}.method-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}.method-condition{margin:10px 0 0;color:var(--accent);font-size:.9rem}.method-reason{margin:10px 0;color:var(--muted);line-height:1.65}.method-steps{margin:12px 0 0;padding-left:1.4rem;line-height:1.8}.recommended-label{display:inline-flex;align-items:center;background:var(--accent);color:#111;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900}.methods-help{color:var(--muted);line-height:1.7;margin:0 0 8px}.complete-button{width:100%;margin-top:18px;border:0;border-radius:13px;padding:14px 18px;background:var(--accent);color:#111;font:inherit;font-weight:900;font-size:1rem;cursor:pointer}.complete-button:hover{filter:brightness(1.05)}.complete-button:disabled{opacity:.55;cursor:wait}.method-alternative{border:1px solid var(--line);border-radius:14px;background:#12171e;overflow:hidden}.method-alternative summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;list-style:none}.method-alternative summary::-webkit-details-marker{display:none}.method-alternative summary::after{content:"＋";color:var(--accent);font-weight:800;grid-column:4}.method-alternative[open] summary::after{content:"－"}.alternative-title{font-weight:800;line-height:1.4}.alternative-minutes{color:var(--muted);font-size:.85rem;white-space:nowrap}.alternative-body{border-top:1px solid var(--line);padding:14px 16px 16px}.alternative-body .method-badge{margin:0 0 6px}.method-alternative .method-steps{font-size:.94rem}
+    .daily-checklist{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:18px;padding-top:16px}.daily-checklist-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.daily-date{color:var(--muted);font-size:.82rem}.daily-checks{display:flex;gap:10px;flex-wrap:wrap}.daily-check{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:9px 13px;background:#12171e;cursor:pointer;user-select:none;font-weight:700}.daily-check input{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}.daily-check:has(input:checked){border-color:var(--accent);background:#191a18;color:var(--accent)}.daily-check-status{color:var(--muted);font-size:.82rem;margin-top:6px}.session-complete-card{border:1px solid var(--accent);border-radius:16px;padding:28px 22px;background:#171a1e;text-align:center}.session-complete-mark{width:48px;height:48px;border-radius:999px;display:grid;place-items:center;margin:0 auto 12px;background:var(--accent);color:#111;font-size:1.4rem;font-weight:900}.session-complete-card h3{margin:0 0 8px;font-size:1.4rem}.session-complete-card p{line-height:1.7}
+    @media(max-width:640px){.method-alternative summary{grid-template-columns:auto minmax(0,1fr) auto}.alternative-minutes{display:none}.method-alternative summary::after{grid-column:3}.method-card h3{font-size:1.2rem}.daily-checklist{align-items:flex-start;flex-direction:column}.daily-checks{width:100%}.daily-check{flex:1;justify-content:center}.focus-line{align-items:flex-start;flex-direction:column}.session-meta{width:100%}}
   </style>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div><p class="eyebrow">EORZEA PERSONAL PLANNER</p><h1>FF14 Today</h1></div>
-      <span class="version">v0.7.2 · PERSONAL</span>
+      <span class="version">v0.8 · PERSONAL</span>
     </header>
 
     <section class="connect-panel">
@@ -69,7 +69,7 @@
       <div class="daily-checklist">
         <div>
           <div class="daily-checklist-head"><p class="label">今日の日課</p><span id="dailyDate" class="daily-date"></span></div>
-          <div id="dailyCheckStatus" class="daily-check-status">終わったらチェック。おすすめ順位がすぐ変わります。</div>
+          <div id="dailyCheckStatus" class="daily-check-status">完了ボタンを押すと該当日課も自動でチェックされます。</div>
         </div>
         <div class="daily-checks">
           <label class="daily-check"><input id="dailyLeveling" type="checkbox"><span>レベルレ済み</span></label>
@@ -77,7 +77,7 @@
         </div>
       </div>
 
-      <button id="planButton" class="primary-button">今日やることを決める</button>
+      <button id="planButton" class="primary-button">今日やることを決める / やり直す</button>
     </section>
 
     <section id="nowPanel" class="now-panel hidden">
@@ -85,8 +85,11 @@
       <div id="emptyState" class="empty"><p class="big">今日はどれくらい遊べる？</p><p>時間・気力・日課チェックから、まず「今日これ」を1つ決めます。</p></div>
       <div id="planContent" class="hidden">
         <p id="planNotice" class="notice"></p>
-        <div class="focus-line"><span class="label">育成対象</span><span id="focusJob" class="focus-job"></span></div>
-        <p class="methods-help"><strong>#1だけ見ればOK。</strong> 日課を終えたら上でチェックすると、次にやるものへ自動で切り替わります。</p>
+        <div class="focus-line">
+          <div class="focus-left"><span class="label">育成対象</span><span id="focusJob" class="focus-job"></span></div>
+          <div class="session-meta"><span id="sessionRemaining" class="session-pill">まだ開始していません</span><span id="todayCompletedCount" class="session-pill">今日完了 0件</span></div>
+        </div>
+        <p class="methods-help"><strong>#1だけ見ればOK。</strong> 終わったら「✓ 完了！」。記録して、残り時間に合わせて次の1個へ自動で進みます。</p>
         <div id="methodList" class="methods-grid"></div>
         <div class="secondary-grid">
           <div><p class="label">NEXT</p><p id="nextTask" class="secondary-text">なし</p></div>
@@ -103,7 +106,7 @@
 
     <section class="roadmap">
       <p class="label">BUILD STATUS</p>
-      <div class="roadmap-line"><span class="done">Lodestone実績</span><span>→</span><span class="done">具体案</span><span>→</span><span class="done">日課チェック</span><span>→</span><strong>未達実績</strong><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
+      <div class="roadmap-line"><span class="done">Lodestone実績</span><span>→</span><span class="done">具体案</span><span>→</span><span class="done">日課チェック</span><span>→</span><span class="done">完了→次へ</span><span>→</span><strong>未達実績</strong><span>→</span><span>Big Fish</span><span>→</span><span>Gemini Planner</span></div>
     </section>
 
     <p id="statusMessage" class="status"></p>

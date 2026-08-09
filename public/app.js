@@ -1,5 +1,6 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const DAILY_CHECKLIST_PREFIX = "ff14_today_daily_checklist_";
+const SESSION_PREFIX = "ff14_today_session_";
 
 function japanDateKey() {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -16,16 +17,34 @@ function dailyStorageKey(dateKey = japanDateKey()) {
   return `${DAILY_CHECKLIST_PREFIX}${dateKey}`;
 }
 
+function sessionStorageKey(dateKey = japanDateKey()) {
+  return `${SESSION_PREFIX}${dateKey}`;
+}
+
 function loadDailyCompletion(dateKey = japanDateKey()) {
   try {
     const raw = localStorage.getItem(dailyStorageKey(dateKey));
     const parsed = raw ? JSON.parse(raw) : {};
-    return {
-      leveling: Boolean(parsed.leveling),
-      alliance: Boolean(parsed.alliance)
-    };
+    return { leveling: Boolean(parsed.leveling), alliance: Boolean(parsed.alliance) };
   } catch {
     return { leveling: false, alliance: false };
+  }
+}
+
+function loadSession(dateKey = japanDateKey()) {
+  try {
+    const raw = localStorage.getItem(sessionStorageKey(dateKey));
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed) return null;
+    const original = Number(parsed.original_minutes);
+    const remaining = Number(parsed.remaining_minutes);
+    if (!Number.isFinite(original) || !Number.isFinite(remaining)) return null;
+    return {
+      originalMinutes: Math.max(0, original),
+      remainingMinutes: Math.max(0, remaining)
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -35,9 +54,14 @@ const state = {
   character: null,
   achievements: null,
   plan: null,
+  currentMethod: null,
+  activeTaskKey: null,
+  activeTaskStartedAt: null,
+  todayCompletedCount: 0,
   profileToken: getOrCreateProfileToken(),
   dailyDate: japanDateKey(),
-  dailyCompletion: loadDailyCompletion()
+  dailyCompletion: loadDailyCompletion(),
+  session: loadSession()
 };
 
 const $ = id => document.getElementById(id);
@@ -70,6 +94,63 @@ async function api(path, options = {}) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
   return data;
+}
+
+function saveDailyCompletion() {
+  localStorage.setItem(dailyStorageKey(state.dailyDate), JSON.stringify(state.dailyCompletion));
+}
+
+function saveSession() {
+  if (!state.session) {
+    localStorage.removeItem(sessionStorageKey(state.dailyDate));
+    return;
+  }
+  localStorage.setItem(sessionStorageKey(state.dailyDate), JSON.stringify({
+    original_minutes: state.session.originalMinutes,
+    remaining_minutes: state.session.remainingMinutes
+  }));
+}
+
+function beginSession() {
+  state.session = {
+    originalMinutes: state.minutes,
+    remainingMinutes: state.minutes
+  };
+  saveSession();
+  renderSessionMeta();
+}
+
+function renderSessionMeta() {
+  const sessionText = $("sessionRemaining");
+  const completedText = $("todayCompletedCount");
+  if (sessionText) {
+    sessionText.textContent = state.session
+      ? `残り 約${Math.max(0, Math.round(state.session.remainingMinutes))}分`
+      : "まだ開始していません";
+  }
+  if (completedText) completedText.textContent = `今日完了 ${state.todayCompletedCount}件`;
+}
+
+function ensureDailyDateCurrent() {
+  const today = japanDateKey();
+  if (today === state.dailyDate) return false;
+  state.dailyDate = today;
+  state.dailyCompletion = loadDailyCompletion(today);
+  state.session = loadSession(today);
+  state.todayCompletedCount = 0;
+  state.currentMethod = null;
+  state.activeTaskKey = null;
+  state.activeTaskStartedAt = null;
+  renderDailyChecklist();
+  renderSessionMeta();
+  return true;
+}
+
+function stateQuery() {
+  const params = new URLSearchParams({ lodestone_id: "3091607" });
+  if (state.dailyCompletion.leveling) params.set("completed_leveling", "1");
+  if (state.dailyCompletion.alliance) params.set("completed_alliance", "1");
+  return `/api/state?${params.toString()}`;
 }
 
 function showCharacterUI(show) {
@@ -151,32 +232,12 @@ function renderDailyChecklist() {
 
   const done = Number(state.dailyCompletion.leveling) + Number(state.dailyCompletion.alliance);
   if (done === 0) {
-    $("dailyCheckStatus").textContent = "終わったらチェック。おすすめ順位がすぐ変わります。";
+    $("dailyCheckStatus").textContent = "完了ボタンを押すと、該当する日課も自動でチェックされます。";
   } else if (done === 1) {
-    $("dailyCheckStatus").textContent = "1つ消化済み。残っている日課を優先して並べ替えます。";
+    $("dailyCheckStatus").textContent = "1つ消化済み。残っている日課を優先します。";
   } else {
-    $("dailyCheckStatus").textContent = "日課2つ完了。反復できる具体案を#1に切り替えます。";
+    $("dailyCheckStatus").textContent = "日課2つ完了。反復できる候補へ切り替えます。";
   }
-}
-
-function saveDailyCompletion() {
-  localStorage.setItem(dailyStorageKey(state.dailyDate), JSON.stringify(state.dailyCompletion));
-}
-
-function ensureDailyDateCurrent() {
-  const today = japanDateKey();
-  if (today === state.dailyDate) return false;
-  state.dailyDate = today;
-  state.dailyCompletion = loadDailyCompletion(today);
-  renderDailyChecklist();
-  return true;
-}
-
-function stateQuery() {
-  const params = new URLSearchParams({ lodestone_id: "3091607" });
-  if (state.dailyCompletion.leveling) params.set("completed_leveling", "1");
-  if (state.dailyCompletion.alliance) params.set("completed_alliance", "1");
-  return `/api/state?${params.toString()}`;
 }
 
 function appendMethodBody(container, method, compact = false) {
@@ -227,19 +288,25 @@ function makePrimaryMethod(method) {
   const recommended = document.createElement("span");
   recommended.className = "recommended-label";
   recommended.textContent = "今日はこれ";
+  top.append(rank, recommended);
   if (method.badge) {
     const badge = document.createElement("span");
     badge.className = "method-badge";
     badge.textContent = method.badge;
-    top.append(rank, recommended, badge);
-  } else {
-    top.append(rank, recommended);
+    top.append(badge);
   }
 
   const title = document.createElement("h3");
   title.textContent = method.title || "候補";
   card.append(top, title);
   appendMethodBody(card, method, false);
+
+  const completeButton = document.createElement("button");
+  completeButton.type = "button";
+  completeButton.className = "complete-button";
+  completeButton.dataset.completeCurrent = "1";
+  completeButton.textContent = "✓ 完了！";
+  card.append(completeButton);
   return card;
 }
 
@@ -269,7 +336,6 @@ function makeAlternativeMethod(method, index) {
     body.append(badge);
   }
   appendMethodBody(body, method, true);
-
   if (method.steps?.length) {
     const steps = document.createElement("ol");
     steps.className = "method-steps";
@@ -280,12 +346,39 @@ function makeAlternativeMethod(method, index) {
     }));
     body.append(steps);
   }
-
   details.append(body);
   return details;
 }
 
-function renderPlan(plan) {
+function makeSessionCompleteCard(plan) {
+  const card = document.createElement("article");
+  card.className = "session-complete-card";
+  const mark = document.createElement("div");
+  mark.className = "session-complete-mark";
+  mark.textContent = "✓";
+  const title = document.createElement("h3");
+  title.textContent = "今日はここで終了";
+  const text = document.createElement("p");
+  text.textContent = plan.notice || "今日の予定分は完了。";
+  card.append(mark, title, text);
+  if (plan.deferred_task) {
+    const next = document.createElement("p");
+    next.className = "muted";
+    next.textContent = `次回候補：${plan.deferred_task.title}`;
+    card.append(next);
+  }
+  return card;
+}
+
+function startTaskTimer(method) {
+  if (!method) return;
+  const key = method.task_key || method.title;
+  if (state.activeTaskKey === key && state.activeTaskStartedAt) return;
+  state.activeTaskKey = key;
+  state.activeTaskStartedAt = Date.now();
+}
+
+function renderPlan(plan, { startTimer = false } = {}) {
   state.plan = plan;
   if (!plan) return;
 
@@ -296,11 +389,28 @@ function renderPlan(plan) {
 
   const focus = plan.focus_job;
   $("focusJob").textContent = focus ? `${focus.name} Lv${focus.level}` : "現在の育成候補";
+  renderSessionMeta();
+
+  if (plan.session_complete) {
+    state.currentMethod = null;
+    state.activeTaskKey = null;
+    state.activeTaskStartedAt = null;
+    $("methodList").replaceChildren(makeSessionCompleteCard(plan));
+    $("nextTask").textContent = "今日は追加しなくてOK";
+    $("fallbackTask").textContent = "ゲームを閉じてもOK";
+    $("skipList").replaceChildren(...(plan.skip_today || []).map(item => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      return li;
+    }));
+    return;
+  }
 
   const methods = Array.isArray(plan.methods) && plan.methods.length
     ? plan.methods.slice(0, 3)
     : [plan.now ? { rank: 1, ...plan.now } : null].filter(Boolean);
 
+  state.currentMethod = methods[0] || null;
   const nodes = [];
   if (methods[0]) nodes.push(makePrimaryMethod(methods[0]));
   methods.slice(1).forEach((method, index) => nodes.push(makeAlternativeMethod(method, index + 1)));
@@ -315,6 +425,8 @@ function renderPlan(plan) {
     li.textContent = item;
     return li;
   }));
+
+  if (startTimer && state.currentMethod) startTaskTimer(state.currentMethod);
 }
 
 function setActive() {
@@ -328,9 +440,10 @@ function setActive() {
 
 async function loadSavedState() {
   try {
-    const [characterData, achievementData] = await Promise.all([
+    const [characterData, achievementData, activityData] = await Promise.all([
       api(stateQuery()),
-      api("/api/achievements")
+      api("/api/achievements"),
+      api("/api/activity/today")
     ]);
     if (characterData.character) renderCharacter(characterData.character);
     if (characterData.preferences) {
@@ -340,6 +453,8 @@ async function loadSavedState() {
     }
     if (characterData.plan) renderPlan(characterData.plan);
     if (achievementData.achievements) renderAchievements(achievementData.achievements);
+    state.todayCompletedCount = Number(activityData.count || 0);
+    renderSessionMeta();
   } catch (error) {
     setStatus(`保存済みデータの読込失敗: ${error.message}`, true);
   }
@@ -369,31 +484,34 @@ async function syncEverything(force = false) {
   }
 }
 
-async function generatePlan({ silent = false } = {}) {
+async function generatePlan({ silent = false, resetSession = false, startTimer = true } = {}) {
   if (!state.character) return;
   ensureDailyDateCurrent();
+  if (resetSession || !state.session) beginSession();
+
   const button = $("planButton");
   button.disabled = true;
   if (!silent) button.textContent = "絞っています…";
   if (!silent) setStatus("");
 
   try {
+    const availableMinutes = Math.max(0, Math.round(state.session?.remainingMinutes ?? state.minutes));
     const data = await api("/api/plan", {
       method: "POST",
       body: JSON.stringify({
         lodestone_id: "3091607",
-        available_minutes: state.minutes,
+        available_minutes: availableMinutes,
         energy: state.energy,
         completed_daily: state.dailyCompletion
       })
     });
-    renderPlan(data.plan);
-    if (!silent) setStatus("#1をそのまま実行。日課が終わったらチェックするだけで次へ切り替わります。");
+    renderPlan(data.plan, { startTimer });
+    if (!silent) setStatus("#1をそのまま実行。終わったら「✓ 完了！」だけ押せば次へ進みます。");
   } catch (error) {
     setStatus(`プラン生成失敗: ${error.message}`, true);
   } finally {
     button.disabled = false;
-    button.textContent = "今日やることを決める";
+    button.textContent = "今日やることを決める / やり直す";
   }
 }
 
@@ -406,8 +524,77 @@ async function handleDailyChecklistChange() {
   saveDailyCompletion();
   renderDailyChecklist();
   if (state.character) {
-    await generatePlan({ silent: true });
+    await generatePlan({ silent: true, startTimer: true });
     setStatus("日課チェックを更新しました。おすすめ順位を入れ替えました。");
+  }
+}
+
+function measuredActualMinutes() {
+  if (!state.activeTaskStartedAt) return null;
+  const elapsed = Math.round((Date.now() - state.activeTaskStartedAt) / 60000);
+  if (!Number.isFinite(elapsed) || elapsed < 1 || elapsed > 480) return null;
+  return elapsed;
+}
+
+async function handleCompleteCurrent() {
+  ensureDailyDateCurrent();
+  const method = state.currentMethod;
+  if (!method) return;
+
+  const button = $("methodList").querySelector("[data-complete-current]");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "記録中…";
+  }
+
+  const actualMinutes = measuredActualMinutes();
+  const plannedMinutes = Math.max(1, Number(method.minutes) || 15);
+  const focus = state.plan?.focus_job || {};
+  const completionId = crypto.randomUUID().replace(/-/g, "_");
+
+  try {
+    await api("/api/activity/complete", {
+      method: "POST",
+      body: JSON.stringify({
+        completion_id: completionId,
+        task_key: method.task_key || `todo:${Date.now()}`,
+        task_title: method.title || "TODO",
+        daily_key: method.daily_key || null,
+        job_code: focus.code || null,
+        job_level: focus.level || null,
+        planned_minutes: plannedMinutes,
+        actual_minutes: actualMinutes
+      })
+    });
+
+    state.todayCompletedCount += 1;
+    if (method.daily_key && Object.hasOwn(state.dailyCompletion, method.daily_key)) {
+      state.dailyCompletion[method.daily_key] = true;
+      saveDailyCompletion();
+      renderDailyChecklist();
+    }
+
+    if (!state.session) beginSession();
+    const consumed = actualMinutes && actualMinutes >= 5 && actualMinutes <= 180
+      ? actualMinutes
+      : plannedMinutes;
+    state.session.remainingMinutes = Math.max(0, state.session.remainingMinutes - consumed);
+    saveSession();
+    renderSessionMeta();
+
+    state.activeTaskKey = null;
+    state.activeTaskStartedAt = null;
+    await generatePlan({ silent: true, startTimer: true });
+
+    const actualText = actualMinutes ? `（経過 約${actualMinutes}分）` : "";
+    const remaining = Math.max(0, Math.round(state.session.remainingMinutes));
+    setStatus(`✓ 「${method.title}」完了 ${actualText}。残り約${remaining}分に合わせて次を更新しました。`);
+  } catch (error) {
+    setStatus(`完了記録失敗: ${error.message}`, true);
+    if (button) {
+      button.disabled = false;
+      button.textContent = "✓ 完了！";
+    }
   }
 }
 
@@ -428,19 +615,25 @@ $("energyChoices").addEventListener("click", event => {
 $("dailyLeveling").addEventListener("change", handleDailyChecklistChange);
 $("dailyAlliance").addEventListener("change", handleDailyChecklistChange);
 $("syncButton").addEventListener("click", () => syncEverything(true));
-$("planButton").addEventListener("click", () => generatePlan());
+$("planButton").addEventListener("click", () => generatePlan({ resetSession: true, startTimer: true }));
+$("methodList").addEventListener("click", event => {
+  if (event.target.closest("[data-complete-current]")) void handleCompleteCurrent();
+});
 
 window.addEventListener("focus", async () => {
   if (ensureDailyDateCurrent() && state.character) {
-    await generatePlan({ silent: true });
-    setStatus("日付が変わったので、今日の日課チェックをリセットしました。");
+    const activityData = await api("/api/activity/today");
+    state.todayCompletedCount = Number(activityData.count || 0);
+    await generatePlan({ silent: true, startTimer: false });
+    setStatus("日付が変わったので、今日の日課とプレイ枠をリセットしました。");
   }
 });
 
 setActive();
 renderDailyChecklist();
+renderSessionMeta();
 void (async function boot() {
   await loadSavedState();
   await syncEverything(false);
-  if (state.character) await generatePlan({ silent: true });
+  if (state.character && state.session) await generatePlan({ silent: true, startTimer: false });
 })();
