@@ -1,17 +1,12 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
-const LODESTONE_URL_KEY = "ff14_today_lodestone_url";
-const AI_ACCESS_CODE_KEY = "ff14_today_ai_access_code";
 
 const state = {
   minutes: 60,
   energy: 2,
   character: null,
+  achievements: null,
   plan: null,
-  progressSummary: null,
-  lodestoneUrl: localStorage.getItem(LODESTONE_URL_KEY) || "",
-  profileToken: getOrCreateProfileToken(),
-  selectedFile: null,
-  activeImport: null
+  profileToken: getOrCreateProfileToken()
 };
 
 const $ = id => document.getElementById(id);
@@ -21,20 +16,10 @@ function getOrCreateProfileToken() {
   if (token && /^[A-Za-z0-9_-]{43,128}$/.test(token)) return token;
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   let binary = "";
-  bytes.forEach(b => { binary += String.fromCharCode(b); });
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
   token = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   localStorage.setItem(PROFILE_TOKEN_KEY, token);
   return token;
-}
-
-function parseLodestoneId(value) {
-  try {
-    const url = new URL(value);
-    const match = url.pathname.match(/\/lodestone\/character\/(\d+)\//);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
 }
 
 function setStatus(message, error = false) {
@@ -44,11 +29,20 @@ function setStatus(message, error = false) {
 
 function formatSync(iso) {
   if (!iso) return "未同期";
-  return `最終同期 ${new Date(iso).toLocaleString("ja-JP", { hour12:false })}`;
+  return `最終同期 ${new Date(iso).toLocaleString("ja-JP", { hour12: false })}`;
+}
+
+async function api(path, options = {}) {
+  const headers = { "x-profile-token": state.profileToken, ...(options.headers || {}) };
+  if (options.body !== undefined) headers["content-type"] = "application/json";
+  const response = await fetch(path, { ...options, headers });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
+  return data;
 }
 
 function showCharacterUI(show) {
-  ["identity", "planner", "evidencePanel", "nowPanel", "jobsPanel"].forEach(id => {
+  ["identity", "planner", "nowPanel", "jobsPanel"].forEach(id => {
     $(id).classList.toggle("hidden", !show);
   });
 }
@@ -57,43 +51,64 @@ function renderCharacter(character) {
   state.character = character;
   showCharacterUI(Boolean(character));
   if (!character) return;
+
   $("characterName").textContent = character.name;
-  $("characterWorld").textContent = character.data_center ? `${character.world} [${character.data_center}]` : character.world;
+  $("characterWorld").textContent = character.data_center
+    ? `${character.world} [${character.data_center}]`
+    : character.world;
   $("syncDot").classList.add("ok");
   $("syncText").textContent = formatSync(character.synced_at);
 
   const jobs = character.jobs || [];
-  const unlocked = jobs.filter(j => j.level !== null);
-  const capped = unlocked.filter(j => j.level >= 100);
+  const unlocked = jobs.filter(job => job.level !== null);
+  const capped = unlocked.filter(job => job.level >= 100);
   $("jobsSummary").textContent = `${unlocked.length} Job解放 / Lv100 ${capped.length}`;
-
-  $("jobsGrid").replaceChildren(...jobs.map(j => {
+  $("jobsGrid").replaceChildren(...jobs.map(job => {
     const card = document.createElement("div");
-    card.className = `job ${j.level === null ? "locked" : ""}`;
+    card.className = `job ${job.level === null ? "locked" : ""}`;
     const code = document.createElement("div");
     code.className = "code";
-    code.textContent = `${j.code} · ${j.name_ja}`;
+    code.textContent = `${job.code} · ${job.name_ja}`;
     const level = document.createElement("div");
     level.className = "level";
-    level.textContent = j.level === null ? "—" : `Lv ${j.level}`;
+    level.textContent = job.level === null ? "—" : `Lv ${job.level}`;
     card.append(code, level);
     return card;
   }));
-
   $("planKind").textContent = "READY";
 }
 
-function renderProgressSummary(summary) {
-  state.progressSummary = summary;
-  if (!summary) return;
-  $("factCount").textContent = `実績 ${summary.achievement_facts || 0}件`;
-  const request = summary.evidence_request;
-  if (!request) return;
-  $("evidenceTitle").textContent = request.title || "実績画面";
-  $("evidenceReason").textContent = request.reason || "";
-  $("evidenceSteps").replaceChildren(...(request.instructions || []).map(step => {
+function renderAchievements(achievements) {
+  state.achievements = achievements;
+  if (!achievements) return;
+
+  $("achievementCount").textContent = Number(achievements.total_achievements || 0).toLocaleString("ja-JP");
+  $("achievementPoints").textContent = achievements.achievement_points == null
+    ? "—"
+    : Number(achievements.achievement_points).toLocaleString("ja-JP");
+  $("achievementPages").textContent = Number(achievements.page_total || 0).toLocaleString("ja-JP");
+  $("achievementSyncText").textContent = `${formatSync(achievements.synced_at)}${achievements.cached ? " · cache" : ""}`;
+
+  const recent = (achievements.history || []).slice(0, 8);
+  if (!recent.length) {
     const li = document.createElement("li");
-    li.textContent = step;
+    li.className = "muted";
+    li.textContent = "達成履歴なし";
+    $("recentAchievements").replaceChildren(li);
+    return;
+  }
+
+  $("recentAchievements").replaceChildren(...recent.map(entry => {
+    const li = document.createElement("li");
+    const name = document.createElement("strong");
+    name.textContent = entry.name || entry.activity_text || `Achievement ${entry.achievement_id}`;
+    li.append(name);
+    if (entry.achieved_at) {
+      const time = document.createElement("time");
+      time.dateTime = entry.achieved_at;
+      time.textContent = new Date(entry.achieved_at).toLocaleDateString("ja-JP");
+      li.append(time);
+    }
     return li;
   }));
 }
@@ -113,7 +128,9 @@ function renderPlan(plan) {
     li.textContent = step;
     return li;
   }));
-  $("nextTask").textContent = plan.next ? `${plan.next.title}（約${plan.next.minutes}分）` : "今日は追加しなくてOK";
+  $("nextTask").textContent = plan.next
+    ? `${plan.next.title}（約${plan.next.minutes}分）`
+    : "今日は追加しなくてOK";
   $("fallbackTask").textContent = plan.fallback?.title || "同期だけして終了";
   $("skipList").replaceChildren(...(plan.skip_today || []).map(item => {
     const li = document.createElement("li");
@@ -122,119 +139,56 @@ function renderPlan(plan) {
   }));
 }
 
-async function api(path, options = {}) {
-  const headers = { "x-profile-token": state.profileToken, ...(options.headers || {}) };
-  if (!(options.body instanceof FormData) && options.body !== undefined) headers["content-type"] = "application/json";
-  const response = await fetch(path, { ...options, headers });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || data.detail || `HTTP ${response.status}`);
-  return data;
-}
-
 function setActive() {
-  document.querySelectorAll("#timeChoices button").forEach(btn => btn.classList.toggle("active", Number(btn.dataset.minutes) === state.minutes));
-  document.querySelectorAll("#energyChoices button").forEach(btn => btn.classList.toggle("active", Number(btn.dataset.energy) === state.energy));
-}
-
-async function loadCharacterState(lodestoneId) {
-  const data = await api(`/api/state?lodestone_id=${encodeURIComponent(lodestoneId)}`);
-  if (data.character) renderCharacter(data.character);
-  if (data.preferences) {
-    state.minutes = Number(data.preferences.available_minutes) || 60;
-    state.energy = Number(data.preferences.energy) || 2;
-    setActive();
-  }
-  if (data.progress_summary) renderProgressSummary(data.progress_summary);
-  if (data.plan) renderPlan(data.plan);
-  return data;
-}
-
-async function loadSavedCharacter() {
-  if (!state.lodestoneUrl) return;
-  $("lodestoneInput").value = state.lodestoneUrl;
-  const id = parseLodestoneId(state.lodestoneUrl);
-  if (!id) return;
-  try { await loadCharacterState(id); }
-  catch (error) { setStatus(`保存済みキャラの読込失敗: ${error.message}`, true); }
-}
-
-function setSelectedFile(file) {
-  state.selectedFile = file || null;
-  if (!file) {
-    $("selectedFile").textContent = "SS未選択";
-    $("analyzeButton").disabled = true;
-    return;
-  }
-  const mb = (file.size / 1024 / 1024).toFixed(2);
-  $("selectedFile").textContent = `${file.name} · ${mb} MB`;
-  $("analyzeButton").disabled = !state.character;
-}
-
-function confidenceLabel(value) {
-  const pct = Math.round(Number(value || 0) * 100);
-  if (pct >= 90) return { text: `${pct}% · 高`, cls: "high" };
-  if (pct >= 70) return { text: `${pct}% · 確認`, cls: "mid" };
-  return { text: `${pct}% · 要確認`, cls: "low" };
-}
-
-function formatProgress(candidate) {
-  if (Number.isInteger(candidate.current_value) && Number.isInteger(candidate.target_value)) return `${candidate.current_value} / ${candidate.target_value}`;
-  if (candidate.completed === true) return "達成済み";
-  if (candidate.completed === false) return "未達";
-  return candidate.visible_progress_text || "数値なし";
-}
-
-function renderImportPreview(result) {
-  state.activeImport = result;
-  $("importPreview").classList.remove("hidden");
-  const metaParts = [];
-  if (result.category) metaParts.push(result.category);
-  metaParts.push(result.model_id || "Gemini");
-  if (result.duplicate) metaParts.push("同じSSを再利用");
-  $("importMeta").textContent = metaParts.join(" · ");
-
-  const fragment = document.createDocumentFragment();
-  (result.candidates || []).forEach(candidate => {
-    const row = document.createElement("label");
-    row.className = "candidate-row";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = candidate.candidate_id;
-    checkbox.checked = candidate.decision === "accepted" || (candidate.decision === "pending" && Number(candidate.confidence) >= 0.9);
-    checkbox.disabled = result.status === "confirmed";
-    const body = document.createElement("span");
-    body.className = "candidate-body";
-    const top = document.createElement("span");
-    top.className = "candidate-top";
-    const name = document.createElement("strong");
-    name.textContent = candidate.achievement_name;
-    const confidence = confidenceLabel(candidate.confidence);
-    const badge = document.createElement("span");
-    badge.className = `confidence ${confidence.cls}`;
-    badge.textContent = confidence.text;
-    top.append(name, badge);
-    const progress = document.createElement("span");
-    progress.className = "candidate-progress";
-    progress.textContent = formatProgress(candidate);
-    body.append(top, progress);
-    row.append(checkbox, body);
-    fragment.append(row);
+  document.querySelectorAll("#timeChoices button").forEach(button => {
+    button.classList.toggle("active", Number(button.dataset.minutes) === state.minutes);
   });
-  $("candidateList").replaceChildren(fragment);
-  updatePreviewSummary();
-  if (result.status === "confirmed") {
-    $("confirmImportButton").disabled = true;
-    $("confirmImportButton").textContent = "インポート済み";
-  } else {
-    $("confirmImportButton").disabled = false;
-    $("confirmImportButton").textContent = "選択した実績をインポート";
+  document.querySelectorAll("#energyChoices button").forEach(button => {
+    button.classList.toggle("active", Number(button.dataset.energy) === state.energy);
+  });
+}
+
+async function loadSavedState() {
+  try {
+    const [characterData, achievementData] = await Promise.all([
+      api("/api/state?lodestone_id=3091607"),
+      api("/api/achievements")
+    ]);
+    if (characterData.character) renderCharacter(characterData.character);
+    if (characterData.preferences) {
+      state.minutes = Number(characterData.preferences.available_minutes) || 60;
+      state.energy = Number(characterData.preferences.energy) || 2;
+      setActive();
+    }
+    if (characterData.plan) renderPlan(characterData.plan);
+    if (achievementData.achievements) renderAchievements(achievementData.achievements);
+  } catch (error) {
+    setStatus(`保存済みデータの読込失敗: ${error.message}`, true);
   }
 }
 
-function updatePreviewSummary() {
-  const boxes = [...$("candidateList").querySelectorAll('input[type="checkbox"]')];
-  const checked = boxes.filter(box => box.checked).length;
-  $("previewSummary").textContent = `${checked} / ${boxes.length}件を登録`;
+async function syncEverything(force = false) {
+  const button = $("syncButton");
+  button.disabled = true;
+  button.textContent = "同期中…";
+  $("achievementSyncText").textContent = "Lodestone実績を同期中…";
+  setStatus("Lodestoneを同期しています。初回の実績同期は21ページ前後読むので少し待ちます。");
+
+  try {
+    const [characterData, achievementData] = await Promise.all([
+      api("/api/sync", { method: "POST", body: JSON.stringify({}) }),
+      api(`/api/achievements/sync${force ? "?force=1" : ""}`, { method: "POST", body: JSON.stringify({}) })
+    ]);
+    renderCharacter(characterData.character);
+    renderAchievements(achievementData.achievements);
+    setStatus(`Lodestone同期完了。アチーブメント ${achievementData.achievements.total_achievements.toLocaleString("ja-JP")}件を取得しました。`);
+  } catch (error) {
+    $("achievementSyncText").textContent = "同期失敗";
+    setStatus(`Lodestone同期失敗: ${error.message}`, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Lodestone再同期";
+  }
 }
 
 $("timeChoices").addEventListener("click", event => {
@@ -251,33 +205,7 @@ $("energyChoices").addEventListener("click", event => {
   setActive();
 });
 
-$("lodestoneForm").addEventListener("submit", async event => {
-  event.preventDefault();
-  const url = $("lodestoneInput").value.trim();
-  if (!parseLodestoneId(url)) {
-    setStatus("LodestoneのキャラクターページURLを貼ってください。", true);
-    return;
-  }
-  const button = $("syncButton");
-  button.disabled = true;
-  button.textContent = "読込中…";
-  setStatus("Lodestoneを確認しています。");
-  try {
-    const data = await api("/api/sync", { method: "POST", body: JSON.stringify({ lodestone_url: url }) });
-    state.lodestoneUrl = data.character.lodestone_url;
-    localStorage.setItem(LODESTONE_URL_KEY, state.lodestoneUrl);
-    $("lodestoneInput").value = state.lodestoneUrl;
-    renderCharacter(data.character);
-    if (data.progress_summary) renderProgressSummary(data.progress_summary);
-    await loadCharacterState(data.character.lodestone_id);
-    setStatus(data.cached ? "キャラクターを読み込みました（最近の同期データを再利用）。" : "Lodestone同期完了。");
-  } catch (error) {
-    setStatus(`読込失敗: ${error.message}`, true);
-  } finally {
-    button.disabled = false;
-    button.textContent = "読み込む";
-  }
-});
+$("syncButton").addEventListener("click", () => syncEverything(true));
 
 $("planButton").addEventListener("click", async () => {
   if (!state.character) return;
@@ -288,10 +216,14 @@ $("planButton").addEventListener("click", async () => {
   try {
     const data = await api("/api/plan", {
       method: "POST",
-      body: JSON.stringify({ lodestone_id: state.character.lodestone_id, available_minutes: state.minutes, energy: state.energy })
+      body: JSON.stringify({
+        lodestone_id: "3091607",
+        available_minutes: state.minutes,
+        energy: state.energy
+      })
     });
     renderPlan(data.plan);
-    setStatus("今日の暫定プランを更新しました。");
+    setStatus("今日の暫定プランを更新しました。次の版で未達実績も候補に入れます。");
   } catch (error) {
     setStatus(`プラン生成失敗: ${error.message}`, true);
   } finally {
@@ -300,85 +232,6 @@ $("planButton").addEventListener("click", async () => {
   }
 });
 
-$("achievementImage").addEventListener("change", event => setSelectedFile(event.target.files?.[0] || null));
-["dragenter", "dragover"].forEach(type => $("dropZone").addEventListener(type, event => {
-  event.preventDefault();
-  $("dropZone").classList.add("dragging");
-}));
-["dragleave", "drop"].forEach(type => $("dropZone").addEventListener(type, event => {
-  event.preventDefault();
-  $("dropZone").classList.remove("dragging");
-}));
-$("dropZone").addEventListener("drop", event => {
-  const file = event.dataTransfer?.files?.[0];
-  if (file) setSelectedFile(file);
-});
-
-$("aiAccessCode").value = localStorage.getItem(AI_ACCESS_CODE_KEY) || "";
-$("aiAccessCode").addEventListener("change", () => {
-  const value = $("aiAccessCode").value.trim();
-  if (value) localStorage.setItem(AI_ACCESS_CODE_KEY, value);
-  else localStorage.removeItem(AI_ACCESS_CODE_KEY);
-});
-
-$("analyzeButton").addEventListener("click", async () => {
-  if (!state.character || !state.selectedFile) return;
-  const accessCode = $("aiAccessCode").value.trim();
-  if (!accessCode) {
-    setStatus("SS解析には共有AIアクセスコードが必要です。", true);
-    $("aiAccessCode").focus();
-    return;
-  }
-  const button = $("analyzeButton");
-  button.disabled = true;
-  button.textContent = "解析中…";
-  setStatus("SSをGeminiで読み取っています。画像本体はD1へ保存しません。");
-  const form = new FormData();
-  form.append("lodestone_id", state.character.lodestone_id);
-  form.append("image", state.selectedFile, state.selectedFile.name);
-  try {
-    const data = await api("/api/achievement-import/analyze", {
-      method: "POST",
-      headers: { "x-ai-access-code": accessCode },
-      body: form
-    });
-    renderImportPreview(data);
-    setStatus(data.duplicate ? "同じSSの解析結果を再利用しました。" : `${data.candidates.length}件を読み取りました。確認してインポートしてください。`);
-    $("importPreview").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  } catch (error) {
-    setStatus(`SS解析失敗: ${error.message}`, true);
-  } finally {
-    button.disabled = false;
-    button.textContent = "SSを解析する";
-  }
-});
-
-$("candidateList").addEventListener("change", event => {
-  if (event.target.matches('input[type="checkbox"]')) updatePreviewSummary();
-});
-
-$("confirmImportButton").addEventListener("click", async () => {
-  if (!state.activeImport || state.activeImport.status === "confirmed") return;
-  const accepted = [...$("candidateList").querySelectorAll('input[type="checkbox"]:checked')].map(box => box.value);
-  const button = $("confirmImportButton");
-  button.disabled = true;
-  button.textContent = "保存中…";
-  try {
-    const data = await api("/api/achievement-import/confirm", {
-      method: "POST",
-      body: JSON.stringify({ import_id: state.activeImport.import_id, accepted_candidate_ids: accepted })
-    });
-    renderProgressSummary(data.progress_summary);
-    state.activeImport.status = "confirmed";
-    button.textContent = `${data.accepted_count}件インポート済み`;
-    setStatus(`実績進捗を${data.accepted_count}件保存しました。`);
-  } catch (error) {
-    button.disabled = false;
-    button.textContent = "選択した実績をインポート";
-    setStatus(`インポート失敗: ${error.message}`, true);
-  }
-});
-
-if (state.lodestoneUrl) $("lodestoneInput").value = state.lodestoneUrl;
 setActive();
-loadSavedCharacter();
+await loadSavedState();
+await syncEverything(false);
