@@ -8,6 +8,7 @@ const LEVELING_DUNGEONS_90_100 = [
 
 const DPS_ROLES = new Set(["melee", "ranged", "caster"]);
 const MODES = new Set(["efficient", "craft", "gather", "discover"]);
+const EORZEA_REAL_SECONDS_PER_HOUR = 175;
 
 function normalizeMode(value) {
   return MODES.has(value) ? value : "efficient";
@@ -77,6 +78,7 @@ function asNow(method) {
     title: method.title,
     minutes: method.minutes,
     reason: method.reason,
+    condition: method.condition,
     steps: method.steps,
     repeat_count: method.repeat_count || 0
   };
@@ -90,7 +92,7 @@ function rouletteMethod(job, dailyKey, kind, badge, minutes, reason) {
     title: `${job.name_ja}で「コンテンツルーレット：${kind}」を1回`,
     minutes,
     reason,
-    condition: `今日の「${kind}」ボーナスが未消化なら選ぶ`,
+    condition: `目的：${job.name_ja}の経験値。今日の「${kind}」日次ボーナスを回収する。`,
     steps: [
       `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
       "メニュー → コンテンツ情報 → コンテンツファインダー",
@@ -107,24 +109,25 @@ function repeatDungeonMethod(job, duty) {
   return withJob({
     task_key: `leveling-dungeon:${job.code}:${duty.level}`,
     daily_key: null,
-    badge: "日課後の反復",
+    badge: "日課後の経験値",
     title: `${job.name_ja}で「${duty.name}」を1周`,
     minutes: dps ? 35 : 25,
-    reason: `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課後も経験値を優先したい時の反復候補。`,
+    reason: `Lv${job.level}で入れるLv${duty.level}のレベリングダンジョン。日課消化後も経験値を伸ばす目的で出しています。`,
     condition: dps
-      ? "CF待ちを許容できればCF、すぐ始めたいならコンテンツサポーター"
-      : "解放済みならCFで1周",
+      ? "目的：待ち時間の判断を増やさないため、DPSはコンテンツサポーターで1周する。"
+      : "目的：現在レベル帯の経験値を1周ぶん確実に積む。",
     steps: dps
       ? [
           `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-          `コンテンツファインダーで「${duty.name}」を確認`,
-          "待てるならCF、すぐ始めるならコンテンツサポーターを選ぶ",
-          "1周したら「✓ 完了！」"
+          `コンテンツサポーターで「${duty.name}」を選択`,
+          "1周する",
+          "終わったら「✓ 完了！」"
         ]
       : [
           `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
           `コンテンツファインダーで「${duty.name}」を選択`,
-          "1周したら「✓ 完了！」"
+          "1周する",
+          "終わったら「✓ 完了！」"
         ]
   }, job);
 }
@@ -134,64 +137,138 @@ function efficientMethods(character) {
   if (!job) return [];
   const methods = [
     rouletteMethod(job, "leveling", "レベリング", "日次ボーナス", 30,
-      "未消化なら最優先。1日1回の経験値ボーナスを先に取る。")
+      "1日1回の経験値ボーナスがあるため、未消化なら通常周回より先に出します。")
   ];
   if (job.level >= 50) {
     methods.push(rouletteMethod(job, "alliance", "アライアンスレイド", "日次ボーナス", 35,
-      "個別レイド周回ではなく、アライアンスルーレットの日次ボーナス目的で1回。"));
+      "個別レイド周回ではなく、1日1回のアライアンスルーレット経験値ボーナスを回収するために出します。"));
   }
   const dungeon = repeatDungeonMethod(job, dungeonForLevel(job.level));
   if (dungeon) methods.push(dungeon);
   return methods;
 }
 
+function exactAlchemistMethods(job) {
+  if (job.level < 90 || job.level > 91) return [];
+  return [
+    withJob({
+      task_key: "craft:alc90:leve:ginseng-angle-brush",
+      daily_key: null,
+      badge: "ギルドリーヴ納品",
+      title: "ギルドリーヴ用「Ginseng Angle Brush」をHQで1個作る",
+      minutes: 20,
+      reason: "TuliyollalのLv90ギルドリーヴ「Big Brush, Big Dreams」の納品物。1個納品で2,695,430 EXP＋約5,060ギル、HQ納品なら報酬が増えるため、目的のない製作より優先します。",
+      condition: "目的：錬金術師の経験値をリーヴ1枚で大きく進める。発行NPCはTuliyollalのMalihali（X:13.7 Y:12.7）。",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "製作手帳で「Ginseng Angle Brush」を開く",
+        "HQを1個だけ製作する",
+        "Tuliyollal（X:13.7 Y:12.7）のMalihaliで「Big Brush, Big Dreams」を受注して納品",
+        "終わったら「✓ 完了！」"
+      ]
+    }, job),
+    withJob({
+      task_key: "craft:alc90:leve:growth-formula-lambda",
+      daily_key: null,
+      badge: "材料軽めのリーヴ",
+      title: "ギルドリーヴ用「Growth Formula Lambda」をHQで3個作る",
+      minutes: 18,
+      reason: "TuliyollalのLv90ギルドリーヴ「Fast-forwarding Flora」の納品物。3個納品で1,440,660 EXP＋約2,530ギル。Ginseng Angle BrushよりEXP効率は低いが、材料構成が単純な代替案です。",
+      condition: "目的：リーヴ納品で錬金術師経験値を確定で進める。発行NPCはTuliyollalのMalihali（X:13.7 Y:12.7）。",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "製作手帳で「Growth Formula Lambda」を開く",
+        "HQを3個だけ製作する",
+        "Tuliyollal（X:13.7 Y:12.7）のMalihaliで「Fast-forwarding Flora」を受注して納品",
+        "終わったら「✓ 完了！」"
+      ]
+    }, job),
+    withJob({
+      task_key: "craft:alc91:collectable:loboskin-grimoire",
+      daily_key: null,
+      badge: "紫貨＋経験値",
+      title: "収集品「Rarefied Loboskin Grimoire」を1個作って納品する",
+      minutes: 20,
+      reason: "Lv91錬金術師の収集品で、収集価値に応じて経験値と紫貨が得られる。リーヴ権を消費したくない時の、目的が明確な製作候補です。",
+      condition: "目的：リーヴ権を使わず、錬金術師経験値とクラフタースクリップ紫貨を同時に得る。",
+      steps: [
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "製作手帳 → スペシャルレシピ → 収集品で「Rarefied Loboskin Grimoire」を開く",
+        "収集価値を上げて1個だけ製作する",
+        "収集品取引窓口へ1個納品する",
+        "終わったら「✓ 完了！」"
+      ]
+    }, job)
+  ].filter(method => job.level >= (method.task_key.includes("alc91") ? 91 : 90));
+}
+
 function craftMethods(character) {
   const job = pickCrafterJob(character);
   if (!job) return [];
+  if (job.code === "ALC") return exactAlchemistMethods(job);
+  return [];
+}
+
+function eorzeaHour(nowMs = Date.now()) {
+  const realSeconds = nowMs / 1000;
+  const eorzeaSeconds = realSeconds * (3600 / EORZEA_REAL_SECONDS_PER_HOUR);
+  return ((eorzeaSeconds / 3600) % 24 + 24) % 24;
+}
+
+function minutesUntilAmetrineWindow(nowMs = Date.now()) {
+  const hour = eorzeaHour(nowMs);
+  const starts = [0, 12];
+  let bestHours = 24;
+  let open = false;
+  for (const start of starts) {
+    const sinceStart = (hour - start + 24) % 24;
+    if (sinceStart >= 0 && sinceStart < 2) open = true;
+    const until = (start - hour + 24) % 24;
+    if (until < bestHours) bestHours = until;
+  }
+  return {
+    open,
+    minutes: open ? 0 : Math.max(1, Math.ceil(bestHours * EORZEA_REAL_SECONDS_PER_HOUR / 60))
+  };
+}
+
+function exactMinerMethods(job) {
+  if (job.level < 81) return [];
+  const window = minutesUntilAmetrineWindow();
+  const windowText = window.open
+    ? "いま出現時間内（ET 00:00-02:00 / 12:00-14:00）"
+    : `次の出現まで実時間約${window.minutes}分`;
   return [
     withJob({
-      task_key: `craft-log-new:${job.code}:${job.level}`,
+      task_key: "gather:min81:collectable:rarefied-raw-ametrine",
       daily_key: null,
-      badge: "手帳を埋める",
-      title: `${job.name_ja}で未製作レシピを3種類だけ作る`,
-      minutes: 20,
-      reason: "短時間で製作手帳に目に見える進捗を作る。今日は3種類で終了。",
-      condition: `Lv${job.level}以下で、素材を用意しやすい未製作レシピがある時`,
+      badge: window.open ? "今しか採れない" : "時間限定・次窓あり",
+      title: "「Rarefied Raw Ametrine」を収集価値1000目標で採る",
+      minutes: Math.max(12, Math.min(30, window.minutes + 10)),
+      reason: `Lv81採掘師の時間限定収集品。${windowText}。収集価値1000なら紫貨22＋経験値約111万が目安なので、時間窓が近い時は通常採集より優先します。`,
+      condition: "目的：時間限定ノードを逃さず、ギャザラースクリップ紫貨と経験値を同時に得る。",
       steps: [
         `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-        "製作手帳を開く",
-        "未製作マークの中から素材を用意しやすいものを3種類選ぶ",
-        "3種類作ったら「✓ 完了！」"
+        "Labyrinthos「The Archeion」へテレポ",
+        "Psyche（X:32.5 Y:21.2）へ移動",
+        "ET 00:00-02:00 または 12:00-14:00 の採掘ノードで Rarefied Raw Ametrine を採集",
+        "収集品取引窓口へ納品して「✓ 完了！」"
       ]
     }, job),
     withJob({
-      task_key: `craft-leveling:${job.code}:${job.level}`,
+      task_key: "gather:min81:collectable:rarefied-high-durium-ore",
       daily_key: null,
-      badge: "レベルを進める",
-      title: `${job.name_ja}の経験値を25分だけ稼ぐ`,
-      minutes: 25,
-      reason: "製作のレベル上げを優先する枠。25分で区切り、終わりの見えない連続製作にしない。",
-      condition: "今日は製作ジョブのレベルを進めたい時",
-      steps: [
-        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-        "現在レベル帯で経験値を得られる製作コンテンツを1つ選ぶ",
-        "25分だけ進める",
-        "時間になったら途中でも「✓ 完了！」"
-      ]
-    }, job),
-    withJob({
-      task_key: `craft-prep:${job.code}:${job.level}`,
-      daily_key: null,
-      badge: "軽めの準備",
-      title: `${job.name_ja}の次に作りたいものを3件だけ準備する`,
+      badge: "いつでも採れる収集品",
+      title: "Thavnairで「Rarefied High Durium Ore」を収集品として採る",
       minutes: 15,
-      reason: "今日は作り込む気分じゃない時に、次回の開始コストだけ下げる。",
-      condition: "素材確認や手帳整理だけならできそうな時",
+      reason: "Lv81から採れる常設の収集品。時間窓待ちが不要で、紫貨を確実に積めるため、時間限定ノードを待ちたくない時の明確な代替案です。",
+      condition: "目的：場所と納品先が決まった採集だけを行い、ギャザラースクリップ紫貨を増やす。",
       steps: [
-        `${job.name_ja}（Lv${job.level}）の製作手帳を開く`,
-        "次に作りたいレシピを3件だけ決める",
-        "不足素材を確認する",
-        "3件決まったら「✓ 完了！」"
+        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
+        "Thavnair「The Great Work」へテレポ",
+        "Lv85 Mineral Deposit（目安 X:17.2 Y:19.2）へ移動",
+        "Rarefied High Durium Ore を収集品として採集",
+        "収集品取引窓口へ納品して「✓ 完了！」"
       ]
     }, job)
   ];
@@ -200,63 +277,8 @@ function craftMethods(character) {
 function gatherMethods(character) {
   const job = pickGathererJob(character);
   if (!job) return [];
-  const fisher = job.code === "FSH";
-  return [
-    withJob({
-      task_key: `gather-log-new:${job.code}:${job.level}`,
-      daily_key: null,
-      badge: fisher ? "釣り手帳" : "採集手帳",
-      title: fisher
-        ? `${job.name_ja}で未釣りを3種類だけ埋める`
-        : `${job.name_ja}で未採集を5種類だけ埋める`,
-      minutes: 20,
-      reason: "手帳に見える進捗を作る。数を少なく固定して、途中でダレないようにする。",
-      condition: `Lv${job.level}以下で今行ける場所から選ぶ`,
-      steps: fisher
-        ? [
-            `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-            "釣り手帳を開く",
-            "今行ける釣り場から未釣りを3種類だけ狙う",
-            "3種類埋めたら「✓ 完了！」"
-          ]
-        : [
-            `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-            "採集手帳を開く",
-            "今行ける場所から未採集を5種類だけ採る",
-            "5種類埋めたら「✓ 完了！」"
-          ]
-    }, job),
-    withJob({
-      task_key: `gather-leveling:${job.code}:${job.level}`,
-      daily_key: null,
-      badge: "レベルを進める",
-      title: `${job.name_ja}の経験値を25分だけ稼ぐ`,
-      minutes: 25,
-      reason: "採集ジョブのレベル上げをしたい日の本命。時間で区切る。",
-      condition: "今日はギャザラーのレベルを上げたい時",
-      steps: [
-        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-        "現在レベル帯で経験値を得られる採集場所・コンテンツを1つ選ぶ",
-        "25分だけ採集する",
-        "時間になったら「✓ 完了！」"
-      ]
-    }, job),
-    withJob({
-      task_key: `gather-stock:${job.code}:${job.level}`,
-      daily_key: null,
-      badge: "素材を貯める",
-      title: `${job.name_ja}で使いそうな素材を30個だけ集める`,
-      minutes: 15,
-      reason: "目的を30個に固定した軽い採集。製作用ストック作りにもつながる。",
-      condition: "考えずに採るだけの気分の時",
-      steps: [
-        `${job.name_ja}（Lv${job.level}）へジョブチェンジ`,
-        "今行きやすい採集場所を1つ決める",
-        "使いそうな素材を合計30個だけ集める",
-        "30個集めたら「✓ 完了！」"
-      ]
-    }, job)
-  ];
+  if (job.code === "MIN") return exactMinerMethods(job);
+  return [];
 }
 
 function discoverMethods(character) {
@@ -271,15 +293,15 @@ function discoverMethods(character) {
   methods.push({
     task_key: "discover:gold-saucer-gate",
     daily_key: null,
-    badge: "普段やらない遊び",
-    title: "ゴールドソーサーでGATEを1回だけ遊ぶ",
+    badge: "短い寄り道",
+    title: "ゴールドソーサーで次のGATEを1回だけ遊ぶ",
     minutes: 20,
-    reason: "育成効率から一度離れて、短いイベントを1本だけ触る発見枠。",
-    condition: "ゴールドソーサー解放済みなら候補",
+    reason: "育成効率から離れて短いイベントを1本だけ遊ぶ発見枠。終点が明確なので、寄り道が長引きにくい。",
+    condition: "目的：普段の育成ループから外れた遊びを20分以内で試す。",
     steps: [
       "ゴールドソーサーへ移動",
-      "開催中または次に始まるGATEを確認",
-      "1回だけ参加する",
+      "イベント案内で次のGATEを確認",
+      "そのGATEに1回だけ参加",
       "終わったら「✓ 完了！」"
     ]
   });
@@ -288,15 +310,15 @@ function discoverMethods(character) {
     methods.push(withJob({
       task_key: "discover:ocean-fishing",
       daily_key: null,
-      badge: "いつもと違う釣り",
+      badge: "イベント釣り",
       title: `${fisher.name_ja}でオーシャンフィッシングを1航海`,
       minutes: 35,
-      reason: "通常の採集とは別物の短時間イベント。受付時間が合う日だけ選べばOK。",
-      condition: "オーシャンフィッシングの受付時間が合い、解放済みなら選ぶ",
+      reason: "通常の採集とは違う、開始と終了がはっきりした釣りイベント。1航海だけで区切れるため発見枠に入れます。",
+      condition: "目的：通常のレベリング以外の釣りコンテンツを1航海だけ体験する。",
       steps: [
         `${fisher.name_ja}（Lv${fisher.level}）へジョブチェンジ`,
-        "リムサ・ロミンサのオーシャンフィッシング受付を確認",
-        "受付中なら1航海だけ参加",
+        "リムサ・ロミンサのオーシャンフィッシング受付へ移動",
+        "受付可能な便に1航海だけ参加",
         "終わったら「✓ 完了！」"
       ]
     }, fisher));
@@ -309,11 +331,11 @@ function discoverMethods(character) {
       badge: "寄り道コンテンツ",
       title: "南方ボズヤ戦線でスカーミッシュを3回だけ遊ぶ",
       minutes: 30,
-      reason: "通常IDとは違う大人数フィールド戦。ランク進行があるので、少しだけ触っても積み上がる。",
-      condition: "南方ボズヤ戦線へ入場できる時",
+      reason: "通常IDとは違う大人数フィールド戦で、既存のボズヤランク進行も積み上がるため。",
+      condition: "目的：いつものID以外の戦闘を試しつつ、ボズヤ進行も残す。",
       steps: [
         "南方ボズヤ戦線へ入場",
-        "近くで発生しているスカーミッシュに参加",
+        "発生中のスカーミッシュへ参加",
         "合計3回終わったら切り上げる",
         "「✓ 完了！」を押す"
       ]
@@ -322,15 +344,15 @@ function discoverMethods(character) {
     methods.push(withJob({
       task_key: "discover:fate-three",
       daily_key: null,
-      badge: "寄り道コンテンツ",
+      badge: "フィールド寄り道",
       title: `${anyCombat.name_ja}でFATEを3回だけ遊ぶ`,
       minutes: 20,
-      reason: "IDやルーレット以外のフィールド遊びを短く触る発見枠。",
-      condition: "今いるエリアか移動しやすいエリアでFATEが見つかる時",
+      reason: "IDやルーレット以外のフィールド戦闘を短時間で試すための発見枠。",
+      condition: "目的：普段のCF外の戦闘を3回だけ触って終了する。",
       steps: [
         `${anyCombat.name_ja}へジョブチェンジ`,
-        "マップで近いFATEを確認",
-        "3回だけ参加",
+        "現在地のマップを開く",
+        "近いFATEへ3回参加",
         "終わったら「✓ 完了！」"
       ]
     }, anyCombat));
@@ -386,16 +408,16 @@ function focusFromMethod(method) {
   };
 }
 
-function sessionCompletePlan(character, availableMinutes, completedDaily, mode, deferredMethod = null) {
+function sessionCompletePlan(availableMinutes, completedDaily, mode, deferredMethod = null, noticeOverride = null) {
   const remaining = Math.max(0, Math.round(Number(availableMinutes) || 0));
   return {
-    planner_kind: "category-first-v0.9",
+    planner_kind: "decision-owned-v1.3",
     session_complete: true,
     selected_mode: mode,
     remaining_minutes: remaining,
-    notice: deferredMethod
+    notice: noticeOverride || (deferredMethod
       ? `残り約${remaining}分。「${deferredMethod.title}」は目安${deferredMethod.minutes}分なので、今日はここで終了でOK。`
-      : `残り約${remaining}分。今日はここで終了でOK。`,
+      : `残り約${remaining}分。今日はここで終了でOK。`),
     focus_job: null,
     completed_daily: completedDaily,
     methods: [],
@@ -403,7 +425,7 @@ function sessionCompletePlan(character, availableMinutes, completedDaily, mode, 
     next: null,
     deferred_task: deferredMethod ? { title: deferredMethod.title, minutes: deferredMethod.minutes } : null,
     fallback: { title: "今日はここで終了", minutes: 0 },
-    skip_today: ["残り時間を超えて無理に始める", "別カテゴリの候補まで全部やろうとする"]
+    skip_today: ["自分で候補を検索して比較する", "目的のない作業を数だけこなす"]
   };
 }
 
@@ -418,24 +440,35 @@ function concretePlan(character, availableMinutes, energy, completedDailyInput, 
   else if (mode === "discover") rawMethods = discoverMethods(character);
   else rawMethods = removeCompletedDaily(efficientMethods(character), completedDaily);
 
-  if (!rawMethods.length) return null;
+  if (!rawMethods.length) {
+    if (mode === "craft" || mode === "gather") {
+      return sessionCompletePlan(
+        availableMinutes,
+        completedDaily,
+        mode,
+        null,
+        "この職・レベル帯は、対象・場所・報酬根拠まで確定できる候補がまだありません。適当な『何か作る／採る』は出しません。"
+      );
+    }
+    return null;
+  }
 
   const fits = fitToRemainingTime(rawMethods, availableMinutes);
-  if (!fits.length) return sessionCompletePlan(character, availableMinutes, completedDaily, mode, rawMethods[0]);
+  if (!fits.length) return sessionCompletePlan(availableMinutes, completedDaily, mode, rawMethods[0]);
 
   const methods = applyRepeatPriority(fits, completionCounts).slice(0, 3);
   const recommended = methods[0];
   const label = modeLabel(mode);
   const repeatNote = recommended.repeat_count > 0
-    ? "このカテゴリの候補を一通り触っているため、今日の実行回数が少ないものから再提示しています。"
-    : "同じTODOの2回目より、まだやっていない候補を優先しています。";
+    ? "今日すでに実行済みですが、同カテゴリ内でまだ目的・報酬根拠が強いため再提示しています。"
+    : "未実行で、目的・報酬・場所まで具体化できる候補を優先しています。";
 
   return {
-    planner_kind: "category-first-v0.9",
+    planner_kind: "decision-owned-v1.3",
     session_complete: false,
     selected_mode: mode,
     remaining_minutes: Math.max(0, Math.round(Number(availableMinutes) || 0)),
-    notice: `今日は「${label}」。${repeatNote} #1〜#3から気分に合う1つだけ選べばOK。`,
+    notice: `今日は「${label}」。${repeatNote}`,
     focus_job: focusFromMethod(recommended),
     completed_daily: completedDaily,
     methods,
@@ -443,21 +476,21 @@ function concretePlan(character, availableMinutes, energy, completedDailyInput, 
     next: methods[1] ? {
       title: methods[1].title,
       minutes: methods[1].minutes,
-      reason: "#1の気分じゃない時はこちら。"
+      reason: methods[1].reason
     } : null,
     fallback: methods[2] ? {
       title: methods[2].title,
       minutes: methods[2].minutes,
-      reason: "さらに別案。"
+      reason: methods[2].reason
     } : {
       title: "今日はここで終了",
       minutes: 0,
-      reason: "候補を無理に増やさない。"
+      reason: "根拠の薄い候補を水増ししない。"
     },
     skip_today: [
-      "選んでいないカテゴリのことを考える",
-      "3候補を全部やろうとする",
-      "攻略サイトを何個も開いて比較し直す"
+      "候補の中身を自分で決め直す",
+      "攻略サイトを何個も開いて比較する",
+      "目的のない製作・採集を数だけこなす"
     ]
   };
 }
