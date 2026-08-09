@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ff14-today",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-09",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ff14-today",
+      "database_id": "a5743cba-f99f-4c7e-9b9f-10eec34f2fa9",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
