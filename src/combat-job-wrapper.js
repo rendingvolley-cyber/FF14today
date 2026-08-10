@@ -101,7 +101,7 @@ function rewriteHtml(response) {
     })
     .on(".version", {
       element(element) {
-        element.setInnerContent("v1.7.1 · 80-90 ROUTES");
+        element.setInnerContent("v1.7.2 · EFFICIENCY 70+");
       }
     })
     .transform(response);
@@ -138,10 +138,13 @@ export default {
       catch { return response; }
       return json({
         ...data,
-        version: "1.7.1",
+        version: "1.7.2",
         combat_job_switcher: true,
         combat_job_focus_leveling: true,
-        combat_leveling_routes_80_90: true
+        combat_leveling_routes_70_99: true,
+        combat_efficiency_comparator: true,
+        blue_mage_leveling_route: true,
+        frontline_daily_candidate: true
       }, response.status);
     }
     if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
