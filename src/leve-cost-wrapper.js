@@ -3,6 +3,7 @@ import { buildLeveCostAdvice } from "./leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "./leve-cost-data.js";
 
 const WORLD = "Chocobo";
+const VERSION = "1.8.3";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -51,7 +52,7 @@ async function fetchMarketPrices(itemIds) {
   if (!ids.length) return { prices: {}, ageMinutes: null };
   const response = await fetch(
     `https://universalis.app/api/v2/${encodeURIComponent(WORLD)}/${ids.join(",")}?listings=100`,
-    { headers: { "user-agent": "FF14Today/1.8.1 leve-cost-advisor" } }
+    { headers: { "user-agent": `FF14Today/${VERSION} leve-cost-advisor` } }
   );
   if (!response.ok) throw new Error(`Universalis HTTP ${response.status}`);
   const data = await response.json();
@@ -113,7 +114,7 @@ function rewriteHtml(response) {
     })
     .on(".version", {
       element(element) {
-        element.setInnerContent("v1.8.1 · LEVE COST");
+        element.setInnerContent("v1.8.3 · LEVE SAFE");
       }
     })
     .transform(response);
@@ -133,7 +134,7 @@ export default {
       catch { return response; }
       return json({
         ...data,
-        version: "1.8.1",
+        version: VERSION,
         leve_cost_advisor: true,
         leve_cost_market_world: WORLD,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
