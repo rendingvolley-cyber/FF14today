@@ -20,17 +20,7 @@ const plans = {
     planner_kind: "RULE",
     notice: "戦闘候補",
     focus_job: { code: "RDM", name: "赤魔道士", level: 92, role: "caster" },
-    methods: [
-      {
-        rank: 1,
-        task_key: "roulette:leveling",
-        badge: "日次ボーナス",
-        title: "赤魔道士で「コンテンツルーレット：レベリング」を1回",
-        minutes: 30,
-        reason: "未消化の日次ボーナスを回収する。",
-        steps: ["コンテンツファインダーを開く"]
-      }
-    ],
+    methods: [{ rank: 1, task_key: "roulette:leveling", badge: "日次ボーナス", title: "赤魔道士で「コンテンツルーレット：レベリング」を1回", minutes: 30, reason: "未消化の日次ボーナスを回収する。", steps: ["コンテンツファインダーを開く"] }],
     skip_today: []
   },
   craft: {
@@ -39,32 +29,8 @@ const plans = {
     notice: "生産候補",
     focus_job: { code: "ALC", name: "錬金術師", level: 90, role: "crafter" },
     methods: [
-      {
-        rank: 1,
-        task_key: "craft:alc90:leve:ginseng-angle-brush",
-        badge: "ギルドリーヴ納品",
-        title: "ギルドリーヴ用「Ginseng Angle Brush」をHQで1個作る",
-        minutes: 20,
-        reason: "経験値効率の高いリーヴ。",
-        job_code: "ALC",
-        job_name: "錬金術師",
-        job_level: 90,
-        job_role: "crafter",
-        steps: ["製作手帳を開く"]
-      },
-      {
-        rank: 2,
-        task_key: "craft:alc90:leve:growth-formula-lambda",
-        badge: "材料軽めのリーヴ",
-        title: "ギルドリーヴ用「Growth Formula Lambda」をHQで3個作る",
-        minutes: 18,
-        reason: "材料が軽い代替案。",
-        job_code: "ALC",
-        job_name: "錬金術師",
-        job_level: 90,
-        job_role: "crafter",
-        steps: ["製作手帳を開く"]
-      }
+      { rank: 1, task_key: "craft:alc90:leve:ginseng-angle-brush", badge: "ギルドリーヴ納品", title: "ギルドリーヴ用「Ginseng Angle Brush」をHQで1個作る", minutes: 20, reason: "経験値効率の高いリーヴ。", job_code: "ALC", job_name: "錬金術師", job_level: 90, job_role: "crafter", steps: ["製作手帳を開く"] },
+      { rank: 2, task_key: "craft:alc90:leve:growth-formula-lambda", badge: "材料軽めのリーヴ", title: "ギルドリーヴ用「Growth Formula Lambda」をHQで3個作る", minutes: 18, reason: "材料が軽い代替案。", job_code: "ALC", job_name: "錬金術師", job_level: 90, job_role: "crafter", steps: ["製作手帳を開く"] }
     ],
     skip_today: []
   },
@@ -74,32 +40,8 @@ const plans = {
     notice: "採集候補",
     focus_job: { code: "MIN", name: "採掘師", level: 81, role: "gatherer" },
     methods: [
-      {
-        rank: 1,
-        task_key: "gather:min81:collectable:rarefied-raw-ametrine",
-        badge: "時間限定・次窓あり",
-        title: "「Rarefied Raw Ametrine」を収集価値1000目標で採る",
-        minutes: 18,
-        reason: "Lv81採掘師の時間限定収集品。次の出現まで実時間約20分。ET 00:00-02:00 / 12:00-14:00。",
-        job_code: "MIN",
-        job_name: "採掘師",
-        job_level: 81,
-        job_role: "gatherer",
-        steps: ["Labyrinthosへ移動"]
-      },
-      {
-        rank: 2,
-        task_key: "gather:min81:collectable:rarefied-high-durium-ore",
-        badge: "いつでも採れる収集品",
-        title: "Thavnairで「Rarefied High Durium Ore」を収集品として採る",
-        minutes: 15,
-        reason: "時間窓待ちが不要。",
-        job_code: "MIN",
-        job_name: "採掘師",
-        job_level: 81,
-        job_role: "gatherer",
-        steps: ["Thavnairへ移動"]
-      }
+      { rank: 1, task_key: "gather:min81:collectable:rarefied-raw-ametrine", badge: "時間限定・次窓あり", title: "「Rarefied Raw Ametrine」を収集価値1000目標で採る", minutes: 18, reason: "Lv81採掘師の時間限定収集品。次の出現まで実時間約20分。ET 00:00-02:00 / 12:00-14:00。", job_code: "MIN", job_name: "採掘師", job_level: 81, job_role: "gatherer", steps: ["Labyrinthosへ移動"] },
+      { rank: 2, task_key: "gather:min81:collectable:rarefied-high-durium-ore", badge: "いつでも採れる収集品", title: "Thavnairで「Rarefied High Durium Ore」を収集品として採る", minutes: 15, reason: "時間窓待ちが不要。", job_code: "MIN", job_name: "採掘師", job_level: 81, job_role: "gatherer", steps: ["Thavnairへ移動"] }
     ],
     skip_today: []
   },
@@ -109,28 +51,8 @@ const plans = {
     notice: "その他候補",
     focus_job: null,
     methods: [
-      {
-        rank: 1,
-        task_key: "discover:ocean-fishing",
-        badge: "イベント釣り",
-        title: "漁師でオーシャンフィッシングを1航海",
-        minutes: 35,
-        reason: "1航海だけで区切れる釣り。",
-        job_code: "FSH",
-        job_name: "漁師",
-        job_level: 80,
-        job_role: "gatherer",
-        steps: ["リムサへ移動"]
-      },
-      {
-        rank: 2,
-        task_key: "discover:gold-saucer-gate",
-        badge: "短い寄り道",
-        title: "ゴールドソーサーで次のGATEを1回だけ遊ぶ",
-        minutes: 20,
-        reason: "短い寄り道。",
-        steps: ["ゴールドソーサーへ移動"]
-      }
+      { rank: 1, task_key: "discover:ocean-fishing", badge: "イベント釣り", title: "漁師でオーシャンフィッシングを1航海", minutes: 35, reason: "1航海だけで区切れる釣り。", job_code: "FSH", job_name: "漁師", job_level: 80, job_role: "gatherer", steps: ["リムサへ移動"] },
+      { rank: 2, task_key: "discover:gold-saucer-gate", badge: "短い寄り道", title: "ゴールドソーサーで次のGATEを1回だけ遊ぶ", minutes: 20, reason: "短い寄り道。", steps: ["ゴールドソーサーへ移動"] }
     ],
     skip_today: []
   }
@@ -138,11 +60,7 @@ const plans = {
 
 function statePayload(url) {
   const mode = url.searchParams.get("planner_mode") || "efficient";
-  return {
-    character,
-    preferences: { available_minutes: 60, energy: 3 },
-    plan: plans[mode] || plans.efficient
-  };
+  return { character, preferences: { available_minutes: 60, energy: 3 }, plan: plans[mode] || plans.efficient };
 }
 
 const costAdvice = {
@@ -158,30 +76,32 @@ const costAdvice = {
   advice: {
     recommendedKey: "buy_direct",
     recommendationReason: "準備時間と価格のバランスが良い。",
-    routes: [
-      {
-        key: "buy_direct",
-        label: "中間素材を買って最終品だけ作る",
-        available: true,
-        gil: 8945,
-        additionalGil: 8945,
-        inventoryOpportunityGil: 0,
-        inventoryEvidenceApplied: false,
-        estimatedMinutes: 6,
-        craftCount: 1,
-        purchases: [
-          { itemId: 36238, itemName: "エンチャント・マンガンインク", quantity: 1, hq: false, total: 1845 },
-          { itemId: 44019, itemName: "ジンセン材", quantity: 3, hq: false, total: 5100 },
-          { itemId: 44058, itemName: "シルバー・ロボレザー", quantity: 1, hq: false, total: 2000 }
-        ],
-        crafts: [{ itemId: 41856, itemName: "ジンセン・アングルブラシ", syntheses: 1 }]
-      }
-    ]
+    routes: [{
+      key: "buy_direct",
+      label: "中間素材を買って最終品だけ作る",
+      available: true,
+      gil: 8945,
+      additionalGil: 8945,
+      inventoryOpportunityGil: 0,
+      inventoryEvidenceApplied: false,
+      estimatedMinutes: 6,
+      craftCount: 1,
+      purchases: [
+        { itemId: 36238, itemName: "エンチャント・マンガンインク", quantity: 1, hq: false, total: 1845 },
+        { itemId: 44019, itemName: "ジンセン材", quantity: 3, hq: false, total: 5100 },
+        { itemId: 44058, itemName: "シルバー・ロボレザー", quantity: 1, hq: false, total: 2000 }
+      ],
+      crafts: [{ itemId: 41856, itemName: "ジンセン・アングルブラシ", syntheses: 1 }]
+    }]
   }
 };
 
+const emptyAchievements = { total_achievements: 0, achievement_points: 0, page_total: 0, history: [] };
+
 function genericPayload(pathname) {
-  if (pathname === "/api/achievements") return { achievements: { total_achievements: 0, achievement_points: 0, page_total: 0, history: [] } };
+  if (pathname === "/api/sync") return { character };
+  if (pathname === "/api/achievements/sync") return { achievements: emptyAchievements };
+  if (pathname === "/api/achievements") return { achievements: emptyAchievements };
   if (pathname === "/api/activity/today") return { count: 0 };
   if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [] };
   if (pathname === "/api/grand-company/deliveries") return { setup_required: true, deliveries: [], recommended: null };
