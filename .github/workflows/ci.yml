@@ -44,6 +44,7 @@ jobs:
           node --check public/gather-checklist.js
           node --check public/retainer-advice.js
           node --check public/combat-job-switcher.js
+          node --check public/tribe-leveling-data.js
       - name: Context planning rules
         run: node scripts/test-context-opportunities.mjs
       - name: Measurable motive rules
@@ -54,6 +55,8 @@ jobs:
         run: node scripts/test-grounded-discovery.mjs
       - name: Combat job focus rules
         run: node scripts/test-combat-job-focus.mjs
+      - name: Tribe leveling guide rules
+        run: node scripts/test-tribe-leveling-guide.mjs
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
       - name: Secret pattern scan
