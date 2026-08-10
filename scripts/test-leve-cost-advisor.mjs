@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import {
   applyInventoryEvidenceToRoute,
   buildLeveCostAdvice,
-  chooseRecommendedRoute
+  chooseRecommendedRoute,
+  quotePriceBands
 } from "../src/leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "../src/leve-cost-data.js";
 
@@ -94,7 +95,10 @@ const heldIngredientRoute = applyInventoryEvidenceToRoute({
     quantity: 3,
     hq: false,
     unitPrice: 3000,
-    total: 9000
+    total: 9000,
+    pricingMode: "unit_fallback",
+    fallbackUnitPrice: 3000,
+    priceBands: []
   }],
   crafts: [],
   missingPriceItemIds: []
@@ -124,7 +128,10 @@ const hqRoute = {
     quantity: 1,
     hq: true,
     unitPrice: 20000,
-    total: 20000
+    total: 20000,
+    pricingMode: "unit_fallback",
+    fallbackUnitPrice: 20000,
+    priceBands: []
   }],
   crafts: [],
   missingPriceItemIds: []
@@ -149,6 +156,78 @@ const adviceWithHeldHq = buildLeveCostAdvice(target, prices, {
 assert.equal(adviceWithHeldHq.recommendedKey, "buy_finished");
 assert.equal(adviceWithHeldHq.routes.find(route => route.key === "buy_finished").additionalGil, 0);
 assert.match(adviceWithHeldHq.recommendationReason, /追加支出は約0G/);
+
+const stackQuote = quotePriceBands([
+  { quantity: 1, unitPrice: 1000 },
+  { quantity: 2, unitPrice: 2000 }
+], 3);
+assert.equal(stackQuote.complete, true);
+assert.equal(stackQuote.total, 5000, "three items must consume the expensive second listing after the first cheap unit");
+assert.equal(Math.round(stackQuote.averageUnitPrice), 1667);
+assert.equal(quotePriceBands([{ quantity: 2, unitPrice: 1000 }], 3).complete, false, "insufficient listing quantity must not be treated as fully purchasable");
+
+const stackAwareGrowth = buildLeveCostAdvice(
+  leveTarget("craft:alc90:leve:growth-formula-lambda"),
+  {
+    44049: {
+      hq: 1000,
+      nqOffers: [],
+      hqOffers: [
+        { quantity: 1, unitPrice: 1000 },
+        { quantity: 2, unitPrice: 2000 }
+      ]
+    },
+    43979: { nq: 100 },
+    44068: { nq: 200 },
+    13: { nq: 10 }
+  },
+  { energy: 1, availableMinutes: 30 }
+);
+const stackFinished = stackAwareGrowth.routes.find(route => route.key === "buy_finished");
+assert.equal(stackFinished.gil, 5000, "finished-item route must sum listing quantities, not multiply the cheapest unit price");
+assert.equal(stackFinished.purchases[0].pricingMode, "listing_quantity");
+
+const stackWithHeld = buildLeveCostAdvice(
+  leveTarget("craft:alc90:leve:growth-formula-lambda"),
+  {
+    44049: {
+      hq: 1000,
+      nqOffers: [],
+      hqOffers: [
+        { quantity: 1, unitPrice: 1000 },
+        { quantity: 2, unitPrice: 2000 }
+      ]
+    },
+    43979: { nq: 100 },
+    44068: { nq: 200 },
+    13: { nq: 10 }
+  },
+  {
+    energy: 1,
+    availableMinutes: 30,
+    inventory: { 44049: { quantity: 2, hq_quantity: 2 } }
+  }
+);
+const heldStackFinished = stackWithHeld.routes.find(route => route.key === "buy_finished");
+assert.equal(heldStackFinished.gil, 5000, "effective cost must remain the full replacement cost");
+assert.equal(heldStackFinished.additionalGil, 1000, "with two held HQ items, only the cheapest one remaining unit should be bought");
+assert.equal(heldStackFinished.inventoryOpportunityGil, 4000, "held items take the marginal replacement value of the remaining listing curve");
+
+const insufficientGrowth = buildLeveCostAdvice(
+  leveTarget("craft:alc90:leve:growth-formula-lambda"),
+  {
+    44049: {
+      hq: 1000,
+      nqOffers: [],
+      hqOffers: [{ quantity: 2, unitPrice: 1000 }]
+    },
+    43979: { nq: 100 },
+    44068: { nq: 200 },
+    13: { nq: 10 }
+  },
+  { energy: 1, availableMinutes: 30 }
+);
+assert.equal(insufficientGrowth.routes.find(route => route.key === "buy_finished").available, false, "not enough listed HQ quantity must disable the buy-finished route");
 
 const uiSource = readFileSync(new URL("../public/leve-cost-advice.js", import.meta.url), "utf8");
 assert.doesNotMatch(uiSource, /MutationObserver/, "Leve Cost UI must not use MutationObserver after the boot-loop incident");
