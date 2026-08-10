@@ -29,6 +29,13 @@ function statSummary(analysis) {
     const entries = analysis.retainer_ventures.ventures || [];
     return `リテイナー調達候補を ${entries.length}件読み取りました。市場を比較して派遣先を更新します。`;
   }
+  if (analysis.page_type === "inventory_items" && analysis.inventory_items) {
+    const relevant = analysis.inventory_items.relevant_items || [];
+    if (relevant.length) {
+      return `手持ち素材を ${relevant.length}件ひも付けました。リーヴの追加支出と実質コストを再計算します。`;
+    }
+    return "所持数は読み取れましたが、現在のリーヴ対象素材とは一致しませんでした。";
+  }
   if (analysis.page_type === "crafter_stats" && analysis.crafter_stats) {
     const s = analysis.crafter_stats;
     return `製作ステータスを取得：作業精度 ${s.craftsmanship ?? "—"} / 加工精度 ${s.control ?? "—"} / CP ${s.cp ?? "—"}`;
@@ -50,7 +57,7 @@ function statSummary(analysis) {
     }
     return `アチーブメント画面から ${entries.length}件を判断材料に追加しました。`;
   }
-  return "この画像は双蛇党納品/リテイナー調達/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
+  return "この画像は双蛇党納品/リテイナー調達/手持ち素材/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
 
 function renderSavedContext(context) {
@@ -101,13 +108,25 @@ async function refreshPlanWithoutResettingSession() {
   if (active) active.click();
 }
 
+function announceContextSaved(analysis, data) {
+  window.dispatchEvent(new CustomEvent("ff14today:context-saved", {
+    detail: {
+      pageType: analysis?.page_type || "unknown",
+      analysis,
+      inventorySavedCount: Number(data?.inventory_context_saved || 0),
+      grandCompanySaved: Boolean(data?.grand_company_context_saved),
+      retainerSaved: Boolean(data?.retainer_context_saved)
+    }
+  }));
+}
+
 async function uploadImage(file) {
   if (!file || !file.type.startsWith("image/")) return;
   if (file.size > 8 * 1024 * 1024) {
     setInboxState("画像が8MBを超えています。", "error");
     return;
   }
-  setInboxState("画像を解析中… 双蛇党納品・リテイナー調達・ジャーナル・実績進捗・装備ステータスを自動判定しています。", "working");
+  setInboxState("画像を解析中… 双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績進捗・装備ステータスを自動判定しています。", "working");
   const box = $("contextInbox");
   box?.classList.add("working");
   try {
@@ -122,6 +141,7 @@ async function uploadImage(file) {
     if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
     const analysis = data.analysis || {};
     setInboxState(statSummary(analysis), analysis.page_type === "unknown" ? "warning" : "success");
+    announceContextSaved(analysis, data);
     await loadSavedContext();
     if (data.context_saved) await refreshPlanWithoutResettingSession();
   } catch (error) {
@@ -147,7 +167,7 @@ document.addEventListener("paste", event => {
 
 $("contextInbox")?.addEventListener("click", () => {
   $("contextInbox")?.focus();
-  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・リテイナー調達・ジャーナル・実績・装備情報を自動判定します。", "idle");
+  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績・装備情報を自動判定します。", "idle");
 });
 
 void loadSavedContext();

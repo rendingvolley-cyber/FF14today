@@ -1,9 +1,10 @@
 import app from "./combat-job-wrapper.js";
 import { buildLeveCostAdvice } from "./leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "./leve-cost-data.js";
+import { loadInventoryEvidence, profileHashFromRequest } from "./inventory-store.js";
 
 const WORLD = "Chocobo";
-const VERSION = "1.9.0";
+const VERSION = "1.9.1";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -72,7 +73,7 @@ function clampMinutes(value) {
   return Math.max(5, Math.min(240, n));
 }
 
-async function handleCostAdvice(url) {
+async function handleCostAdvice(request, url, env) {
   const taskKey = String(url.searchParams.get("task_key") || "").trim();
   const target = leveTarget(taskKey);
   if (!target) return json({ error: "このリーヴはまだ調達比較の対象外です。" }, 404);
@@ -87,10 +88,19 @@ async function handleCostAdvice(url) {
       detail: error.message
     }, 502);
   }
+
+  let inventory = { items: {}, rows: [], observedAt: null };
+  const profileHash = await profileHashFromRequest(request);
+  if (profileHash) {
+    try { inventory = await loadInventoryEvidence(env, profileHash); }
+    catch { inventory = { items: {}, rows: [], observedAt: null }; }
+  }
+
   const advice = buildLeveCostAdvice(target, market.prices, {
     energy,
     availableMinutes,
-    preferTraining: true
+    preferTraining: true,
+    inventory: inventory.items
   });
   if (!advice) return json({ error: "レシピ比較を生成できませんでした。" }, 422);
   return json({
@@ -100,6 +110,11 @@ async function handleCostAdvice(url) {
     market_age_minutes: market.ageMinutes,
     energy,
     available_minutes: availableMinutes,
+    inventory_evidence: {
+      applied: advice.inventoryEvidenceApplied,
+      observed_at: inventory.observedAt,
+      item_count: inventory.rows.length
+    },
     advice
   });
 }
@@ -108,7 +123,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/leve/cost-advice" && request.method === "GET") {
-      return handleCostAdvice(url);
+      return handleCostAdvice(request, url, env);
     }
 
     const response = await app.fetch(request, env);
@@ -122,6 +137,8 @@ export default {
         daily_routine_order: ["grand_company", "retainer", "plan"],
         leve_cost_advisor: true,
         leve_cost_market_world: WORLD,
+        leve_cost_inventory_evidence: true,
+        leve_cost_cash_vs_opportunity: true,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
     }

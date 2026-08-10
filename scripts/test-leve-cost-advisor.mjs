@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildLeveCostAdvice, chooseRecommendedRoute } from "../src/leve-cost-advisor.js";
+import {
+  applyInventoryEvidenceToRoute,
+  buildLeveCostAdvice,
+  chooseRecommendedRoute
+} from "../src/leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "../src/leve-cost-data.js";
 
 const target = leveTarget("craft:alc90:leve:ginseng-angle-brush");
@@ -73,9 +77,86 @@ const manual = chooseRecommendedRoute([
 ], { energy: 1, availableMinutes: 30, preferTraining: false });
 assert.equal(manual.key, "fast");
 
+const heldIngredientRoute = applyInventoryEvidenceToRoute({
+  key: "synthetic",
+  label: "synthetic",
+  available: true,
+  gil: 9000,
+  additionalGil: 9000,
+  inventoryOpportunityGil: 0,
+  inventoryUsed: [],
+  inventoryEvidenceApplied: false,
+  estimatedMinutes: 3,
+  craftCount: 0,
+  purchases: [{
+    itemId: 44019,
+    itemName: "Ginseng Lumber",
+    quantity: 3,
+    hq: false,
+    unitPrice: 3000,
+    total: 9000
+  }],
+  crafts: [],
+  missingPriceItemIds: []
+}, {
+  44019: { quantity: 2, hq_quantity: null }
+});
+assert.equal(heldIngredientRoute.gil, 9000, "effective cost must preserve the market value of held items");
+assert.equal(heldIngredientRoute.additionalGil, 3000, "cash outlay must only include the missing unit");
+assert.equal(heldIngredientRoute.inventoryOpportunityGil, 6000, "held items must keep their opportunity value");
+assert.equal(heldIngredientRoute.purchases[0].heldQuantity, 2);
+assert.equal(heldIngredientRoute.purchases[0].buyQuantity, 1);
+
+const hqRoute = {
+  key: "hq",
+  label: "hq",
+  available: true,
+  gil: 20000,
+  additionalGil: 20000,
+  inventoryOpportunityGil: 0,
+  inventoryUsed: [],
+  inventoryEvidenceApplied: false,
+  estimatedMinutes: 2,
+  craftCount: 0,
+  purchases: [{
+    itemId: 41856,
+    itemName: "Ginseng Angle Brush",
+    quantity: 1,
+    hq: true,
+    unitPrice: 20000,
+    total: 20000
+  }],
+  crafts: [],
+  missingPriceItemIds: []
+};
+const unknownQuality = applyInventoryEvidenceToRoute(hqRoute, {
+  41856: { quantity: 1, hq_quantity: null }
+});
+assert.equal(unknownQuality.additionalGil, 20000, "unknown quality inventory must not satisfy an HQ-only purchase");
+assert.equal(unknownQuality.inventoryOpportunityGil, 0);
+const knownHq = applyInventoryEvidenceToRoute(hqRoute, {
+  41856: { quantity: 1, hq_quantity: 1 }
+});
+assert.equal(knownHq.additionalGil, 0);
+assert.equal(knownHq.inventoryOpportunityGil, 20000);
+
+const adviceWithHeldHq = buildLeveCostAdvice(target, prices, {
+  energy: 1,
+  availableMinutes: 10,
+  preferTraining: true,
+  inventory: { 41856: { quantity: 1, hq_quantity: 1 } }
+});
+assert.equal(adviceWithHeldHq.recommendedKey, "buy_finished");
+assert.equal(adviceWithHeldHq.routes.find(route => route.key === "buy_finished").additionalGil, 0);
+assert.match(adviceWithHeldHq.recommendationReason, /追加支出は約0G/);
+
 const uiSource = readFileSync(new URL("../public/leve-cost-advice.js", import.meta.url), "utf8");
 assert.doesNotMatch(uiSource, /MutationObserver/, "Leve Cost UI must not use MutationObserver after the boot-loop incident");
 assert.match(uiSource, /setInterval\(queueRefresh,\s*1000\)/, "Leve Cost UI must use bounded polling");
 assert.match(uiSource, /panel\.dataset\.loading/, "Leve Cost UI must suppress duplicate in-flight requests");
+assert.match(uiSource, /x-profile-token/, "Leve Cost API must receive the same browser profile token as screenshot evidence");
+assert.match(uiSource, /ff14today:context-saved/, "inventory screenshot save must invalidate the cached leve comparison immediately");
+assert.match(uiSource, /追加支出/, "UI must expose cash outlay separately");
+assert.match(uiSource, /実質コスト/, "UI must expose opportunity-cost-inclusive cost separately");
 
 console.log("leve-cost-advisor tests: ok");

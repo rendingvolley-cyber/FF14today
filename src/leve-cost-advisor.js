@@ -134,7 +134,7 @@ function mergeActions(actions, kind) {
 }
 
 function estimatedMinutes(purchases, crafts) {
-  const distinctPurchases = purchases.length;
+  const distinctPurchases = purchases.filter(row => Number(row.buyQuantity ?? row.quantity) > 0).length;
   const craftCount = crafts.reduce((sum, row) => sum + Math.max(0, Number(row.syntheses) || 0), 0);
   const shoppingMinutes = distinctPurchases ? 2 + Math.max(0, Math.ceil((distinctPurchases - 4) / 4)) : 0;
   const craftingMinutes = Math.ceil(craftCount * CRAFT_MINUTES_PER_SYNTHESIS);
@@ -150,6 +150,10 @@ function finalizeRoute(key, label, work) {
     label,
     available: Boolean(work.complete),
     gil: work.complete ? Math.round(work.gil) : null,
+    additionalGil: work.complete ? Math.round(work.gil) : null,
+    inventoryOpportunityGil: 0,
+    inventoryUsed: [],
+    inventoryEvidenceApplied: false,
     estimatedMinutes: estimatedMinutes(purchases, crafts),
     craftCount,
     purchases,
@@ -178,6 +182,73 @@ function dedupeRoutes(routes) {
     seen.add(signature);
     return true;
   });
+}
+
+function inventoryQuantityForPurchase(inventoryRow, hqOnly) {
+  if (!inventoryRow) return 0;
+  if (hqOnly) {
+    const hq = Number(inventoryRow.hq_quantity);
+    return Number.isFinite(hq) && hq > 0 ? Math.floor(hq) : 0;
+  }
+  const quantity = Number(inventoryRow.quantity);
+  return Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 0;
+}
+
+export function applyInventoryEvidenceToRoute(route, inventory = {}) {
+  if (!route?.available || !Number.isFinite(route.gil)) return { ...route };
+  const remainingByItem = new Map();
+  const purchases = [];
+  const inventoryUsed = [];
+  let additionalGil = 0;
+  let inventoryOpportunityGil = 0;
+  let evidenceApplied = false;
+
+  for (const purchase of route.purchases || []) {
+    const itemId = Number(purchase.itemId);
+    const inventoryRow = inventory?.[itemId] || inventory?.[String(itemId)] || null;
+    if (inventoryRow) evidenceApplied = true;
+    const availabilityKey = `${itemId}:${purchase.hq ? "hq" : "any"}`;
+    if (!remainingByItem.has(availabilityKey)) {
+      remainingByItem.set(availabilityKey, inventoryQuantityForPurchase(inventoryRow, Boolean(purchase.hq)));
+    }
+    const available = remainingByItem.get(availabilityKey) || 0;
+    const required = Math.max(0, Number(purchase.quantity) || 0);
+    const heldQuantity = Math.min(required, available);
+    const buyQuantity = Math.max(0, required - heldQuantity);
+    remainingByItem.set(availabilityKey, Math.max(0, available - heldQuantity));
+    const unit = Math.max(0, Number(purchase.unitPrice) || 0);
+    const additionalTotal = buyQuantity * unit;
+    const inventoryOpportunityTotal = heldQuantity * unit;
+    additionalGil += additionalTotal;
+    inventoryOpportunityGil += inventoryOpportunityTotal;
+    purchases.push({
+      ...purchase,
+      heldQuantity,
+      buyQuantity,
+      additionalTotal,
+      inventoryOpportunityTotal
+    });
+    if (heldQuantity > 0) {
+      inventoryUsed.push({
+        itemId,
+        itemName: purchase.itemName,
+        quantity: heldQuantity,
+        hq: Boolean(purchase.hq),
+        unitPrice: unit,
+        opportunityTotal: inventoryOpportunityTotal
+      });
+    }
+  }
+
+  return {
+    ...route,
+    additionalGil: Math.round(additionalGil),
+    inventoryOpportunityGil: Math.round(inventoryOpportunityGil),
+    inventoryUsed,
+    inventoryEvidenceApplied: evidenceApplied,
+    purchases,
+    estimatedMinutes: estimatedMinutes(purchases, route.crafts || [])
+  };
 }
 
 function clampEnergy(value) {
@@ -231,32 +302,35 @@ function recommendationReason(recommended, routes, preferTraining) {
   const cheapest = [...candidates].sort((a, b) => a.gil - b.gil || a.estimatedMinutes - b.estimatedMinutes)[0];
   const fastest = [...candidates].sort((a, b) => a.estimatedMinutes - b.estimatedMinutes || a.gil - b.gil)[0];
   const training = preferTraining && recommended.craftCount > 0 ? " リーヴ対象の製作も自分で残せます。" : "";
+  const inventory = recommended.inventoryOpportunityGil > 0
+    ? ` 手持ちを市場価値約${recommended.inventoryOpportunityGil.toLocaleString("ja-JP")}G分使うため、追加支出は約${recommended.additionalGil.toLocaleString("ja-JP")}Gです。`
+    : "";
 
   if (recommended.key === cheapest.key && recommended.key === fastest.key) {
-    return `この比較では最安かつ最短です。${training}`.trim();
+    return `この比較では最安かつ最短です。${training}${inventory}`.trim();
   }
   if (recommended.key === cheapest.key) {
     const saved = Math.max(0, fastest.gil - recommended.gil);
     const extraMinutes = Math.max(0, recommended.estimatedMinutes - fastest.estimatedMinutes);
-    return `最安。最短ルートより約${saved.toLocaleString("ja-JP")}G節約、手間は約${extraMinutes}分増です。${training}`.trim();
+    return `最安。最短ルートより約${saved.toLocaleString("ja-JP")}G節約、手間は約${extraMinutes}分増です。${training}${inventory}`.trim();
   }
   if (recommended.key === fastest.key) {
     const extraGil = Math.max(0, recommended.gil - cheapest.gil);
     const savedMinutes = Math.max(0, cheapest.estimatedMinutes - recommended.estimatedMinutes);
     const perMinute = savedMinutes > 0 ? Math.round(extraGil / savedMinutes) : null;
-    return `最短。最安ルートより約${extraGil.toLocaleString("ja-JP")}G追加で約${savedMinutes}分短縮${perMinute ? `（1分あたり約${perMinute.toLocaleString("ja-JP")}G）` : ""}。${training}`.trim();
+    return `最短。最安ルートより約${extraGil.toLocaleString("ja-JP")}G追加で約${savedMinutes}分短縮${perMinute ? `（1分あたり約${perMinute.toLocaleString("ja-JP")}G）` : ""}。${training}${inventory}`.trim();
   }
   const extraGil = Math.max(0, recommended.gil - cheapest.gil);
   const savedMinutes = Math.max(0, cheapest.estimatedMinutes - recommended.estimatedMinutes);
   const perMinute = savedMinutes > 0 ? Math.round(extraGil / savedMinutes) : null;
-  return `最安より約${extraGil.toLocaleString("ja-JP")}G追加で約${savedMinutes}分短縮${perMinute ? `（1分あたり約${perMinute.toLocaleString("ja-JP")}G）` : ""}。${training}`.trim();
+  return `最安より約${extraGil.toLocaleString("ja-JP")}G追加で約${savedMinutes}分短縮${perMinute ? `（1分あたり約${perMinute.toLocaleString("ja-JP")}G）` : ""}。${training}${inventory}`.trim();
 }
 
 export function buildLeveCostAdvice(target, prices, options = {}) {
   if (!target || !RECIPE_GRAPH[target.itemId]) return null;
   const topRecipe = RECIPE_GRAPH[target.itemId];
   const hasCraftableDirectIngredient = topRecipe.ingredients.some(([itemId]) => Boolean(RECIPE_GRAPH[itemId]));
-  const routes = dedupeRoutes([
+  const baseRoutes = dedupeRoutes([
     finalizeRoute(
       "buy_finished",
       target.hqRequired ? "完成品HQを買う" : "完成品を買う",
@@ -278,6 +352,7 @@ export function buildLeveCostAdvice(target, prices, options = {}) {
       craftFromRaw(target.itemId, target.requiredQuantity, prices)
     )
   ]);
+  const routes = baseRoutes.map(route => applyInventoryEvidenceToRoute(route, options.inventory || {}));
   const recommended = chooseRecommendedRoute(routes, options);
   return {
     taskKey: target.taskKey,
@@ -285,6 +360,7 @@ export function buildLeveCostAdvice(target, prices, options = {}) {
     itemName: target.itemName,
     requiredQuantity: target.requiredQuantity,
     hqRequired: target.hqRequired,
+    inventoryEvidenceApplied: routes.some(route => route.inventoryEvidenceApplied),
     routes,
     recommendedKey: recommended?.key || null,
     recommendationReason: recommendationReason(recommended, routes, options.preferTraining !== false)

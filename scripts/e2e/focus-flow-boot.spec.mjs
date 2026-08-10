@@ -37,50 +37,78 @@ const plan = {
   skip_today: []
 };
 
-const leveAdvice = {
-  ok: true,
-  world: "Chocobo",
-  source: "Universalis",
-  market_age_minutes: 3,
-  energy: 2,
-  available_minutes: 60,
-  advice: {
-    recommendedKey: "mixed",
-    recommendationReason: "完成品購入より安く、原材料から作るより短時間です。",
-    routes: [
-      {
-        key: "buy_finished",
-        label: "完成品HQを買う",
-        gil: 18600,
-        estimatedMinutes: 2,
-        craftCount: 0,
-        available: true,
-        purchases: [{ itemName: "Ginseng Angle Brush", quantity: 1, hq: true }],
-        crafts: []
-      },
-      {
-        key: "mixed",
-        label: "中間素材を買って最終品だけ作る",
-        gil: 13200,
-        estimatedMinutes: 5,
-        craftCount: 1,
-        available: true,
-        purchases: [{ itemName: "Ginseng Lumber", quantity: 3, hq: false }],
-        crafts: [{ itemName: "Ginseng Angle Brush", syntheses: 1 }]
-      },
-      {
-        key: "craft_raw",
-        label: "原材料から全部作る",
-        gil: 11400,
-        estimatedMinutes: 12,
-        craftCount: 4,
-        available: true,
-        purchases: [],
-        crafts: [{ itemName: "Ginseng Angle Brush", syntheses: 1 }]
-      }
-    ]
-  }
-};
+function leveAdvice(withInventory = false) {
+  const route = (base, held = {}) => ({
+    ...base,
+    additionalGil: withInventory ? (held.additionalGil ?? base.gil) : base.gil,
+    inventoryOpportunityGil: withInventory ? (held.inventoryOpportunityGil ?? 0) : 0,
+    inventoryEvidenceApplied: withInventory && Boolean(held.applied),
+    inventoryUsed: withInventory ? (held.inventoryUsed || []) : [],
+    purchases: (base.purchases || []).map((purchase, index) => {
+      const allocation = held.purchaseAllocations?.[index];
+      return allocation && withInventory ? { ...purchase, ...allocation } : purchase;
+    })
+  });
+
+  return {
+    ok: true,
+    world: "Chocobo",
+    source: "Universalis",
+    market_age_minutes: 3,
+    energy: 2,
+    available_minutes: 60,
+    inventory_evidence: {
+      applied: withInventory,
+      observed_at: withInventory ? "2026-08-10T12:45:00.000Z" : null,
+      item_count: withInventory ? 2 : 0
+    },
+    advice: {
+      inventoryEvidenceApplied: withInventory,
+      recommendedKey: "mixed",
+      recommendationReason: withInventory
+        ? "完成品購入より安く、手持ちを市場価値約10,000G分使うため、追加支出は約3,200Gです。"
+        : "完成品購入より安く、原材料から作るより短時間です。",
+      routes: [
+        route({
+          key: "buy_finished",
+          label: "完成品HQを買う",
+          gil: 18600,
+          estimatedMinutes: 2,
+          craftCount: 0,
+          available: true,
+          purchases: [{ itemName: "Ginseng Angle Brush", quantity: 1, hq: true }],
+          crafts: []
+        }),
+        route({
+          key: "mixed",
+          label: "中間素材を買って最終品だけ作る",
+          gil: 13200,
+          estimatedMinutes: 5,
+          craftCount: 1,
+          available: true,
+          purchases: [{ itemName: "Ginseng Lumber", quantity: 3, hq: false }],
+          crafts: [{ itemName: "Ginseng Angle Brush", syntheses: 1 }]
+        }, {
+          applied: true,
+          additionalGil: 3200,
+          inventoryOpportunityGil: 10000,
+          inventoryUsed: [{ itemName: "Ginseng Lumber", quantity: 2, opportunityTotal: 10000 }],
+          purchaseAllocations: [{ heldQuantity: 2, buyQuantity: 1, additionalTotal: 3200, inventoryOpportunityTotal: 10000 }]
+        }),
+        route({
+          key: "craft_raw",
+          label: "原材料から全部作る",
+          gil: 11400,
+          estimatedMinutes: 12,
+          craftCount: 4,
+          available: true,
+          purchases: [],
+          crafts: [{ itemName: "Ginseng Angle Brush", syntheses: 1 }]
+        })
+      ]
+    }
+  };
+}
 
 const grandCompany = {
   ok: true,
@@ -132,7 +160,7 @@ const grandCompany = {
   }
 };
 
-function payloadFor(pathname) {
+function payloadFor(pathname, withInventory = false) {
   if (pathname === "/api/state") return { character, preferences: { available_minutes: 60, energy: 2 }, plan };
   if (pathname === "/api/achievements") return { achievements };
   if (pathname === "/api/activity/today") return { count: 0 };
@@ -141,20 +169,25 @@ function payloadFor(pathname) {
   if (pathname === "/api/plan") return { plan };
   if (pathname === "/api/grand-company/deliveries") return grandCompany;
   if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [] };
-  if (pathname === "/api/leve/cost-advice") return leveAdvice;
+  if (pathname === "/api/leve/cost-advice") return leveAdvice(withInventory);
   return {};
 }
 
-test("daily routine, Focus Flow, and leve advice stay responsive through reload", async ({ page }) => {
+test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", async ({ page }) => {
   const pageErrors = [];
+  const leveProfileHeaders = [];
+  let inventoryApplied = false;
   page.on("pageerror", error => pageErrors.push(error.message));
 
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
+    if (url.pathname === "/api/leve/cost-advice") {
+      leveProfileHeaders.push(route.request().headers()["x-profile-token"] || "");
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json; charset=utf-8",
-      body: JSON.stringify(payloadFor(url.pathname))
+      body: JSON.stringify(payloadFor(url.pathname, inventoryApplied))
     });
   });
 
@@ -171,6 +204,22 @@ test("daily routine, Focus Flow, and leve advice stay responsive through reload"
   await expect(page.locator(".focus-flow-start")).toHaveCount(1);
   await expect(page.locator(".leve-cost-title")).toHaveText("中間素材を買って最終品だけ作る");
   await expect(page.locator(".leve-cost-advice")).toContainText("13,200G");
+  await expect(page.locator(".leve-cost-inventory-prompt")).toContainText("素材名と所持数");
+  expect(leveProfileHeaders.some(value => /^[A-Za-z0-9_-]{43,128}$/.test(value))).toBe(true);
+
+  inventoryApplied = true;
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("ff14today:context-saved", {
+      detail: { pageType: "inventory_items" }
+    }));
+  });
+  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("追加支出");
+  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("3,200G");
+  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("実質コスト");
+  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("13,200G");
+  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("手持ち利用 10,000G相当");
+  await expect(page.locator(".leve-cost-actions")).toContainText("手持ち2 / 買う1");
+  await expect(page.locator(".leve-cost-source")).toContainText("0G扱いせず");
 
   await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
@@ -198,6 +247,7 @@ test("daily routine, Focus Flow, and leve advice stay responsive through reload"
   await expect(page.locator("[data-gc-tab-status]")).toContainText("納品済み");
   await expect(page.locator(".focus-flow-start")).toContainText("実行中");
   await expect(page.locator("#focusFlowResume")).toContainText("いま実行中");
+  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("追加支出");
   await expect(page.locator(".leve-cost-title")).toHaveText("中間素材を買って最終品だけ作る");
 
   const afterReload = await page.evaluate(() => new Promise(resolve => setTimeout(() => resolve("responsive"), 250)));
