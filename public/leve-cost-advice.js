@@ -1,5 +1,5 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
-const TASK_BY_TITLE = [
+const STATIC_TASKS = [
   ["Ginseng Angle Brush", "craft:alc90:leve:ginseng-angle-brush"],
   ["Growth Formula Lambda", "craft:alc90:leve:growth-formula-lambda"]
 ];
@@ -19,8 +19,48 @@ function profileToken() {
   return token;
 }
 
-function taskKeyFromTitle(title) {
-  return TASK_BY_TITLE.find(([needle]) => String(title || "").includes(needle))?.[1] || null;
+function hashText(value) {
+  let hash = 2166136261;
+  for (const char of String(value || "")) {
+    hash ^= char.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function dynamicTargetFromCard(card, title) {
+  const badge = card.querySelector(".method-badge")?.textContent?.trim() || "";
+  const looksLikeLeve = /ギルドリーヴ|リーヴ|leve/i.test(badge) || /ギルドリーヴ|リーヴ/.test(title);
+  if (!looksLikeLeve) return null;
+  const quoted = title.match(/「([^」]{1,120})」/);
+  if (!quoted) return null;
+  const quantityMatch = title.match(/(\d{1,2})\s*個/);
+  const quantity = Number(quantityMatch?.[1] || 1);
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) return null;
+  const itemName = quoted[1].trim();
+  if (!itemName) return null;
+  return {
+    taskKey: `craft:dynamic:${hashText(`${itemName}:${quantity}:${/HQ/i.test(title) ? 1 : 0}`)}`,
+    dynamic: true,
+    itemName,
+    quantity,
+    hqRequired: /HQ/i.test(title)
+  };
+}
+
+function targetFromCard(card) {
+  const title = card.querySelector("h3")?.textContent?.trim() || "";
+  const staticMatch = STATIC_TASKS.find(([needle]) => title.includes(needle));
+  if (staticMatch) {
+    return {
+      taskKey: staticMatch[1],
+      dynamic: false,
+      itemName: null,
+      quantity: null,
+      hqRequired: null
+    };
+  }
+  return dynamicTargetFromCard(card, title);
 }
 
 function currentEnergy() {
@@ -80,25 +120,27 @@ function ensurePanel(card) {
   return panel;
 }
 
-function renderLoading(panel) {
+function renderLoading(panel, dynamic = false) {
   panel.replaceChildren();
   const label = document.createElement("p");
   label.className = "leve-cost-kicker";
   label.textContent = "調達方法もこちらで決める";
   const text = document.createElement("p");
   text.className = "leve-cost-loading";
-  text.textContent = "Chocobo市場と今日の手持ちを比較中…";
+  text.textContent = dynamic
+    ? "XIVAPIでレシピを確認してChocobo市場と比較中…"
+    : "Chocobo市場と今日の手持ちを比較中…";
   panel.append(label, text);
 }
 
-function renderError(panel) {
+function renderError(panel, message = null) {
   panel.replaceChildren();
   const label = document.createElement("p");
   label.className = "leve-cost-kicker";
   label.textContent = "調達方法";
   const text = document.createElement("p");
   text.className = "leve-cost-error";
-  text.textContent = "市場比較は今は取得できません。リーヴ自体はそのまま進めてOKです。";
+  text.textContent = message || "市場比較は今は取得できません。リーヴ自体はそのまま進めてOKです。";
   panel.append(label, text);
 }
 
@@ -144,7 +186,7 @@ function renderAdvice(panel, payload) {
   const copy = document.createElement("div");
   const kicker = document.createElement("p");
   kicker.className = "leve-cost-kicker";
-  kicker.textContent = "今日の作り方";
+  kicker.textContent = payload?.recipe_dynamic ? "今日の作り方 · レシピ自動解決" : "今日の作り方";
   const title = document.createElement("strong");
   title.className = "leve-cost-title";
   title.textContent = recommended.label;
@@ -200,28 +242,51 @@ function renderAdvice(panel, payload) {
   const marketBasis = payload?.market_pricing === "listing_quantity_curve"
     ? "Chocobo市場・必要数まで現在の出品数量を積み上げた概算"
     : "Chocobo市場・現在最安単価ベースの概算";
+  const recipeNote = payload?.recipe_dynamic ? " · レシピはXIVAPI v2から自動解決" : "";
+  const warningNote = Array.isArray(payload?.recipe_warnings) && payload.recipe_warnings.length
+    ? " · 深い中間工程は購入素材として扱う場合があります"
+    : "";
   const inventoryNote = payload?.inventory_evidence?.applied
     ? " · 手持ちは0G扱いせず現在の市場価値を機会費用として実質コストへ含めています"
     : "";
-  source.textContent = `${marketBasis}${Number.isFinite(age) ? ` · 更新 約${Math.max(0, Math.round(age))}分前` : ""}${inventoryNote}`;
+  source.textContent = `${marketBasis}${Number.isFinite(age) ? ` · 更新 約${Math.max(0, Math.round(age))}分前` : ""}${recipeNote}${warningNote}${inventoryNote}`;
 
   panel.append(actions, details, source);
 }
 
-async function fetchAdvice(taskKey, energy, minutes) {
-  const key = `${taskKey}:${energy}:${minutes}:${contextRevision}`;
+function targetCacheKey(target, energy, minutes) {
+  return [
+    target.taskKey,
+    target.dynamic ? 1 : 0,
+    target.itemName || "",
+    target.quantity || "",
+    target.hqRequired ? 1 : 0,
+    energy,
+    minutes,
+    contextRevision
+  ].join(":");
+}
+
+async function fetchAdvice(target, energy, minutes) {
+  const key = targetCacheKey(target, energy, minutes);
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < 60_000) return cached.payload;
   const params = new URLSearchParams({
-    task_key: taskKey,
+    task_key: target.taskKey,
     energy: String(energy),
     available_minutes: String(minutes)
   });
+  if (target.dynamic) {
+    params.set("dynamic", "1");
+    params.set("item_name", target.itemName);
+    params.set("quantity", String(target.quantity));
+    params.set("hq_required", target.hqRequired ? "1" : "0");
+  }
   const response = await fetch(`/api/leve/cost-advice?${params.toString()}`, {
     headers: { "x-profile-token": profileToken() }
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
   cache.set(key, { at: Date.now(), payload: data });
   return data;
 }
@@ -230,30 +295,29 @@ async function refresh() {
   refreshQueued = false;
   const card = document.querySelector("#methodList .method-card.recommended");
   if (!card) return;
-  const title = card.querySelector("h3")?.textContent?.trim() || "";
-  const taskKey = taskKeyFromTitle(title);
+  const target = targetFromCard(card);
   const old = card.querySelector(".leve-cost-advice");
-  if (!taskKey) {
+  if (!target) {
     old?.remove();
     return;
   }
   const energy = currentEnergy();
   const minutes = currentMinutes();
-  const queryKey = `${taskKey}:${energy}:${minutes}:${contextRevision}`;
+  const queryKey = targetCacheKey(target, energy, minutes);
   const panel = ensurePanel(card);
   if (panel.dataset.queryKey === queryKey && (panel.dataset.loaded === "1" || panel.dataset.loading === "1")) return;
   panel.dataset.queryKey = queryKey;
   panel.dataset.loaded = "0";
   panel.dataset.loading = "1";
-  renderLoading(panel);
+  renderLoading(panel, target.dynamic);
   try {
-    const payload = await fetchAdvice(taskKey, energy, minutes);
+    const payload = await fetchAdvice(target, energy, minutes);
     if (!panel.isConnected || panel.dataset.queryKey !== queryKey) return;
     renderAdvice(panel, payload);
     panel.dataset.loaded = "1";
-  } catch {
+  } catch (error) {
     if (!panel.isConnected || panel.dataset.queryKey !== queryKey) return;
-    renderError(panel);
+    renderError(panel, target.dynamic ? `レシピ自動解決は今回は使えません：${error.message}` : null);
     panel.dataset.loaded = "1";
   } finally {
     if (panel.isConnected && panel.dataset.queryKey === queryKey) panel.dataset.loading = "0";
