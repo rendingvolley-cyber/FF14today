@@ -1,10 +1,12 @@
 import app from "./combat-job-wrapper.js";
 import { buildLeveCostAdvice } from "./leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "./leve-cost-data.js";
+import { buildDynamicLeveCostAdvice } from "./dynamic-leve-cost-advisor.js";
+import { DynamicRecipeError, resolveDynamicCraftTarget } from "./dynamic-recipe-resolver.js";
 import { loadInventoryEvidence, profileHashFromRequest } from "./inventory-store.js";
 
 const WORLD = "Chocobo";
-const VERSION = "1.9.2";
+const VERSION = "1.9.3";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -79,15 +81,62 @@ function clampMinutes(value) {
   return Math.max(5, Math.min(240, n));
 }
 
+function boolParam(value) {
+  return value === "1" || value === "true";
+}
+
+function dynamicInputFromUrl(url, taskKey) {
+  return {
+    taskKey,
+    itemName: String(url.searchParams.get("item_name") || "").trim(),
+    requiredQuantity: Number(url.searchParams.get("quantity")),
+    hqRequired: boolParam(url.searchParams.get("hq_required"))
+  };
+}
+
+function dynamicErrorResponse(error) {
+  if (error instanceof DynamicRecipeError) {
+    const upstream = new Set(["xivapi_unreachable", "xivapi_http", "xivapi_json"]).has(error.code);
+    return json({
+      error: "動的レシピを安全に特定できませんでした。",
+      detail: error.message,
+      code: error.code
+    }, upstream ? 502 : 422);
+  }
+  return json({
+    error: "動的レシピを安全に特定できませんでした。",
+    detail: error?.message || "unknown dynamic recipe error"
+  }, 502);
+}
+
 async function handleCostAdvice(request, url, env) {
   const taskKey = String(url.searchParams.get("task_key") || "").trim();
-  const target = leveTarget(taskKey);
-  if (!target) return json({ error: "このリーヴはまだ調達比較の対象外です。" }, 404);
+  const staticTarget = leveTarget(taskKey);
+  const wantsDynamic = !staticTarget && boolParam(url.searchParams.get("dynamic"));
+  if (!staticTarget && !wantsDynamic) {
+    return json({ error: "この製作候補は動的レシピ情報がありません。" }, 404);
+  }
+
+  const profileHash = await profileHashFromRequest(request);
+  let resolved = null;
+  let target = staticTarget;
+  let reachableItemIds = staticTarget ? collectReachableItemIds(staticTarget) : [];
+  if (wantsDynamic) {
+    if (!profileHash) return json({ error: "profile token required for dynamic recipe resolution" }, 401);
+    try {
+      resolved = await resolveDynamicCraftTarget(dynamicInputFromUrl(url, taskKey));
+      target = resolved.target;
+      reachableItemIds = resolved.reachableItemIds;
+    } catch (error) {
+      return dynamicErrorResponse(error);
+    }
+  }
+
   const energy = clampEnergy(url.searchParams.get("energy"));
   const availableMinutes = clampMinutes(url.searchParams.get("available_minutes"));
   let market;
   try {
-    market = await fetchMarketPrices(collectReachableItemIds(target));
+    market = await fetchMarketPrices(reachableItemIds);
   } catch (error) {
     return json({
       error: "Chocobo市場の比較データを取得できませんでした。",
@@ -96,25 +145,31 @@ async function handleCostAdvice(request, url, env) {
   }
 
   let inventory = { items: {}, rows: [], observedAt: null };
-  const profileHash = await profileHashFromRequest(request);
   if (profileHash) {
     try { inventory = await loadInventoryEvidence(env, profileHash); }
     catch { inventory = { items: {}, rows: [], observedAt: null }; }
   }
 
-  const advice = buildLeveCostAdvice(target, market.prices, {
+  const options = {
     energy,
     availableMinutes,
     preferTraining: true,
     inventory: inventory.items
-  });
+  };
+  const advice = resolved
+    ? buildDynamicLeveCostAdvice(target, resolved.recipeGraph, resolved.itemNames, market.prices, options)
+    : buildLeveCostAdvice(target, market.prices, options);
   if (!advice) return json({ error: "レシピ比較を生成できませんでした。" }, 422);
+
   return json({
     ok: true,
     world: WORLD,
     source: "Universalis",
     market_age_minutes: market.ageMinutes,
     market_pricing: "listing_quantity_curve",
+    recipe_source: resolved ? resolved.source : "verified_static_fallback",
+    recipe_dynamic: Boolean(resolved),
+    recipe_warnings: resolved?.warnings || [],
     energy,
     available_minutes: availableMinutes,
     inventory_evidence: {
@@ -147,6 +202,9 @@ export default {
         leve_cost_inventory_evidence: true,
         leve_cost_cash_vs_opportunity: true,
         leve_cost_listing_quantity_pricing: true,
+        leve_cost_dynamic_recipe_resolver: true,
+        leve_cost_dynamic_recipe_max_depth: 5,
+        leve_cost_dynamic_recipe_max_items: 60,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
     }
