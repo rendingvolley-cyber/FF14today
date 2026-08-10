@@ -61,6 +61,7 @@ jobs:
           node --check scripts/test-grand-company-deliveries.mjs
           node --check scripts/test-inventory-context.mjs
           node --check scripts/test-dynamic-recipe-resolver.mjs
+          node --check scripts/test-leve-japanese-labels.mjs
           node --check scripts/playwright.config.mjs
           node --check scripts/e2e/focus-flow-boot.spec.mjs
           node --check scripts/e2e/dynamic-leve-cost.spec.mjs
@@ -80,6 +81,8 @@ jobs:
         run: node scripts/test-focus-flow.mjs
       - name: Leve cost advisor rules
         run: node scripts/test-leve-cost-advisor.mjs
+      - name: Leve Japanese item labels
+        run: node scripts/test-leve-japanese-labels.mjs
       - name: Dynamic recipe resolver rules
         run: node scripts/test-dynamic-recipe-resolver.mjs
       - name: Grand Company delivery rules
