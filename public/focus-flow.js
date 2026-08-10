@@ -65,6 +65,8 @@ function bootFocusFlow() {
   let dateKey = japanDateKey();
   let pendingCompleteTitle = null;
   let autoChoosing = false;
+  let observer = null;
+  let observing = false;
 
   const load = () => {
     try {
@@ -75,7 +77,13 @@ function bootFocusFlow() {
   };
 
   let flow = load();
-  const save = () => localStorage.setItem(storageKey(dateKey), JSON.stringify(flow));
+  const save = () => {
+    try {
+      localStorage.setItem(storageKey(dateKey), JSON.stringify(flow));
+    } catch {
+      // Focus Flow persistence is optional. Never block the main planner UI.
+    }
+  };
   const titleOfPrimary = () => methodList.querySelector(".method-card.recommended h3")?.textContent?.trim() || "";
 
   const originalFetch = window.fetch.bind(window);
@@ -120,7 +128,7 @@ function bootFocusFlow() {
     }
     const currentTitle = titleOfPrimary();
     const activeVisible = currentTitle === flow.active.title;
-    banner.innerHTML = "";
+    banner.replaceChildren();
 
     const copy = document.createElement("div");
     const label = document.createElement("strong");
@@ -140,6 +148,24 @@ function bootFocusFlow() {
         else banner.classList.add("focus-flow-missing");
       });
       banner.append(resume);
+    }
+  }
+
+  function observeMethodList() {
+    if (!observer || observing) return;
+    observer.observe(methodList, { childList: true, subtree: true });
+    observing = true;
+  }
+
+  function refreshSafely() {
+    if (observer && observing) {
+      observer.disconnect();
+      observing = false;
+    }
+    try {
+      enhancePrimary();
+    } finally {
+      observeMethodList();
     }
   }
 
@@ -197,7 +223,7 @@ function bootFocusFlow() {
         plannedMinutes: parsePlannedMinutes(card)
       };
       save();
-      enhancePrimary();
+      refreshSafely();
     });
 
     const skip = document.createElement("button");
@@ -227,12 +253,12 @@ function bootFocusFlow() {
     if (event.target.closest("[data-complete-current]")) pendingCompleteTitle = titleOfPrimary();
   }, true);
 
-  const observer = new MutationObserver(() => enhancePrimary());
-  observer.observe(methodList, { childList: true, subtree: true });
-  enhancePrimary();
+  observer = new MutationObserver(() => refreshSafely());
+  observeMethodList();
+  refreshSafely();
   setInterval(() => {
     if (!flow.active) return;
-    enhancePrimary();
+    refreshSafely();
   }, 1000);
 }
 

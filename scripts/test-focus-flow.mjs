@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   normalizeFlowState,
   elapsedMinutes,
@@ -28,4 +29,10 @@ assert.equal(
   patchCompletionBody({ task_title: "別タスク", actual_minutes: 7 }, state.active, 661_000).actual_minutes,
   7
 );
+
+const source = readFileSync(new URL("../public/focus-flow.js", import.meta.url), "utf8");
+assert.match(source, /observer\.disconnect\(\)/, "Focus Flow must pause its observer before mutating methodList");
+assert.match(source, /observeMethodList\(\)/, "Focus Flow must resume observation after its own DOM writes");
+assert.match(source, /finally\s*\{\s*observeMethodList\(\);\s*\}/s, "observer pause/resume must be exception-safe");
+
 console.log("focus-flow tests: ok");
