@@ -50,6 +50,13 @@ export function chooseNextUnskipped(primaryTitle, alternatives, skippedTitles) {
   return (alternatives || []).find(item => item?.title && !skipped.has(String(item.title))) || null;
 }
 
+export function patchCompletionBody(body, active, now = Date.now()) {
+  if (!body || !active || String(body.task_title || "").trim() !== String(active.title || "").trim()) return body;
+  const measured = elapsedMinutes(active.startedAt, now);
+  if (measured < 1 || measured > 480) return body;
+  return { ...body, actual_minutes: measured };
+}
+
 function bootFocusFlow() {
   const methodList = document.getElementById("methodList");
   const nowPanel = document.getElementById("nowPanel");
@@ -70,6 +77,21 @@ function bootFocusFlow() {
   let flow = load();
   const save = () => localStorage.setItem(storageKey(dateKey), JSON.stringify(flow));
   const titleOfPrimary = () => methodList.querySelector(".method-card.recommended h3")?.textContent?.trim() || "";
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const url = typeof input === "string" ? input : input?.url || "";
+    if (url.includes("/api/activity/complete") && typeof init.body === "string" && flow.active) {
+      try {
+        const body = JSON.parse(init.body);
+        const patched = patchCompletionBody(body, flow.active);
+        init = { ...init, body: JSON.stringify(patched) };
+      } catch {
+        // Preserve the canonical request if the body is not JSON.
+      }
+    }
+    return originalFetch(input, init);
+  };
 
   function parsePlannedMinutes(card) {
     const text = card?.querySelector(".method-meta")?.textContent || "";
