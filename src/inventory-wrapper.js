@@ -1,4 +1,4 @@
-import app from "./retainer-first-wrapper.js";
+import app from "./grand-company-wrapper.js";
 import { sanitizeInventoryAnalysis } from "./inventory-context.js";
 import {
   loadInventoryEvidence,
