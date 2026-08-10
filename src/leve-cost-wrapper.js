@@ -104,22 +104,6 @@ async function handleCostAdvice(url) {
   });
 }
 
-function rewriteHtml(response) {
-  if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
-  return new HTMLRewriter()
-    .on("head", {
-      element(element) {
-        element.append('<link rel="stylesheet" href="/leve-cost-advice.css"><script src="/leve-cost-advice.js" type="module"></script>', { html: true });
-      }
-    })
-    .on(".version", {
-      element(element) {
-        element.setInnerContent("v1.8.3 · LEVE SAFE");
-      }
-    })
-    .transform(response);
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -139,9 +123,6 @@ export default {
         leve_cost_market_world: WORLD,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
-    }
-    if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
-      return rewriteHtml(response);
     }
     return response;
   }
