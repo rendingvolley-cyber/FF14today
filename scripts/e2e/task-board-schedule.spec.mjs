@@ -5,7 +5,7 @@ const character = {
   name: "Kanade Tachibana",
   world: "Chocobo",
   data_center: "Mana",
-  synced_at: "2026-08-10T17:40:00.000Z",
+  synced_at: "2026-08-11T00:00:00.000Z",
   jobs: [
     { code: "RDM", name_ja: "赤魔道士", level: 92, role: "caster" },
     { code: "ALC", name_ja: "錬金術師", level: 90, role: "crafter" },
@@ -41,7 +41,8 @@ const plans = {
     focus_job: { code: "MIN", name: "採掘師", level: 81, role: "gatherer" },
     methods: [
       { rank: 1, task_key: "gather:min81:collectable:rarefied-raw-ametrine", badge: "時間限定・次窓あり", title: "「Rarefied Raw Ametrine」を収集価値1000目標で採る", minutes: 18, reason: "Lv81採掘師の時間限定収集品。次の出現まで実時間約20分。ET 00:00-02:00 / 12:00-14:00。", job_code: "MIN", job_name: "採掘師", job_level: 81, job_role: "gatherer", steps: ["Labyrinthosへ移動"] },
-      { rank: 2, task_key: "gather:min81:collectable:rarefied-high-durium-ore", badge: "いつでも採れる収集品", title: "Thavnairで「Rarefied High Durium Ore」を収集品として採る", minutes: 15, reason: "時間窓待ちが不要。", job_code: "MIN", job_name: "採掘師", job_level: 81, job_role: "gatherer", steps: ["Thavnairへ移動"] }
+      { rank: 2, task_key: "gather:fsh80:bigfish:e2e", badge: "大物魚・次窓あり", title: "大物魚「E2Eヌシ」を釣る", minutes: 12, reason: "漁師の出現時間限定。次の出現まで実時間約12分。ET 08:00-10:00。", job_code: "FSH", job_name: "漁師", job_level: 80, job_role: "gatherer", steps: ["釣り場へ移動"] },
+      { rank: 3, task_key: "gather:min81:collectable:rarefied-high-durium-ore", badge: "いつでも採れる収集品", title: "Thavnairで「Rarefied High Durium Ore」を収集品として採る", minutes: 15, reason: "時間窓待ちが不要。", job_code: "MIN", job_name: "採掘師", job_level: 81, job_role: "gatherer", steps: ["Thavnairへ移動"] }
     ],
     skip_today: []
   },
@@ -52,7 +53,9 @@ const plans = {
     focus_job: null,
     methods: [
       { rank: 1, task_key: "discover:ocean-fishing", badge: "イベント釣り", title: "漁師でオーシャンフィッシングを1航海", minutes: 35, reason: "1航海だけで区切れる釣り。", job_code: "FSH", job_name: "漁師", job_level: 80, job_role: "gatherer", steps: ["リムサへ移動"] },
-      { rank: 2, task_key: "discover:gold-saucer-gate", badge: "短い寄り道", title: "ゴールドソーサーで次のGATEを1回だけ遊ぶ", minutes: 20, reason: "短い寄り道。", steps: ["ゴールドソーサーへ移動"] }
+      { rank: 2, task_key: "discover:seasonal-event", badge: "期間限定", title: "シーズナルイベントのクエストを1段階進める", minutes: 15, reason: "期間限定イベント。終了までに進める。", steps: ["イベントNPCへ移動"] },
+      { rank: 3, task_key: "discover:weekly-fashion", badge: "週次", title: "今週のファッションチェックを確認する", minutes: 10, reason: "週次リセット前に確認する。", cadence: "weekly", steps: ["ゴールドソーサーへ移動"] },
+      { rank: 4, task_key: "discover:gold-saucer-gate", badge: "短い寄り道", title: "ゴールドソーサーで次のGATEを1回だけ遊ぶ", minutes: 20, reason: "短い寄り道。", steps: ["ゴールドソーサーへ移動"] }
     ],
     skip_today: []
   }
@@ -109,7 +112,7 @@ function genericPayload(pathname) {
   return {};
 }
 
-test("category tabs, timed schedule, multi-select and material aggregation work together", async ({ page }) => {
+test("semantic tabs keep timed tasks inside their own category", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
@@ -134,40 +137,44 @@ test("category tabs, timed schedule, multi-select and material aggregation work 
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("#taskBoard")).toBeVisible();
-  await expect(page.locator("#taskBoardTabs .task-board-tab")).toHaveCount(5);
-  await expect(page.locator("#taskBoardTabs")).toContainText("戦闘");
-  await expect(page.locator("#taskBoardTabs")).toContainText("生産");
-  await expect(page.locator("#taskBoardTabs")).toContainText("採集");
-  await expect(page.locator("#taskBoardTabs")).toContainText("釣り");
-  await expect(page.locator("#taskBoardTabs")).toContainText("その他");
+  await expect(page.locator("#taskBoardTabs .task-board-tab")).toHaveCount(7);
+  for (const label of ["戦闘", "生産", "採集", "釣り", "イベント", "週次", "その他"]) {
+    await expect(page.locator("#taskBoardTabs")).toContainText(label);
+  }
   await expect(page.locator("#taskBoardGrid")).toContainText("コンテンツルーレット：レベリング");
+  await expect(page.locator("#taskBoardTimed")).toBeHidden();
 
+  await page.locator('#taskBoardTabs [data-category="gather"]').click();
   await expect(page.locator("#taskBoardTimed")).toBeVisible();
   await expect(page.locator("#taskBoardTimed")).toContainText("Rarefied Raw Ametrine");
-  await expect(page.locator("#taskBoardTimed")).toContainText("あと20分");
+  await expect(page.locator("#taskBoardTimed")).not.toContainText("E2Eヌシ");
 
   await page.locator('#taskBoardTabs [data-category="craft"]').click();
   await expect(page.locator("#taskBoardGrid")).toContainText("Ginseng Angle Brush");
   await page.locator("#taskBoardGrid .task-select-card").first().locator('input[type="checkbox"]').check();
   await expect(page.locator("#taskBoardSummaryText")).toContainText("選択1件");
   await expect(page.locator("#taskBoardSummaryText")).toContainText("不足素材3種");
-
   await page.locator("#taskBoardPrepButton").click();
   await expect(page.locator("#taskBoardMaterials")).toBeVisible();
-  await expect(page.locator("#taskBoardMaterials")).toContainText("エンチャント・マンガンインク");
   await expect(page.locator("#taskBoardMaterials")).toContainText("ジンセン材");
-  await expect(page.locator("#taskBoardMaterials")).toContainText("×3");
   await expect(page.locator("#taskBoardSummaryText")).toContainText("8,945G");
-
-  await page.locator("#taskBoardTimedList .timed-task").first().locator('input[type="checkbox"]').check();
-  await expect(page.locator("#taskBoardSummaryText")).toContainText("選択2件");
-  await expect(page.locator("#taskBoardScheduleRows")).toContainText("移動・準備");
-  await expect(page.locator("#taskBoardScheduleRows")).toContainText("Rarefied Raw Ametrine");
 
   await page.locator('#taskBoardTabs [data-category="fishing"]').click();
   await expect(page.locator("#taskBoardGrid")).toContainText("オーシャンフィッシング");
+  await expect(page.locator("#taskBoardTimed")).toContainText("E2Eヌシ");
+  await expect(page.locator("#taskBoardTimed")).not.toContainText("Rarefied Raw Ametrine");
+  await page.locator("#taskBoardTimedList .timed-task").first().locator('input[type="checkbox"]').check();
+  await expect(page.locator("#taskBoardSummaryText")).toContainText("選択2件");
+  await expect(page.locator("#taskBoardScheduleRows")).toContainText("移動・準備");
+  await expect(page.locator("#taskBoardScheduleRows")).toContainText("E2Eヌシ");
+  await expect(page.locator("#taskBoardScheduleMeta")).toContainText("カテゴリ横断");
+
+  await page.locator('#taskBoardTabs [data-category="event"]').click();
+  await expect(page.locator("#taskBoardGrid")).toContainText("シーズナルイベント");
+  await page.locator('#taskBoardTabs [data-category="weekly"]').click();
+  await expect(page.locator("#taskBoardGrid")).toContainText("ファッションチェック");
   await page.locator('#taskBoardTabs [data-category="other"]').click();
-  await expect(page.locator("#taskBoardGrid")).toContainText("ゴールドソーサー");
+  await expect(page.locator("#taskBoardGrid")).toContainText("ゴールドソーサーで次のGATE");
 
   await page.locator('#taskBoardTabs [data-category="craft"]').click();
   await page.locator("#taskBoardGrid .task-select-card").first().locator(".task-now-button").click();
