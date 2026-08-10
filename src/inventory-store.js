@@ -1,7 +1,7 @@
 import { allowedLeveInventoryItemIds, mergeResolvedInventoryRows } from "./inventory-context.js";
 
 let schemaReady = null;
-const resolutionCache = new Map();
+let allowedNameMapPromise = null;
 
 export async function sha256Hex(value) {
   const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
@@ -58,57 +58,56 @@ export async function ensureInventorySchema(env) {
   return schemaReady;
 }
 
-function escapeQueryString(value) {
-  return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+function normalizeVisibleName(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
-async function searchExactItemName(name, language) {
-  const clean = String(name || "").trim();
-  if (!clean) return null;
-  const cacheKey = `${language}:${clean.toLocaleLowerCase(language === "ja" ? "ja-JP" : "en-US")}`;
-  if (resolutionCache.has(cacheKey)) return resolutionCache.get(cacheKey);
-
-  const clause = language === "ja"
-    ? `Name@ja="${escapeQueryString(clean)}"`
-    : `Name="${escapeQueryString(clean)}"`;
-  const params = new URLSearchParams({
-    sheets: "Item",
-    fields: "Name",
-    language,
-    query: clause,
-    limit: "5"
-  });
-  let resolved = null;
-  try {
-    const response = await fetch(`https://v2.xivapi.com/api/search?${params.toString()}`, {
+async function loadAllowedItemNameMap() {
+  if (allowedNameMapPromise) return allowedNameMapPromise;
+  allowedNameMapPromise = (async () => {
+    const ids = [...allowedLeveInventoryItemIds()].sort((a, b) => a - b);
+    if (!ids.length) return new Map();
+    const params = new URLSearchParams({
+      fields: "Name,Name@lang(ja)",
+      rows: ids.join(",")
+    });
+    const response = await fetch(`https://v2.xivapi.com/api/sheet/Item?${params.toString()}`, {
       headers: { "user-agent": "FF14Today/1.9.1 inventory-evidence" }
     });
-    if (response.ok) {
-      const data = await response.json();
-      const allowed = allowedLeveInventoryItemIds();
-      for (const result of data?.results || []) {
-        const itemId = Number(result?.row_id);
-        const resultName = String(result?.fields?.Name || "").trim();
-        if (!allowed.has(itemId)) continue;
-        if (resultName !== clean) continue;
-        resolved = { item_id: itemId, item_name: resultName };
-        break;
+    if (!response.ok) throw new Error(`XIVAPI HTTP ${response.status}`);
+    const data = await response.json();
+    const map = new Map();
+    for (const row of data?.rows || []) {
+      const itemId = Number(row?.row_id);
+      if (!Number.isInteger(itemId) || !allowedLeveInventoryItemIds().has(itemId)) continue;
+      const english = normalizeVisibleName(row?.fields?.Name);
+      const japanese = normalizeVisibleName(row?.fields?.["Name@lang(ja)"]);
+      for (const name of [english, japanese]) {
+        if (!name) continue;
+        map.set(name, { item_id: itemId, item_name: name });
       }
     }
-  } catch {}
-  resolutionCache.set(cacheKey, resolved);
-  return resolved;
+    return map;
+  })().catch(error => {
+    allowedNameMapPromise = null;
+    throw error;
+  });
+  return allowedNameMapPromise;
 }
 
 export async function resolveInventoryRows(items) {
+  let nameMap;
+  try { nameMap = await loadAllowedItemNameMap(); }
+  catch { return []; }
   const rows = [];
   for (const item of Array.isArray(items) ? items : []) {
-    let resolved = await searchExactItemName(item.item_name, "ja");
-    if (!resolved) resolved = await searchExactItemName(item.item_name, "en");
+    const visibleName = normalizeVisibleName(item.item_name);
+    const resolved = nameMap.get(visibleName);
     if (!resolved) continue;
     rows.push({
       ...item,
-      ...resolved
+      ...resolved,
+      item_name: visibleName
     });
   }
   return mergeResolvedInventoryRows(rows);
