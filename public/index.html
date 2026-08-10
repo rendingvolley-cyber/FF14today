@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/reasons.css">
   <link rel="stylesheet" href="/context-inbox.css">
+  <link rel="stylesheet" href="/focus-flow.css">
 </head>
 <body>
   <main class="shell">
@@ -20,7 +21,7 @@
           <h1>FF14 Today</h1>
         </div>
       </div>
-      <span class="version">v1.4 · CONTEXT</span>
+      <span class="version">v1.8.2 · FOCUS SAFE</span>
     </header>
 
     <section id="identity" class="identity hidden">
@@ -139,7 +140,7 @@
           <div class="focus-left"><span class="label">今回の対象</span><span id="focusJob" class="focus-job"></span></div>
           <div class="session-meta"><span id="sessionRemaining" class="session-pill">まだ開始していません</span><span id="todayCompletedCount" class="session-pill">今日完了 0件</span></div>
         </div>
-        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> 各候補に「なぜ今これ？」を表示。貼ったジャーナルも候補の1つとして比較する。</p>
+        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> STARTで今やる1件を固定。閉じても同じ日のうちは続きへ戻れます。</p>
         <div id="methodList" class="methods-grid"></div>
         <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
       </div>
@@ -176,5 +177,6 @@
   <script src="/app.js" type="module"></script>
   <script src="/choice-reasons.js" type="module"></script>
   <script src="/context-inbox.js" type="module"></script>
+  <script src="/focus-flow.js" type="module"></script>
 </body>
 </html>
