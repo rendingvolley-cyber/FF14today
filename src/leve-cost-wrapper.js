@@ -3,6 +3,7 @@ import { buildLeveCostAdvice } from "./leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "./leve-cost-data.js";
 
 const WORLD = "Chocobo";
+const VERSION = "1.8.3";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -51,7 +52,7 @@ async function fetchMarketPrices(itemIds) {
   if (!ids.length) return { prices: {}, ageMinutes: null };
   const response = await fetch(
     `https://universalis.app/api/v2/${encodeURIComponent(WORLD)}/${ids.join(",")}?listings=100`,
-    { headers: { "user-agent": "FF14Today/1.8.1 leve-cost-advisor" } }
+    { headers: { "user-agent": `FF14Today/${VERSION} leve-cost-advisor` } }
   );
   if (!response.ok) throw new Error(`Universalis HTTP ${response.status}`);
   const data = await response.json();
@@ -103,22 +104,6 @@ async function handleCostAdvice(url) {
   });
 }
 
-function rewriteHtml(response) {
-  if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
-  return new HTMLRewriter()
-    .on("head", {
-      element(element) {
-        element.append('<link rel="stylesheet" href="/leve-cost-advice.css"><script src="/leve-cost-advice.js" type="module"></script>', { html: true });
-      }
-    })
-    .on(".version", {
-      element(element) {
-        element.setInnerContent("v1.8.1 · LEVE COST");
-      }
-    })
-    .transform(response);
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -133,14 +118,11 @@ export default {
       catch { return response; }
       return json({
         ...data,
-        version: "1.8.1",
+        version: VERSION,
         leve_cost_advisor: true,
         leve_cost_market_world: WORLD,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
-    }
-    if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
-      return rewriteHtml(response);
     }
     return response;
   }

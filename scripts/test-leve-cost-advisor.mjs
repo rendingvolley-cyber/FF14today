@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { buildLeveCostAdvice, chooseRecommendedRoute } from "../src/leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "../src/leve-cost-data.js";
 
@@ -71,5 +72,10 @@ const manual = chooseRecommendedRoute([
   { key: "fast", available: true, gil: 5000, estimatedMinutes: 2, craftCount: 0 }
 ], { energy: 1, availableMinutes: 30, preferTraining: false });
 assert.equal(manual.key, "fast");
+
+const uiSource = readFileSync(new URL("../public/leve-cost-advice.js", import.meta.url), "utf8");
+assert.doesNotMatch(uiSource, /MutationObserver/, "Leve Cost UI must not use MutationObserver after the boot-loop incident");
+assert.match(uiSource, /setInterval\(queueRefresh,\s*1000\)/, "Leve Cost UI must use bounded polling");
+assert.match(uiSource, /panel\.dataset\.loading/, "Leve Cost UI must suppress duplicate in-flight requests");
 
 console.log("leve-cost-advisor tests: ok");

@@ -175,9 +175,10 @@ async function refresh() {
   const minutes = currentMinutes();
   const queryKey = `${taskKey}:${energy}:${minutes}`;
   const panel = ensurePanel(card);
-  if (panel.dataset.queryKey === queryKey && panel.dataset.loaded === "1") return;
+  if (panel.dataset.queryKey === queryKey && (panel.dataset.loaded === "1" || panel.dataset.loading === "1")) return;
   panel.dataset.queryKey = queryKey;
   panel.dataset.loaded = "0";
+  panel.dataset.loading = "1";
   renderLoading(panel);
   try {
     const payload = await fetchAdvice(taskKey, energy, minutes);
@@ -188,6 +189,8 @@ async function refresh() {
     if (!panel.isConnected || panel.dataset.queryKey !== queryKey) return;
     renderError(panel);
     panel.dataset.loaded = "1";
+  } finally {
+    if (panel.isConnected && panel.dataset.queryKey === queryKey) panel.dataset.loading = "0";
   }
 }
 
@@ -200,10 +203,11 @@ function queueRefresh() {
 function boot() {
   const methodList = document.getElementById("methodList");
   if (!methodList) return;
-  new MutationObserver(queueRefresh).observe(methodList, { childList: true, subtree: true });
   document.getElementById("energyChoices")?.addEventListener("click", () => setTimeout(queueRefresh, 0));
   document.getElementById("timeChoices")?.addEventListener("click", () => setTimeout(queueRefresh, 0));
+  methodList.addEventListener("click", () => setTimeout(queueRefresh, 0));
   queueRefresh();
+  setInterval(queueRefresh, 1000);
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
