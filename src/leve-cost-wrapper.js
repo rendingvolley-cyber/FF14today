@@ -8,6 +8,7 @@ import { loadInventoryEvidence, profileHashFromRequest } from "./inventory-store
 const WORLD = "Chocobo";
 const VERSION = "1.9.3";
 const VERSION_LABEL = `v${VERSION} · RECIPE AUTO`;
+const XIVAPI_BASE = "https://v2.xivapi.com/api";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -70,6 +71,52 @@ async function fetchMarketPrices(itemIds) {
   const prices = {};
   for (const itemId of ids) prices[itemId] = priceSnapshot(map[String(itemId)] || map[itemId]);
   return { prices, ageMinutes: newestUploadAgeMinutes(map) };
+}
+
+async function fetchJapaneseItemNames(itemIds) {
+  const ids = [...new Set(itemIds.map(Number).filter(id => Number.isInteger(id) && id > 0))].slice(0, 100);
+  if (!ids.length) return {};
+  const params = new URLSearchParams({
+    fields: "Name",
+    language: "ja",
+    rows: ids.join(",")
+  });
+  try {
+    const response = await fetch(`${XIVAPI_BASE}/sheet/Item?${params.toString()}`, {
+      headers: { "user-agent": `FF14Today/${VERSION} japanese-item-labels` },
+      cf: { cacheEverything: true, cacheTtl: 604800 }
+    });
+    if (!response.ok) return {};
+    const data = await response.json();
+    const names = {};
+    for (const row of data?.rows || []) {
+      const id = Number(row?.row_id);
+      const name = String(row?.fields?.Name || "").trim();
+      if (Number.isInteger(id) && id > 0 && name) names[id] = name;
+    }
+    return names;
+  } catch {
+    return {};
+  }
+}
+
+function localizeActionRows(rows, names) {
+  for (const row of rows || []) {
+    const name = names?.[Number(row?.itemId)] || names?.[String(row?.itemId)];
+    if (name) row.itemName = name;
+  }
+}
+
+function localizeAdviceItemNames(advice, names) {
+  if (!advice || !names || !Object.keys(names).length) return advice;
+  const targetName = names[Number(advice.itemId)] || names[String(advice.itemId)];
+  if (targetName) advice.itemName = targetName;
+  for (const route of advice.routes || []) {
+    localizeActionRows(route.purchases, names);
+    localizeActionRows(route.crafts, names);
+    localizeActionRows(route.inventoryUsed, names);
+  }
+  return advice;
 }
 
 function clampEnergy(value) {
@@ -135,6 +182,7 @@ async function handleCostAdvice(request, url, env) {
 
   const energy = clampEnergy(url.searchParams.get("energy"));
   const availableMinutes = clampMinutes(url.searchParams.get("available_minutes"));
+  const japaneseNamesPromise = fetchJapaneseItemNames(reachableItemIds);
   let market;
   try {
     market = await fetchMarketPrices(reachableItemIds);
@@ -162,6 +210,9 @@ async function handleCostAdvice(request, url, env) {
     : buildLeveCostAdvice(target, market.prices, options);
   if (!advice) return json({ error: "レシピ比較を生成できませんでした。" }, 422);
 
+  const japaneseNames = await japaneseNamesPromise;
+  localizeAdviceItemNames(advice, japaneseNames);
+
   return json({
     ok: true,
     world: WORLD,
@@ -171,6 +222,7 @@ async function handleCostAdvice(request, url, env) {
     recipe_source: resolved ? resolved.source : "verified_static_fallback",
     recipe_dynamic: Boolean(resolved),
     recipe_warnings: resolved?.warnings || [],
+    item_name_locale: Object.keys(japaneseNames).length ? "ja" : "fallback",
     energy,
     available_minutes: availableMinutes,
     inventory_evidence: {
@@ -218,6 +270,7 @@ export default {
         leve_cost_dynamic_recipe_resolver: true,
         leve_cost_dynamic_recipe_max_depth: 5,
         leve_cost_dynamic_recipe_max_items: 60,
+        leve_cost_item_name_locale: "ja",
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
     }
