@@ -126,3 +126,9 @@ document.getElementById('modeChoices')?.addEventListener('click', () => {
     enhanceAll();
   });
 });
+
+requestAnimationFrame(() => {
+  const planner = document.getElementById('planner');
+  const board = document.getElementById('taskBoard');
+  if (planner?.parentNode && board) planner.after(board);
+});
