@@ -197,10 +197,13 @@ function renderAdvice(panel, payload) {
   const source = document.createElement("p");
   source.className = "leve-cost-source";
   const age = Number(payload.market_age_minutes);
+  const marketBasis = payload?.market_pricing === "listing_quantity_curve"
+    ? "Chocobo市場・必要数まで現在の出品数量を積み上げた概算"
+    : "Chocobo市場・現在最安単価ベースの概算";
   const inventoryNote = payload?.inventory_evidence?.applied
-    ? " · 手持ちは0G扱いせず現在の市場単価を機会費用として実質コストへ含めています"
+    ? " · 手持ちは0G扱いせず現在の市場価値を機会費用として実質コストへ含めています"
     : "";
-  source.textContent = `Chocobo市場・現在最安単価ベースの概算${Number.isFinite(age) ? ` · 更新 約${Math.max(0, Math.round(age))}分前` : ""}${inventoryNote}`;
+  source.textContent = `${marketBasis}${Number.isFinite(age) ? ` · 更新 約${Math.max(0, Math.round(age))}分前` : ""}${inventoryNote}`;
 
   panel.append(actions, details, source);
 }
