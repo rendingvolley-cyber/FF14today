@@ -7,9 +7,11 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 migrations apply DB --local",
-    "db:remote": "wrangler d1 migrations apply DB --remote"
+    "db:remote": "wrangler d1 migrations apply DB --remote",
+    "test:e2e": "playwright test --config=scripts/playwright.config.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "wrangler": "^4.0.0"
   }
 }
