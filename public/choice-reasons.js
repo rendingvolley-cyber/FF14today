@@ -1,3 +1,5 @@
+import "./task-board.js";
+
 const $ = id => document.getElementById(id);
 
 function activeMode() {
