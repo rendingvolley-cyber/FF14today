@@ -1,4 +1,5 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
+const RETAINER_DONE_PREFIX = "ff14_today_retainer_done_";
 const originalFetch = window.fetch.bind(window);
 let panel = null;
 let loading = false;
@@ -12,6 +13,30 @@ function profileToken() {
   token = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   localStorage.setItem(PROFILE_TOKEN_KEY, token);
   return token;
+}
+
+function japanDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function doneKey() {
+  return `${RETAINER_DONE_PREFIX}${japanDateKey()}`;
+}
+
+function isDoneToday() {
+  return localStorage.getItem(doneKey()) === "1";
+}
+
+function setDoneToday(done) {
+  if (done) localStorage.setItem(doneKey(), "1");
+  else localStorage.removeItem(doneKey());
 }
 
 function formatGil(value) {
@@ -42,25 +67,88 @@ function marketReason(item) {
   return parts.join(" ");
 }
 
+function setTabStatus(text) {
+  const status = panel?.querySelector("[data-retainer-tab-status]");
+  if (status) status.textContent = text;
+}
+
+function setSelectedTab(name, { scroll = false } = {}) {
+  const root = ensurePanel();
+  if (!root) return;
+  const content = root.querySelector("[data-retainer-content]");
+  const retainerTab = root.querySelector("[data-retainer-open]");
+  const planTab = root.querySelector("[data-plan-open]");
+  const showRetainer = name === "retainer";
+
+  if (content) content.hidden = !showRetainer;
+  retainerTab?.classList.toggle("active", showRetainer);
+  planTab?.classList.toggle("active", !showRetainer);
+  retainerTab?.setAttribute("aria-selected", showRetainer ? "true" : "false");
+  planTab?.setAttribute("aria-selected", showRetainer ? "false" : "true");
+
+  if (!showRetainer && scroll) {
+    const planner = document.getElementById("planner");
+    if (planner) setTimeout(() => planner.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+}
+
+function syncDoneState() {
+  const root = ensurePanel();
+  if (!root) return;
+  const done = isDoneToday();
+  root.dataset.done = done ? "true" : "false";
+  const doneButton = root.querySelector("[data-retainer-done]");
+  if (doneButton) doneButton.textContent = done ? "未完了に戻す" : "✓ 今日の派遣を終えた";
+  setTabStatus(done ? "✓ 派遣済み" : "まずこれ");
+  setSelectedTab(done ? "plan" : "retainer");
+}
+
+function toggleDone() {
+  const next = !isDoneToday();
+  setDoneToday(next);
+  const root = ensurePanel();
+  if (root) root.dataset.done = next ? "true" : "false";
+  const doneButton = root?.querySelector("[data-retainer-done]");
+  if (doneButton) doneButton.textContent = next ? "未完了に戻す" : "✓ 今日の派遣を終えた";
+  setTabStatus(next ? "✓ 派遣済み" : "まずこれ");
+  setSelectedTab(next ? "plan" : "retainer", { scroll: next });
+}
+
 function ensurePanel() {
   if (panel?.isConnected) return panel;
-  const inbox = document.getElementById("contextInbox");
-  if (!inbox) return null;
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) return null;
   panel = document.createElement("section");
-  panel.className = "retainer-advice";
+  panel.className = "retainer-routine";
   panel.id = "retainerAdvice";
   panel.innerHTML = `
-    <div class="retainer-advice-head">
-      <div>
-        <div class="retainer-advice-title"><span class="retainer-advice-icon">R</span><span>今日のリテイナー派遣</span></div>
-        <p class="retainer-advice-sub">需要が高く、今の出品在庫が薄い素材をChocobo市場から探します。</p>
-      </div>
-      <button type="button" class="retainer-refresh" data-retainer-refresh>市場を再確認</button>
+    <div class="retainer-flow-tabs" role="tablist" aria-label="ログイン後のおすすめ順">
+      <button type="button" class="retainer-flow-tab active" data-retainer-open role="tab" aria-selected="true" aria-controls="retainerRoutineContent">
+        <span class="retainer-flow-step">1</span><span>リテイナー</span><small data-retainer-tab-status>まずこれ</small>
+      </button>
+      <button type="button" class="retainer-flow-tab" data-plan-open role="tab" aria-selected="false">
+        <span class="retainer-flow-step">2</span><span>今日のプラン</span><small>次にやる</small>
+      </button>
     </div>
-    <div data-retainer-body><div class="retainer-setup">読み込み中…</div></div>
+    <div id="retainerRoutineContent" class="retainer-advice" data-retainer-content>
+      <div class="retainer-advice-head">
+        <div>
+          <div class="retainer-advice-title"><span class="retainer-advice-icon">R</span><span>ログインしたら、まずリテイナー</span></div>
+          <p class="retainer-advice-sub">需要が高く、今の出品在庫が薄い素材をChocobo市場から探します。</p>
+        </div>
+        <button type="button" class="retainer-refresh" data-retainer-refresh>市場を再確認</button>
+      </div>
+      <div data-retainer-body><div class="retainer-setup">読み込み中…</div></div>
+      <div class="retainer-actions">
+        <button type="button" class="retainer-done" data-retainer-done>✓ 今日の派遣を終えた</button>
+      </div>
+    </div>
   `;
-  inbox.insertAdjacentElement("afterend", panel);
+  topbar.insertAdjacentElement("afterend", panel);
   panel.querySelector("[data-retainer-refresh]")?.addEventListener("click", () => void loadRecommendations());
+  panel.querySelector("[data-retainer-open]")?.addEventListener("click", () => setSelectedTab("retainer"));
+  panel.querySelector("[data-plan-open]")?.addEventListener("click", () => setSelectedTab("plan", { scroll: true }));
+  panel.querySelector("[data-retainer-done]")?.addEventListener("click", toggleDone);
   return panel;
 }
 
@@ -68,7 +156,8 @@ function renderSetup(message) {
   const root = ensurePanel();
   const body = root?.querySelector("[data-retainer-body]");
   if (!body) return;
-  body.innerHTML = `<div class="retainer-setup"><strong>最初の1回だけ：</strong>${message}</div>`;
+  body.innerHTML = `<div class="retainer-setup"><strong>最初の1回だけ：</strong>${message}<br>このページを開いたまま、FF14の調達依頼一覧をコピーして Ctrl+V でOK。</div>`;
+  if (!isDoneToday()) setTabStatus("要スクショ");
 }
 
 function renderEmpty(message) {
@@ -85,6 +174,7 @@ function renderRecommendations(data) {
   const rows = Array.isArray(data.recommendations) ? data.recommendations : [];
   if (!rows.length) {
     renderEmpty(data.message || "今は強く推せる派遣先がありません。");
+    if (!isDoneToday()) setTabStatus("候補確認済み");
     return;
   }
   const list = document.createElement("div");
@@ -131,6 +221,7 @@ function renderRecommendations(data) {
   note.className = "retainer-market-note";
   note.textContent = "市場データはUniversalisのクラウドソース情報。『高額』より販売速度と在庫日数を重く見ており、売却を保証するものではありません。";
   body.replaceChildren(list, note);
+  if (!isDoneToday()) setTabStatus("未完了");
 }
 
 async function loadRecommendations() {
@@ -153,6 +244,7 @@ async function loadRecommendations() {
     else renderRecommendations(data);
   } catch (error) {
     renderEmpty(`市場チェックに失敗しました：${error.message}`);
+    if (!isDoneToday()) setTabStatus("再確認が必要");
   } finally {
     loading = false;
     if (button) {
@@ -173,6 +265,8 @@ function showRetainerSaved(analysis) {
       status.textContent = `リテイナー調達候補を${count}件保存しました${label ? `（${label}）` : ""}。市場を比較して派遣先を更新します。`;
       status.dataset.kind = "success";
     }
+    setSelectedTab("retainer");
+    setTabStatus("市場を比較中");
     void loadRecommendations();
   }, 0);
 }
@@ -194,6 +288,7 @@ window.fetch = async (...args) => {
 
 function boot() {
   ensurePanel();
+  syncDoneState();
   void loadRecommendations();
 }
 
