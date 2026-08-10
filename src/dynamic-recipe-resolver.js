@@ -330,6 +330,7 @@ export async function resolveDynamicCraftTarget(input, { fetchImpl = fetch } = {
   }
   const itemNames = await fetchItemNames([...seen], fetchImpl);
   itemNames[item.itemId] = item.englishName || itemNames[item.itemId] || safe.itemName;
+  graph.__itemNames = itemNames;
 
   return {
     target: {
