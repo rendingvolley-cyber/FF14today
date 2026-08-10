@@ -3,7 +3,7 @@ import { buildLeveCostAdvice } from "./leve-cost-advisor.js";
 import { collectReachableItemIds, leveTarget } from "./leve-cost-data.js";
 
 const WORLD = "Chocobo";
-const VERSION = "1.8.3";
+const VERSION = "1.9.0";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -119,6 +119,7 @@ export default {
       return json({
         ...data,
         version: VERSION,
+        daily_routine_order: ["grand_company", "retainer", "plan"],
         leve_cost_advisor: true,
         leve_cost_market_world: WORLD,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
