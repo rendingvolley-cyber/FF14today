@@ -45,6 +45,8 @@ jobs:
           node --check src/combat-job-wrapper.js
           node --check src/leve-cost-data.js
           node --check src/leve-cost-advisor.js
+          node --check src/dynamic-recipe-resolver.js
+          node --check src/dynamic-leve-cost-advisor.js
           node --check src/leve-cost-wrapper.js
           node --check public/app.js
           node --check public/choice-reasons.js
@@ -58,6 +60,7 @@ jobs:
           node --check public/leve-cost-advice.js
           node --check scripts/test-grand-company-deliveries.mjs
           node --check scripts/test-inventory-context.mjs
+          node --check scripts/test-dynamic-recipe-resolver.mjs
           node --check scripts/playwright.config.mjs
           node --check scripts/e2e/focus-flow-boot.spec.mjs
       - name: Context planning rules
@@ -76,6 +79,8 @@ jobs:
         run: node scripts/test-focus-flow.mjs
       - name: Leve cost advisor rules
         run: node scripts/test-leve-cost-advisor.mjs
+      - name: Dynamic recipe resolver rules
+        run: node scripts/test-dynamic-recipe-resolver.mjs
       - name: Grand Company delivery rules
         run: node scripts/test-grand-company-deliveries.mjs
       - name: Inventory evidence rules
