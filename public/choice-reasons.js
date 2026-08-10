@@ -1,4 +1,4 @@
-import "./task-board.js";
+import "./task-board-v2.js";
 import "./task-board-schedule-correction.js";
 
 const $ = id => document.getElementById(id);

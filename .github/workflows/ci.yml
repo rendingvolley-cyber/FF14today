@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'feature/**'
+      - 'fix/**'
   pull_request:
     branches:
       - main
@@ -51,6 +52,7 @@ jobs:
           node --check public/app.js
           node --check public/choice-reasons.js
           node --check public/task-board.js
+          node --check public/task-board-v2.js
           node --check public/task-board-schedule-correction.js
           node --check public/context-inbox.js
           node --check public/gather-checklist.js
