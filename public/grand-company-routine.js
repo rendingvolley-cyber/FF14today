@@ -2,7 +2,7 @@ const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const GC_DONE_PREFIX = "ff14_today_grand_company_done_";
 const RETAINER_DONE_PREFIX = "ff14_today_retainer_done_";
 let loading = false;
-let lastSetupRequired = true;
+let lastGcStatus = "要スクショ";
 
 function profileToken() {
   let token = localStorage.getItem(PROFILE_TOKEN_KEY);
@@ -92,7 +92,7 @@ function syncRoutineStep({ scrollPlan = false } = {}) {
   root.dataset.gcDone = gcDone ? "true" : "false";
   const doneButton = root.querySelector("[data-gc-done]");
   if (doneButton) doneButton.textContent = gcDone ? "未完了に戻す" : "✓ 今日の双蛇党納品を終えた";
-  setGcTabStatus(gcDone ? "✓ 納品済み" : (lastSetupRequired ? "要スクショ" : "まずこれ"));
+  setGcTabStatus(gcDone ? "✓ 納品済み" : lastGcStatus);
 
   const retainerStatus = root.querySelector("[data-retainer-tab-status]");
   if (!gcDone && retainerStatus && retainerStatus.textContent === "まずこれ") {
@@ -213,7 +213,7 @@ function buildDeliveryRow(row, { featured = false } = {}) {
   return article;
 }
 
-function renderSetup(message) {
+function renderSetup(message, status = "要スクショ") {
   const body = rootPanel()?.querySelector("[data-gc-body]");
   if (!body) return;
   body.innerHTML = "";
@@ -223,8 +223,8 @@ function renderSetup(message) {
   strong.textContent = "今日の1枚：";
   box.append(strong, document.createTextNode(message || "双蛇党の納品一覧スクショをCtrl+Vしてください。"));
   body.append(box);
-  lastSetupRequired = true;
-  if (!isGcDone()) setGcTabStatus("要スクショ");
+  lastGcStatus = status;
+  if (!isGcDone()) setGcTabStatus(lastGcStatus);
 }
 
 function renderDeliveries(data) {
@@ -233,9 +233,8 @@ function renderDeliveries(data) {
   const rows = Array.isArray(data?.deliveries) ? data.deliveries : [];
   const recommended = data?.recommended;
   body.replaceChildren();
-  lastSetupRequired = false;
   if (!recommended) {
-    renderSetup("一覧は保存されていますが、確信を持てる納品行がありません。もう一度見やすいスクショを貼ってください。");
+    renderSetup("一覧は保存されていますが、確信を持てる納品行がありません。もう一度見やすいスクショを貼ってください。", "再スクショ");
     return;
   }
 
@@ -266,7 +265,8 @@ function renderDeliveries(data) {
   const company = data?.company_name ? `${data.company_name}・` : "";
   note.textContent = `${company}今日のスクショ証拠だけを使用。品名・必要数・所持数・ボーナスを外部知識で補完しません。`;
   body.append(note);
-  if (!isGcDone()) setGcTabStatus(recommended.ready_now ? "すぐ納品" : "まずこれ");
+  lastGcStatus = recommended.ready_now ? "すぐ納品" : "まずこれ";
+  if (!isGcDone()) setGcTabStatus(lastGcStatus);
 }
 
 async function loadDeliveries() {
@@ -288,7 +288,7 @@ async function loadDeliveries() {
     if (data.setup_required) renderSetup(data.message);
     else renderDeliveries(data);
   } catch (error) {
-    renderSetup(`納品一覧の確認に失敗しました：${error.message}`);
+    renderSetup(`納品一覧の確認に失敗しました：${error.message}`, "再確認");
   } finally {
     loading = false;
     if (button) {
@@ -308,8 +308,9 @@ function showGrandCompanySaved(analysis) {
     status.textContent = `今日の双蛇党納品を${count}件読み取りました。必要数と所持数から最初の1件を決めます。`;
     status.dataset.kind = "success";
   }
+  lastGcStatus = "選定中";
   setStep("grand-company");
-  setGcTabStatus("選定中");
+  setGcTabStatus(lastGcStatus);
   void loadDeliveries();
 }
 
