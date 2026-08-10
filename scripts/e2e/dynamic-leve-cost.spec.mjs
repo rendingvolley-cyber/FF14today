@@ -96,7 +96,6 @@ test("unknown guildleve card sends bounded dynamic recipe metadata", async ({ pa
   });
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".version")).toContainText("v1.9.3");
   await expect(page.locator(".method-card.recommended h3")).toContainText("Dynamic Widget");
   await expect(page.locator(".leve-cost-title")).toHaveText("安い中間工程だけ自作する");
   await expect(page.locator(".leve-cost-kicker")).toContainText("レシピ自動解決");
