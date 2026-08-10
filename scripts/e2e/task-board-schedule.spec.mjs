@@ -196,9 +196,18 @@ test("category tabs, timed schedule, multi-select and material aggregation work 
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     let body;
-    if (url.pathname === "/api/state") body = statePayload(url);
-    else if (url.pathname === "/api/leve/cost-advice") body = costAdvice;
-    else body = genericPayload(url.pathname);
+    if (url.pathname === "/api/state") {
+      body = statePayload(url);
+    } else if (url.pathname === "/api/plan") {
+      let requestBody = {};
+      try { requestBody = route.request().postDataJSON() || {}; } catch {}
+      const mode = requestBody.planner_mode || "efficient";
+      body = { plan: plans[mode] || plans.efficient };
+    } else if (url.pathname === "/api/leve/cost-advice") {
+      body = costAdvice;
+    } else {
+      body = genericPayload(url.pathname);
+    }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 
