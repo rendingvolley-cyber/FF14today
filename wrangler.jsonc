@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ff14-today",
-  "main": "src/combat-job-wrapper.js",
+  "main": "src/leve-cost-wrapper.js",
   "compatibility_date": "2026-08-09",
   "assets": {
     "directory": "./public",
