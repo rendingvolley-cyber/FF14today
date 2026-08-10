@@ -1,22 +1,28 @@
 const JOB_KEY = "ff14_today_combat_job_v1";
 const MODE_KEY = "ff14_today_planner_mode_v1";
-const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const originalFetch = window.fetch.bind(window);
 let knownJobs = [];
 let switcher = null;
 
-const roleOrder = new Map([["tank", 0], ["healer", 1], ["melee", 2], ["ranged", 2], ["caster", 2]]);
-const roleLabel = role => role === "tank" ? "TANK" : role === "healer" ? "HEALER" : "DPS";
-const roleIcon = role => role === "tank" ? "◆" : role === "healer" ? "✚" : "⚔";
+const roleOrder = new Map([["tank", 0], ["healer", 1], ["melee", 2], ["ranged", 2], ["caster", 2], ["limited", 3]]);
+const roleLabel = role => role === "tank" ? "TANK" : role === "healer" ? "HEALER" : role === "limited" ? "LIMITED" : "DPS";
+const roleIcon = role => role === "tank" ? "◆" : role === "healer" ? "✚" : role === "limited" ? "★" : "⚔";
 
 function selectedCode() {
   return String(localStorage.getItem(JOB_KEY) || "").trim().toUpperCase();
 }
 
+function isLevelingJob(job) {
+  const level = Number(job?.level);
+  if (!Number.isInteger(level) || level < 70) return false;
+  const code = String(job?.code || "").toUpperCase();
+  if (code === "BLU" || (job?.role === "limited" && /青魔/.test(String(job?.name_ja || "")))) return level < 80;
+  return ["tank", "healer", "melee", "ranged", "caster"].includes(job?.role) && level < 100;
+}
+
 function validLevelingJobs(character) {
   return (character?.jobs || [])
-    .filter(job => ["tank", "healer", "melee", "ranged", "caster"].includes(job.role))
-    .filter(job => Number.isInteger(Number(job.level)) && Number(job.level) >= 16 && Number(job.level) < 100)
+    .filter(isLevelingJob)
     .sort((a, b) => (roleOrder.get(a.role) - roleOrder.get(b.role)) || (b.level - a.level) || String(a.code).localeCompare(String(b.code)));
 }
 
@@ -42,7 +48,7 @@ function ensureSwitcher() {
     </div>
     <div class="combat-job-select-row">
       <select id="combatJobSelect" aria-label="レベル上げする戦闘ジョブ"></select>
-      <span class="combat-job-note" data-combat-note>未カンストの解放済みジョブだけ表示</span>
+      <span class="combat-job-note" data-combat-note>Lv70以上の未カンストだけ表示。青魔は専用プラン。</span>
     </div>
   `;
   daily.insertAdjacentElement("beforebegin", switcher);
@@ -91,7 +97,7 @@ function fillSelector(character, planFocusCode = null) {
     if (code) localStorage.setItem(JOB_KEY, code);
   }
 
-  const groups = new Map([["TANK", []], ["HEALER", []], ["DPS", []]]);
+  const groups = new Map([["TANK", []], ["HEALER", []], ["DPS", []], ["LIMITED", []]]);
   for (const job of knownJobs) groups.get(roleLabel(job.role)).push(job);
   const nodes = [];
   for (const [label, jobs] of groups) {
