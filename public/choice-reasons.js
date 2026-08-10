@@ -1,3 +1,6 @@
+import "./task-board.js";
+import "./task-board-schedule-correction.js";
+
 const $ = id => document.getElementById(id);
 
 function activeMode() {
@@ -123,4 +126,10 @@ document.getElementById('modeChoices')?.addEventListener('click', () => {
     });
     enhanceAll();
   });
+});
+
+requestAnimationFrame(() => {
+  const planner = document.getElementById('planner');
+  const board = document.getElementById('taskBoard');
+  if (planner?.parentNode && board) planner.after(board);
 });
