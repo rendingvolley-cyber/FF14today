@@ -7,6 +7,7 @@ import { loadInventoryEvidence, profileHashFromRequest } from "./inventory-store
 
 const WORLD = "Chocobo";
 const VERSION = "1.9.3";
+const VERSION_LABEL = `v${VERSION} · RECIPE AUTO`;
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -181,6 +182,17 @@ async function handleCostAdvice(request, url, env) {
   });
 }
 
+function rewriteVersion(response) {
+  if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
+  return new HTMLRewriter()
+    .on(".version", {
+      element(element) {
+        element.setInnerContent(VERSION_LABEL);
+      }
+    })
+    .transform(response);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -196,6 +208,7 @@ export default {
       return json({
         ...data,
         version: VERSION,
+        version_label: VERSION_LABEL,
         daily_routine_order: ["grand_company", "retainer", "plan"],
         leve_cost_advisor: true,
         leve_cost_market_world: WORLD,
@@ -207,6 +220,9 @@ export default {
         leve_cost_dynamic_recipe_max_items: 60,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
+    }
+    if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
+      return rewriteVersion(response);
     }
     return response;
   }
