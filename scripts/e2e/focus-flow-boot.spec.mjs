@@ -172,7 +172,7 @@ test("daily routine, Focus Flow, and leve advice stay responsive through reload"
   await expect(page.locator(".leve-cost-title")).toHaveText("中間素材を買って最終品だけ作る");
   await expect(page.locator(".leve-cost-advice")).toContainText("13,200G");
 
-  await page.locator("[data-gc-done]").click();
+  await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-gc-content]")).toBeHidden();
   await expect(page.locator("[data-retainer-content]")).toBeVisible();
