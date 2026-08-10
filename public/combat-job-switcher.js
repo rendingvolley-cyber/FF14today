@@ -1,5 +1,8 @@
+import { tribeGuideForJob } from "./tribe-leveling-data.js";
+
 const JOB_KEY = "ff14_today_combat_job_v1";
 const MODE_KEY = "ff14_today_planner_mode_v1";
+const TRIBE_UNLOCK_KEY = "ff14_today_tribe_unlocks_v1";
 const originalFetch = window.fetch.bind(window);
 let knownJobs = [];
 let switcher = null;
@@ -10,6 +13,22 @@ const roleIcon = role => role === "tank" ? "◆" : role === "healer" ? "✚" : r
 
 function selectedCode() {
   return String(localStorage.getItem(JOB_KEY) || "").trim().toUpperCase();
+}
+
+function loadTribeUnlocks() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TRIBE_UNLOCK_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setTribeUnlocked(id, unlocked) {
+  const state = loadTribeUnlocks();
+  if (unlocked) state[id] = true;
+  else delete state[id];
+  localStorage.setItem(TRIBE_UNLOCK_KEY, JSON.stringify(state));
 }
 
 function isLevelingJob(job) {
@@ -50,6 +69,26 @@ function ensureSwitcher() {
       <select id="combatJobSelect" aria-label="レベル上げする戦闘ジョブ"></select>
       <span class="combat-job-note" data-combat-note>Lv70以上の未カンストだけ表示。青魔は専用プラン。</span>
     </div>
+    <section class="tribe-leveling-guide hidden" data-tribe-guide aria-live="polite">
+      <div class="tribe-guide-head">
+        <div>
+          <span class="tribe-guide-kicker">育成の準備</span>
+          <strong data-tribe-name>—</strong>
+        </div>
+        <span class="tribe-guide-status" data-tribe-status>未確認</span>
+      </div>
+      <p class="tribe-guide-why" data-tribe-why></p>
+      <div class="tribe-first-step" data-tribe-first-step></div>
+      <details class="tribe-guide-details" data-tribe-details>
+        <summary>解放までを見る</summary>
+        <ol data-tribe-steps></ol>
+        <p class="tribe-guide-prereq" data-tribe-prereq></p>
+      </details>
+      <div class="tribe-guide-actions">
+        <button type="button" class="tribe-unlocked-button" data-tribe-mark-unlocked>✓ これは解放済み</button>
+        <button type="button" class="tribe-reset-button hidden" data-tribe-reset>未解放として表示</button>
+      </div>
+    </section>
   `;
   daily.insertAdjacentElement("beforebegin", switcher);
   switcher.querySelector("#combatJobSelect")?.addEventListener("change", event => {
@@ -57,8 +96,21 @@ function ensureSwitcher() {
     if (!code) return;
     localStorage.setItem(JOB_KEY, code);
     updateCurrentBadge();
+    renderTribeGuide();
     const efficient = document.querySelector('#modeChoices button[data-mode="efficient"]');
     if (efficient) efficient.click();
+  });
+  switcher.querySelector("[data-tribe-mark-unlocked]")?.addEventListener("click", () => {
+    const guide = tribeGuideForJob(currentJob());
+    if (!guide) return;
+    setTribeUnlocked(guide.id, true);
+    renderTribeGuide();
+  });
+  switcher.querySelector("[data-tribe-reset]")?.addEventListener("click", () => {
+    const guide = tribeGuideForJob(currentJob());
+    if (!guide) return;
+    setTribeUnlocked(guide.id, false);
+    renderTribeGuide();
   });
   return switcher;
 }
@@ -80,6 +132,49 @@ function updateCurrentBadge() {
   const text = document.createElement("span");
   text.textContent = `${job.name_ja} Lv${job.level}`;
   badge.append(icon, text);
+}
+
+function renderTribeGuide() {
+  const root = ensureSwitcher();
+  const panel = root?.querySelector("[data-tribe-guide]");
+  if (!panel) return;
+  const job = currentJob();
+  const guide = tribeGuideForJob(job);
+  if (!guide) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  const unlocked = Boolean(loadTribeUnlocks()[guide.id]);
+  root.querySelector("[data-tribe-name]").textContent = `${guide.name} · ${guide.range_label}`;
+  const status = root.querySelector("[data-tribe-status]");
+  status.textContent = unlocked ? "解放済み" : "解放状況 未確認";
+  status.classList.toggle("done", unlocked);
+  root.querySelector("[data-tribe-why]").textContent = unlocked
+    ? `${job.name_ja} Lv${job.level}のレベル帯で使える友好部族。解放済みとして保存しています。`
+    : `${job.name_ja} Lv${job.level}のレベル帯で使える友好部族。未解放なら、最初の1歩はアプリ側でここまで絞ります。`;
+
+  const first = root.querySelector("[data-tribe-first-step]");
+  first.replaceChildren();
+  const label = document.createElement("span");
+  label.textContent = unlocked ? "使うとき" : "まずこれ";
+  const text = document.createElement("strong");
+  text.textContent = unlocked
+    ? `${guide.name}のデイリークエストを確認する`
+    : guide.first_step;
+  first.append(label, text);
+
+  const steps = root.querySelector("[data-tribe-steps]");
+  steps.replaceChildren(...guide.steps.map(step => {
+    const li = document.createElement("li");
+    li.textContent = step;
+    return li;
+  }));
+  root.querySelector("[data-tribe-prereq]").textContent = `前提：${guide.prerequisite}。${guide.unlock_result}`;
+  root.querySelector("[data-tribe-details]").open = false;
+  root.querySelector("[data-tribe-mark-unlocked]").classList.toggle("hidden", unlocked);
+  root.querySelector("[data-tribe-reset]").classList.toggle("hidden", !unlocked);
 }
 
 function fillSelector(character, planFocusCode = null) {
@@ -116,6 +211,7 @@ function fillSelector(character, planFocusCode = null) {
   select.replaceChildren(...nodes);
   select.disabled = knownJobs.length === 0;
   updateCurrentBadge();
+  renderTribeGuide();
   syncVisibility();
 }
 
