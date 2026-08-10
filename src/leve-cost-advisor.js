@@ -7,6 +7,11 @@ function finitePositive(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function positiveQuantity(value) {
+  const n = Math.floor(Number(value) || 0);
+  return n > 0 ? n : 0;
+}
+
 function ingredientUnitPrice(price) {
   const nq = finitePositive(price?.nq);
   const hq = finitePositive(price?.hq);
@@ -14,9 +19,92 @@ function ingredientUnitPrice(price) {
   return nq || hq || null;
 }
 
-function unitPrice(prices, itemId, hqOnly = false) {
+function normalizeOffers(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(row => ({
+      quantity: positiveQuantity(row?.quantity),
+      unitPrice: finitePositive(row?.unitPrice ?? row?.pricePerUnit)
+    }))
+    .filter(row => row.quantity > 0 && row.unitPrice)
+    .sort((a, b) => a.unitPrice - b.unitPrice);
+}
+
+function marketOffers(price, hqOnly) {
+  if (!price || typeof price !== "object") return { hasOfferData: false, offers: [] };
+  const hasNq = Array.isArray(price.nqOffers);
+  const hasHq = Array.isArray(price.hqOffers);
+  const hasOfferData = hqOnly ? hasHq : (hasNq || hasHq);
+  const offers = hqOnly
+    ? normalizeOffers(price.hqOffers)
+    : [...normalizeOffers(price.nqOffers), ...normalizeOffers(price.hqOffers)].sort((a, b) => a.unitPrice - b.unitPrice);
+  return { hasOfferData, offers };
+}
+
+export function quotePriceBands(priceBands, quantity) {
+  const needed = positiveQuantity(quantity);
+  if (!needed) return { complete: true, total: 0, averageUnitPrice: 0, consumed: [] };
+  let remaining = needed;
+  let total = 0;
+  const consumed = [];
+  for (const band of normalizeOffers(priceBands)) {
+    if (!remaining) break;
+    const take = Math.min(remaining, band.quantity);
+    if (!take) continue;
+    consumed.push({ quantity: take, unitPrice: band.unitPrice });
+    total += take * band.unitPrice;
+    remaining -= take;
+  }
+  if (remaining > 0) {
+    return { complete: false, total: null, averageUnitPrice: null, consumed, missingQuantity: remaining };
+  }
+  return {
+    complete: true,
+    total,
+    averageUnitPrice: total / needed,
+    consumed,
+    missingQuantity: 0
+  };
+}
+
+function quoteMarket(prices, itemId, quantity, hqOnly = false) {
+  const qty = positiveQuantity(quantity);
+  if (!qty) {
+    return {
+      complete: true,
+      total: 0,
+      averageUnitPrice: 0,
+      priceBands: [],
+      pricingMode: "none"
+    };
+  }
   const row = prices?.[Number(itemId)] || prices?.[String(itemId)] || null;
-  return hqOnly ? finitePositive(row?.hq) : ingredientUnitPrice(row);
+  const { hasOfferData, offers } = marketOffers(row, hqOnly);
+  if (hasOfferData) {
+    const quote = quotePriceBands(offers, qty);
+    return {
+      ...quote,
+      priceBands: offers,
+      pricingMode: "listing_quantity"
+    };
+  }
+  const fallback = hqOnly ? finitePositive(row?.hq) : ingredientUnitPrice(row);
+  if (!fallback) {
+    return {
+      complete: false,
+      total: null,
+      averageUnitPrice: null,
+      priceBands: [],
+      pricingMode: "missing"
+    };
+  }
+  return {
+    complete: true,
+    total: fallback * qty,
+    averageUnitPrice: fallback,
+    priceBands: [],
+    pricingMode: "unit_fallback",
+    fallbackUnitPrice: fallback
+  };
 }
 
 function emptyWork() {
@@ -37,10 +125,10 @@ function combineWorks(works) {
 }
 
 function buyWork(itemId, quantity, prices, { hqOnly = false } = {}) {
-  const qty = Math.max(0, Number(quantity) || 0);
+  const qty = positiveQuantity(quantity);
   if (!qty) return emptyWork();
-  const price = unitPrice(prices, itemId, hqOnly);
-  if (!price) {
+  const quote = quoteMarket(prices, itemId, qty, hqOnly);
+  if (!quote.complete) {
     return {
       ...emptyWork(),
       complete: false,
@@ -49,14 +137,18 @@ function buyWork(itemId, quantity, prices, { hqOnly = false } = {}) {
   }
   return {
     ...emptyWork(),
-    gil: price * qty,
+    gil: quote.total,
     purchases: [{
       itemId: Number(itemId),
       itemName: itemName(itemId),
       quantity: qty,
       hq: Boolean(hqOnly),
-      unitPrice: price,
-      total: price * qty
+      unitPrice: quote.averageUnitPrice,
+      total: quote.total,
+      pricingMode: quote.pricingMode,
+      priceBands: quote.priceBands,
+      fallbackUnitPrice: quote.fallbackUnitPrice || null,
+      marketComplete: true
     }]
   };
 }
@@ -113,18 +205,41 @@ function craftWithDirectPurchases(itemId, quantity, prices, graph = RECIPE_GRAPH
   return work;
 }
 
+function repriceMergedPurchase(action) {
+  if (action.pricingMode === "listing_quantity") {
+    const quote = quotePriceBands(action.priceBands, action.quantity);
+    if (!quote.complete) return { ...action, marketComplete: false, total: null, unitPrice: null };
+    return {
+      ...action,
+      marketComplete: true,
+      total: quote.total,
+      unitPrice: quote.averageUnitPrice
+    };
+  }
+  const unit = finitePositive(action.fallbackUnitPrice ?? action.unitPrice);
+  if (!unit) return { ...action, marketComplete: false, total: null, unitPrice: null };
+  return {
+    ...action,
+    pricingMode: "unit_fallback",
+    marketComplete: true,
+    fallbackUnitPrice: unit,
+    unitPrice: unit,
+    total: unit * positiveQuantity(action.quantity)
+  };
+}
+
 function mergeActions(actions, kind) {
   const map = new Map();
   for (const action of actions || []) {
     const key = kind === "purchase" ? `${action.itemId}:${action.hq ? 1 : 0}` : String(action.itemId);
     const previous = map.get(key);
     if (!previous) {
-      map.set(key, { ...action });
+      map.set(key, kind === "purchase" ? repriceMergedPurchase({ ...action }) : { ...action });
       continue;
     }
     if (kind === "purchase") {
       previous.quantity += Number(action.quantity || 0);
-      previous.total += Number(action.total || 0);
+      map.set(key, repriceMergedPurchase(previous));
     } else {
       previous.syntheses += Number(action.syntheses || 0);
       previous.outputQuantity += Number(action.outputQuantity || 0);
@@ -144,13 +259,16 @@ function estimatedMinutes(purchases, crafts) {
 function finalizeRoute(key, label, work) {
   const purchases = mergeActions(work.purchases, "purchase");
   const crafts = mergeActions(work.crafts, "craft");
+  const marketComplete = purchases.every(row => row.marketComplete !== false && Number.isFinite(row.total));
+  const complete = Boolean(work.complete) && marketComplete;
+  const gil = complete ? purchases.reduce((sum, row) => sum + Number(row.total || 0), 0) : null;
   const craftCount = crafts.reduce((sum, row) => sum + Math.max(0, Number(row.syntheses) || 0), 0);
   return {
     key,
     label,
-    available: Boolean(work.complete),
-    gil: work.complete ? Math.round(work.gil) : null,
-    additionalGil: work.complete ? Math.round(work.gil) : null,
+    available: complete,
+    gil: complete ? Math.round(gil) : null,
+    additionalGil: complete ? Math.round(gil) : null,
     inventoryOpportunityGil: 0,
     inventoryUsed: [],
     inventoryEvidenceApplied: false,
@@ -194,6 +312,17 @@ function inventoryQuantityForPurchase(inventoryRow, hqOnly) {
   return Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 0;
 }
 
+function additionalPurchaseQuote(purchase, buyQuantity) {
+  const qty = positiveQuantity(buyQuantity);
+  if (!qty) return { complete: true, total: 0, averageUnitPrice: 0 };
+  if (purchase.pricingMode === "listing_quantity") {
+    return quotePriceBands(purchase.priceBands, qty);
+  }
+  const unit = finitePositive(purchase.fallbackUnitPrice ?? purchase.unitPrice);
+  if (!unit) return { complete: false, total: null, averageUnitPrice: null };
+  return { complete: true, total: unit * qty, averageUnitPrice: unit };
+}
+
 export function applyInventoryEvidenceToRoute(route, inventory = {}) {
   if (!route?.available || !Number.isFinite(route.gil)) return { ...route };
   const remainingByItem = new Map();
@@ -212,13 +341,14 @@ export function applyInventoryEvidenceToRoute(route, inventory = {}) {
       remainingByItem.set(availabilityKey, inventoryQuantityForPurchase(inventoryRow, Boolean(purchase.hq)));
     }
     const available = remainingByItem.get(availabilityKey) || 0;
-    const required = Math.max(0, Number(purchase.quantity) || 0);
+    const required = positiveQuantity(purchase.quantity);
     const heldQuantity = Math.min(required, available);
     const buyQuantity = Math.max(0, required - heldQuantity);
     remainingByItem.set(availabilityKey, Math.max(0, available - heldQuantity));
-    const unit = Math.max(0, Number(purchase.unitPrice) || 0);
-    const additionalTotal = buyQuantity * unit;
-    const inventoryOpportunityTotal = heldQuantity * unit;
+
+    const quote = additionalPurchaseQuote(purchase, buyQuantity);
+    const additionalTotal = quote.complete ? Number(quote.total || 0) : Number(purchase.total || 0);
+    const inventoryOpportunityTotal = Math.max(0, Number(purchase.total || 0) - additionalTotal);
     additionalGil += additionalTotal;
     inventoryOpportunityGil += inventoryOpportunityTotal;
     purchases.push({
@@ -226,7 +356,8 @@ export function applyInventoryEvidenceToRoute(route, inventory = {}) {
       heldQuantity,
       buyQuantity,
       additionalTotal,
-      inventoryOpportunityTotal
+      inventoryOpportunityTotal,
+      buyAverageUnitPrice: quote.complete ? quote.averageUnitPrice : null
     });
     if (heldQuantity > 0) {
       inventoryUsed.push({
@@ -234,7 +365,7 @@ export function applyInventoryEvidenceToRoute(route, inventory = {}) {
         itemName: purchase.itemName,
         quantity: heldQuantity,
         hq: Boolean(purchase.hq),
-        unitPrice: unit,
+        unitPrice: inventoryOpportunityTotal / heldQuantity,
         opportunityTotal: inventoryOpportunityTotal
       });
     }
