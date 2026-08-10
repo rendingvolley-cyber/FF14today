@@ -26,8 +26,8 @@ export function correctedPreparationRange(timedRange, prepMinutes = PREP_MINUTES
   return `${clockFromMinutes(start - safePrep)}–${clockFromMinutes(start)}`;
 }
 
-export function correctPreparationRows(root = document) {
-  const schedule = root.querySelector?.("#taskBoardScheduleRows");
+export function correctPreparationRows(root = typeof document !== "undefined" ? document : null) {
+  const schedule = root?.querySelector?.("#taskBoardScheduleRows");
   if (!schedule) return 0;
   const rows = [...schedule.querySelectorAll(".schedule-row")];
   let corrected = 0;
@@ -51,7 +51,7 @@ export function correctPreparationRows(root = document) {
 
 let queued = false;
 function queueCorrection() {
-  if (queued) return;
+  if (queued || typeof requestAnimationFrame !== "function") return;
   queued = true;
   requestAnimationFrame(() => {
     queued = false;
@@ -59,11 +59,12 @@ function queueCorrection() {
   });
 }
 
-for (const eventName of ["click", "change"]) {
-  document.addEventListener(eventName, event => {
-    if (event.target?.closest?.("#taskBoard")) queueCorrection();
-  });
+if (typeof document !== "undefined") {
+  for (const eventName of ["click", "change"]) {
+    document.addEventListener(eventName, event => {
+      if (event.target?.closest?.("#taskBoard")) queueCorrection();
+    });
+  }
+  for (const delay of [100, 500, 1500]) setTimeout(queueCorrection, delay);
+  setInterval(queueCorrection, 30000);
 }
-
-for (const delay of [100, 500, 1500]) setTimeout(queueCorrection, delay);
-setInterval(queueCorrection, 30000);
