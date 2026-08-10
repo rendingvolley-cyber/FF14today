@@ -49,6 +49,20 @@ export function correctPreparationRows(root = typeof document !== "undefined" ? 
   return corrected;
 }
 
+function promoteTaskBoard(root = document) {
+  if (!root?.body || root.getElementById("taskBoardPrimaryStyles")) return;
+  const style = root.createElement("style");
+  style.id = "taskBoardPrimaryStyles";
+  style.textContent = `
+    body.task-board-primary .planner-hero,
+    body.task-board-primary .mode-picker,
+    body.task-board-primary #planButton { display: none !important; }
+    body.task-board-primary #planner { padding-bottom: 10px; }
+  `;
+  root.head.append(style);
+  root.body.classList.add("task-board-primary");
+}
+
 let queued = false;
 function queueCorrection() {
   if (queued || typeof requestAnimationFrame !== "function") return;
@@ -60,6 +74,7 @@ function queueCorrection() {
 }
 
 if (typeof document !== "undefined") {
+  promoteTaskBoard(document);
   for (const eventName of ["click", "change"]) {
     document.addEventListener(eventName, event => {
       if (event.target?.closest?.("#taskBoard")) queueCorrection();
