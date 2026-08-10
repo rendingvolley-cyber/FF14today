@@ -20,6 +20,15 @@ function setInboxState(message, kind = "idle") {
 }
 
 function statSummary(analysis) {
+  if (analysis.page_type === "grand_company_deliveries" && analysis.grand_company_deliveries) {
+    const entries = analysis.grand_company_deliveries.deliveries || [];
+    const first = entries[0]?.item_name ? `「${entries[0].item_name}」など` : "";
+    return `今日の双蛇党納品を ${entries.length}件 ${first}読み取りました。必要数と所持数から最初の1件を決めます。`;
+  }
+  if (analysis.page_type === "retainer_ventures" && analysis.retainer_ventures) {
+    const entries = analysis.retainer_ventures.ventures || [];
+    return `リテイナー調達候補を ${entries.length}件読み取りました。市場を比較して派遣先を更新します。`;
+  }
   if (analysis.page_type === "crafter_stats" && analysis.crafter_stats) {
     const s = analysis.crafter_stats;
     return `製作ステータスを取得：作業精度 ${s.craftsmanship ?? "—"} / 加工精度 ${s.control ?? "—"} / CP ${s.cp ?? "—"}`;
@@ -41,7 +50,7 @@ function statSummary(analysis) {
     }
     return `アチーブメント画面から ${entries.length}件を判断材料に追加しました。`;
   }
-  return "この画像はジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
+  return "この画像は双蛇党納品/リテイナー調達/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
 
 function renderSavedContext(context) {
@@ -98,7 +107,7 @@ async function uploadImage(file) {
     setInboxState("画像が8MBを超えています。", "error");
     return;
   }
-  setInboxState("画像を解析中… ジャーナル・実績進捗・装備ステータスを自動判定しています。", "working");
+  setInboxState("画像を解析中… 双蛇党納品・リテイナー調達・ジャーナル・実績進捗・装備ステータスを自動判定しています。", "working");
   const box = $("contextInbox");
   box?.classList.add("working");
   try {
@@ -138,7 +147,7 @@ document.addEventListener("paste", event => {
 
 $("contextInbox")?.addEventListener("click", () => {
   $("contextInbox")?.focus();
-  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。ジャーナル・実績進捗・装備情報を自動判定します。", "idle");
+  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・リテイナー調達・ジャーナル・実績・装備情報を自動判定します。", "idle");
 });
 
 void loadSavedContext();
