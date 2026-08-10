@@ -50,6 +50,8 @@ jobs:
           node --check src/leve-cost-wrapper.js
           node --check public/app.js
           node --check public/choice-reasons.js
+          node --check public/task-board.js
+          node --check public/task-board-schedule-correction.js
           node --check public/context-inbox.js
           node --check public/gather-checklist.js
           node --check public/retainer-advice.js
@@ -62,9 +64,11 @@ jobs:
           node --check scripts/test-inventory-context.mjs
           node --check scripts/test-dynamic-recipe-resolver.mjs
           node --check scripts/test-leve-japanese-labels.mjs
+          node --check scripts/test-task-board-schedule.mjs
           node --check scripts/playwright.config.mjs
           node --check scripts/e2e/focus-flow-boot.spec.mjs
           node --check scripts/e2e/dynamic-leve-cost.spec.mjs
+          node --check scripts/e2e/task-board-schedule.spec.mjs
       - name: Context planning rules
         run: node scripts/test-context-opportunities.mjs
       - name: Measurable motive rules
@@ -89,6 +93,8 @@ jobs:
         run: node scripts/test-grand-company-deliveries.mjs
       - name: Inventory evidence rules
         run: node scripts/test-inventory-context.mjs
+      - name: Task board schedule rules
+        run: node scripts/test-task-board-schedule.mjs
       - name: Browser boot regression
         run: |
           npx playwright install --with-deps chromium
