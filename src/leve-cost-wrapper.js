@@ -4,7 +4,7 @@ import { collectReachableItemIds, leveTarget } from "./leve-cost-data.js";
 import { loadInventoryEvidence, profileHashFromRequest } from "./inventory-store.js";
 
 const WORLD = "Chocobo";
-const VERSION = "1.9.1";
+const VERSION = "1.9.2";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -25,17 +25,23 @@ function currentItemMap(data) {
 
 function priceSnapshot(item) {
   const listings = Array.isArray(item?.listings) ? item.listings : [];
-  let nq = Infinity;
-  let hq = Infinity;
+  const nqOffers = [];
+  const hqOffers = [];
   for (const listing of listings) {
     const price = Number(listing?.pricePerUnit);
-    if (!Number.isFinite(price) || price <= 0) continue;
-    if (listing?.hq) hq = Math.min(hq, price);
-    else nq = Math.min(nq, price);
+    const quantity = Math.floor(Number(listing?.quantity) || 0);
+    if (!Number.isFinite(price) || price <= 0 || quantity <= 0) continue;
+    const offer = { unitPrice: Math.round(price), quantity };
+    if (listing?.hq) hqOffers.push(offer);
+    else nqOffers.push(offer);
   }
+  nqOffers.sort((a, b) => a.unitPrice - b.unitPrice);
+  hqOffers.sort((a, b) => a.unitPrice - b.unitPrice);
   return {
-    nq: Number.isFinite(nq) ? Math.round(nq) : null,
-    hq: Number.isFinite(hq) ? Math.round(hq) : null
+    nq: nqOffers[0]?.unitPrice ?? null,
+    hq: hqOffers[0]?.unitPrice ?? null,
+    nqOffers,
+    hqOffers
   };
 }
 
@@ -108,6 +114,7 @@ async function handleCostAdvice(request, url, env) {
     world: WORLD,
     source: "Universalis",
     market_age_minutes: market.ageMinutes,
+    market_pricing: "listing_quantity_curve",
     energy,
     available_minutes: availableMinutes,
     inventory_evidence: {
@@ -139,6 +146,7 @@ export default {
         leve_cost_market_world: WORLD,
         leve_cost_inventory_evidence: true,
         leve_cost_cash_vs_opportunity: true,
+        leve_cost_listing_quantity_pricing: true,
         leve_cost_routes: ["buy_finished", "buy_direct", "mixed", "craft_raw"]
       }, response.status);
     }
