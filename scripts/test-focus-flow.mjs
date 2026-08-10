@@ -31,8 +31,8 @@ assert.equal(
 );
 
 const source = readFileSync(new URL("../public/focus-flow.js", import.meta.url), "utf8");
-assert.match(source, /observer\.disconnect\(\)/, "Focus Flow must pause its observer before mutating methodList");
-assert.match(source, /observeMethodList\(\)/, "Focus Flow must resume observation after its own DOM writes");
-assert.match(source, /finally\s*\{\s*observeMethodList\(\);\s*\}/s, "observer pause/resume must be exception-safe");
+assert.doesNotMatch(source, /MutationObserver/, "Focus Flow must not use MutationObserver after the render-loop incident");
+assert.match(source, /setInterval\(reconcile,\s*1000\)/, "Focus Flow must use bounded polling for DOM reconciliation");
+assert.match(source, /setTimeout\(reconcile,\s*0\)/, "click-driven reconciliation should yield to the main planner first");
 
 console.log("focus-flow tests: ok");

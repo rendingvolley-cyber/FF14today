@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "ff14-today-e2e",
+  "main": "../src/combat-job-wrapper.js",
+  "compatibility_date": "2026-08-08",
+  "assets": {
+    "directory": "../public",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "GEMINI_MODEL": "gemini-2.5-flash"
+  }
+}

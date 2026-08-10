@@ -50,6 +50,8 @@ jobs:
           node --check public/tribe-leveling-data.js
           node --check public/focus-flow.js
           node --check public/leve-cost-advice.js
+          node --check scripts/playwright.config.mjs
+          node --check scripts/e2e/focus-flow-boot.spec.mjs
       - name: Context planning rules
         run: node scripts/test-context-opportunities.mjs
       - name: Measurable motive rules
@@ -66,6 +68,10 @@ jobs:
         run: node scripts/test-focus-flow.mjs
       - name: Leve cost advisor rules
         run: node scripts/test-leve-cost-advisor.mjs
+      - name: Browser boot regression
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
       - name: Secret pattern scan
