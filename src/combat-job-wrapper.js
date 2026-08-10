@@ -101,7 +101,7 @@ function rewriteHtml(response) {
     })
     .on(".version", {
       element(element) {
-        element.setInnerContent("v1.7.2 · EFFICIENCY 70+");
+        element.setInnerContent("v1.7.3 · TRIBE START");
       }
     })
     .transform(response);
@@ -138,13 +138,11 @@ export default {
       catch { return response; }
       return json({
         ...data,
-        version: "1.7.2",
+        version: "1.7.3",
         combat_job_switcher: true,
         combat_job_focus_leveling: true,
-        combat_leveling_routes_70_99: true,
-        combat_efficiency_comparator: true,
-        blue_mage_leveling_route: true,
-        frontline_daily_candidate: true
+        combat_leveling_efficiency_70_plus: true,
+        tribe_unlock_guide: true
       }, response.status);
     }
     if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
