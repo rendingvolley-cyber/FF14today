@@ -1,0 +1,69 @@
+const PREP_MINUTES = 7;
+
+function toMinutes(clock) {
+  const match = String(clock || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function clockFromMinutes(value) {
+  const day = 24 * 60;
+  const normalized = ((Number(value) % day) + day) % day;
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function correctedPreparationRange(timedRange, prepMinutes = PREP_MINUTES) {
+  const match = String(timedRange || "").match(/^(\d{1,2}:\d{2})[–-](\d{1,2}:\d{2})$/);
+  if (!match) return null;
+  const start = toMinutes(match[1]);
+  if (start == null) return null;
+  const safePrep = Math.max(1, Math.min(30, Math.round(Number(prepMinutes) || PREP_MINUTES)));
+  return `${clockFromMinutes(start - safePrep)}–${clockFromMinutes(start)}`;
+}
+
+export function correctPreparationRows(root = document) {
+  const schedule = root.querySelector?.("#taskBoardScheduleRows");
+  if (!schedule) return 0;
+  const rows = [...schedule.querySelectorAll(".schedule-row")];
+  let corrected = 0;
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (row.querySelector(".schedule-title")?.textContent?.trim() !== "移動・準備") continue;
+    const nextTimed = rows.slice(index + 1).find(candidate => {
+      const title = candidate.querySelector(".schedule-title")?.textContent?.trim();
+      return candidate.classList.contains("timed") && title && title !== "移動・準備";
+    });
+    if (!nextTimed) continue;
+    const nextRange = nextTimed.querySelector(".schedule-time")?.textContent?.trim();
+    const desired = correctedPreparationRange(nextRange);
+    const timeNode = row.querySelector(".schedule-time");
+    if (!desired || !timeNode || timeNode.textContent === desired) continue;
+    timeNode.textContent = desired;
+    corrected += 1;
+  }
+  return corrected;
+}
+
+let queued = false;
+function queueCorrection() {
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    correctPreparationRows();
+  });
+}
+
+for (const eventName of ["click", "change"]) {
+  document.addEventListener(eventName, event => {
+    if (event.target?.closest?.("#taskBoard")) queueCorrection();
+  });
+}
+
+for (const delay of [100, 500, 1500]) setTimeout(queueCorrection, delay);
+setInterval(queueCorrection, 30000);
