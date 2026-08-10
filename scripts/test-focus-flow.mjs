@@ -3,7 +3,8 @@ import {
   normalizeFlowState,
   elapsedMinutes,
   formatElapsed,
-  chooseNextUnskipped
+  chooseNextUnskipped,
+  patchCompletionBody
 } from "../public/focus-flow.js";
 
 const state = normalizeFlowState({
@@ -16,4 +17,15 @@ assert.equal(elapsedMinutes(0, 180000), 3);
 assert.equal(formatElapsed(0, 65000), "1:05");
 assert.equal(chooseNextUnskipped("A", [{ title: "B" }, { title: "C" }], ["A", "B"]).title, "C");
 assert.equal(chooseNextUnskipped("A", [{ title: "B" }], []), null);
+
+const patched = patchCompletionBody(
+  { task_title: "赤魔レベルレ", actual_minutes: 99 },
+  { title: "赤魔レベルレ", startedAt: 60_000 },
+  661_000
+);
+assert.equal(patched.actual_minutes, 10);
+assert.equal(
+  patchCompletionBody({ task_title: "別タスク", actual_minutes: 7 }, state.active, 661_000).actual_minutes,
+  7
+);
 console.log("focus-flow tests: ok");
