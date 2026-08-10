@@ -64,9 +64,6 @@ function bootFocusFlow() {
 
   let dateKey = japanDateKey();
   let pendingCompleteTitle = null;
-  let autoChoosing = false;
-  let observer = null;
-  let observing = false;
 
   const load = () => {
     try {
@@ -81,9 +78,10 @@ function bootFocusFlow() {
     try {
       localStorage.setItem(storageKey(dateKey), JSON.stringify(flow));
     } catch {
-      // Focus Flow persistence is optional. Never block the main planner UI.
+      // Focus Flow persistence is optional. Never block the planner.
     }
   };
+
   const titleOfPrimary = () => methodList.querySelector(".method-card.recommended h3")?.textContent?.trim() || "";
 
   const originalFetch = window.fetch.bind(window);
@@ -92,10 +90,9 @@ function bootFocusFlow() {
     if (url.includes("/api/activity/complete") && typeof init.body === "string" && flow.active) {
       try {
         const body = JSON.parse(init.body);
-        const patched = patchCompletionBody(body, flow.active);
-        init = { ...init, body: JSON.stringify(patched) };
+        init = { ...init, body: JSON.stringify(patchCompletionBody(body, flow.active)) };
       } catch {
-        // Preserve the canonical request if the body is not JSON.
+        // Preserve the original request if the body is not JSON.
       }
     }
     return originalFetch(input, init);
@@ -120,12 +117,14 @@ function bootFocusFlow() {
       banner?.remove();
       return;
     }
+
     if (!banner) {
       banner = document.createElement("div");
       banner.id = "focusFlowResume";
       banner.className = "focus-flow-resume";
       methodList.before(banner);
     }
+
     const currentTitle = titleOfPrimary();
     const activeVisible = currentTitle === flow.active.title;
     banner.replaceChildren();
@@ -151,25 +150,67 @@ function bootFocusFlow() {
     }
   }
 
-  function observeMethodList() {
-    if (!observer || observing) return;
-    observer.observe(methodList, { childList: true, subtree: true });
-    observing = true;
+  function renderActions(card, title) {
+    let actions = card.querySelector(".focus-flow-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "focus-flow-actions";
+      const complete = card.querySelector("[data-complete-current]");
+      if (complete) card.insertBefore(actions, complete);
+      else card.append(actions);
+    }
+
+    let start = actions.querySelector(".focus-flow-start");
+    if (!start) {
+      start = document.createElement("button");
+      start.type = "button";
+      start.className = "focus-flow-start";
+      actions.append(start);
+    }
+
+    let skip = actions.querySelector(".focus-flow-skip");
+    if (!skip) {
+      skip = document.createElement("button");
+      skip.type = "button";
+      skip.className = "focus-flow-skip";
+      skip.textContent = "今日はスキップ";
+      actions.append(skip);
+    }
+
+    const isRunning = flow.active?.title === title;
+    start.classList.toggle("running", isRunning);
+    start.textContent = isRunning ? `▶ 実行中 ${formatElapsed(flow.active.startedAt)}` : "▶ START";
+    start.onclick = () => {
+      if (flow.active?.title === title) return;
+      flow.active = {
+        title,
+        startedAt: Date.now(),
+        plannedMinutes: parsePlannedMinutes(card)
+      };
+      save();
+      reconcile();
+    };
+
+    skip.onclick = () => {
+      if (!flow.skippedTitles.includes(title)) flow.skippedTitles.push(title);
+      if (flow.active?.title === title) flow.active = null;
+      save();
+      const nextChoice = alternatives().find(item => !flow.skippedTitles.includes(item.title));
+      if (nextChoice) {
+        nextChoice.button.click();
+        setTimeout(reconcile, 0);
+        return;
+      }
+      card.classList.add("focus-flow-skipped-all");
+      actions.replaceChildren();
+      const note = document.createElement("p");
+      note.className = "focus-flow-done-note";
+      note.textContent = "この候補は今日は追わなくてOK。別の遊び方に切り替えるか、ここで終了で十分です。";
+      actions.append(note);
+    };
   }
 
-  function refreshSafely() {
-    if (observer && observing) {
-      observer.disconnect();
-      observing = false;
-    }
-    try {
-      enhancePrimary();
-    } finally {
-      observeMethodList();
-    }
-  }
-
-  function enhancePrimary() {
+  function reconcile() {
     const today = japanDateKey();
     if (today !== dateKey) {
       dateKey = today;
@@ -181,6 +222,7 @@ function bootFocusFlow() {
       ensureResumeBanner();
       return;
     }
+
     const title = titleOfPrimary();
     if (!title) return;
 
@@ -191,75 +233,23 @@ function bootFocusFlow() {
     }
 
     const next = chooseNextUnskipped(title, alternatives(), flow.skippedTitles);
-    if (next && !autoChoosing) {
-      autoChoosing = true;
-      queueMicrotask(() => {
-        next.button.click();
-        autoChoosing = false;
-      });
+    if (next) {
+      next.button.click();
+      setTimeout(reconcile, 0);
       return;
     }
 
-    let actions = card.querySelector(".focus-flow-actions");
-    if (!actions) {
-      actions = document.createElement("div");
-      actions.className = "focus-flow-actions";
-      const complete = card.querySelector("[data-complete-current]");
-      if (complete) card.insertBefore(actions, complete);
-      else card.append(actions);
-    }
-    actions.replaceChildren();
-
-    const isRunning = flow.active?.title === title;
-    const start = document.createElement("button");
-    start.type = "button";
-    start.className = `focus-flow-start${isRunning ? " running" : ""}`;
-    start.textContent = isRunning ? `▶ 実行中 ${formatElapsed(flow.active.startedAt)}` : "▶ START";
-    start.addEventListener("click", () => {
-      if (flow.active?.title === title) return;
-      flow.active = {
-        title,
-        startedAt: Date.now(),
-        plannedMinutes: parsePlannedMinutes(card)
-      };
-      save();
-      refreshSafely();
-    });
-
-    const skip = document.createElement("button");
-    skip.type = "button";
-    skip.className = "focus-flow-skip";
-    skip.textContent = "今日はスキップ";
-    skip.addEventListener("click", () => {
-      if (!flow.skippedTitles.includes(title)) flow.skippedTitles.push(title);
-      if (flow.active?.title === title) flow.active = null;
-      save();
-      const nextChoice = alternatives().find(item => !flow.skippedTitles.includes(item.title));
-      if (nextChoice) nextChoice.button.click();
-      else {
-        card.classList.add("focus-flow-skipped-all");
-        const note = document.createElement("p");
-        note.className = "focus-flow-done-note";
-        note.textContent = "この候補は今日は追わなくてOK。別の遊び方に切り替えるか、ここで終了で十分です。";
-        actions.replaceChildren(note);
-      }
-    });
-
-    actions.append(start, skip);
+    renderActions(card, title);
     ensureResumeBanner();
   }
 
   methodList.addEventListener("click", event => {
     if (event.target.closest("[data-complete-current]")) pendingCompleteTitle = titleOfPrimary();
+    setTimeout(reconcile, 0);
   }, true);
 
-  observer = new MutationObserver(() => refreshSafely());
-  observeMethodList();
-  refreshSafely();
-  setInterval(() => {
-    if (!flow.active) return;
-    refreshSafely();
-  }, 1000);
+  reconcile();
+  setInterval(reconcile, 1000);
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
