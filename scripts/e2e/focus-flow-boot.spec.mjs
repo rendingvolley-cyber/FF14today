@@ -82,6 +82,56 @@ const leveAdvice = {
   }
 };
 
+const grandCompany = {
+  ok: true,
+  setup_required: false,
+  company_name: "双蛇党",
+  observed_at: "2026-08-10T12:30:00.000Z",
+  confidence: 0.95,
+  deliveries: [
+    {
+      row_index: 0,
+      class_or_job: "錬金術師",
+      item_name: "E2E納品薬",
+      requested_quantity: 3,
+      owned_quantity: 3,
+      starred: true,
+      bonus_text: "ボーナス",
+      reward_text: "軍票 1000",
+      confidence: 0.95,
+      ready_now: true,
+      missing_quantity: 0
+    },
+    {
+      row_index: 1,
+      class_or_job: "調理師",
+      item_name: "E2E納品料理",
+      requested_quantity: 2,
+      owned_quantity: 0,
+      starred: false,
+      bonus_text: null,
+      reward_text: null,
+      confidence: 0.9,
+      ready_now: false,
+      missing_quantity: 2
+    }
+  ],
+  recommended: {
+    row_index: 0,
+    class_or_job: "錬金術師",
+    item_name: "E2E納品薬",
+    requested_quantity: 3,
+    owned_quantity: 3,
+    starred: true,
+    bonus_text: "ボーナス",
+    reward_text: "軍票 1000",
+    confidence: 0.95,
+    ready_now: true,
+    missing_quantity: 0,
+    recommendation_reason: "必要数をすでに所持していて、画面上にボーナス表示もあります。最初にこれを納品します。"
+  }
+};
+
 function payloadFor(pathname) {
   if (pathname === "/api/state") return { character, preferences: { available_minutes: 60, energy: 2 }, plan };
   if (pathname === "/api/achievements") return { achievements };
@@ -89,12 +139,13 @@ function payloadFor(pathname) {
   if (pathname === "/api/sync") return { character };
   if (pathname === "/api/achievements/sync") return { achievements };
   if (pathname === "/api/plan") return { plan };
+  if (pathname === "/api/grand-company/deliveries") return grandCompany;
   if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [] };
   if (pathname === "/api/leve/cost-advice") return leveAdvice;
   return {};
 }
 
-test("page, Focus Flow, and leve advice stay responsive through reload", async ({ page }) => {
+test("daily routine, Focus Flow, and leve advice stay responsive through reload", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
@@ -109,10 +160,26 @@ test("page, Focus Flow, and leve advice stay responsive through reload", async (
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#characterName")).toHaveText("Kanade Tachibana");
+  await expect(page.locator("[data-gc-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-retainer-open] .retainer-flow-step")).toHaveText("2");
+  await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("3");
+  await expect(page.locator("[data-gc-content]")).toContainText("E2E納品薬");
+  await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 3");
+  await expect(page.locator("[data-gc-tab-status]")).toHaveText("すぐ納品");
+
   await expect(page.locator(".method-card.recommended h3")).toContainText("Ginseng Angle Brush");
   await expect(page.locator(".focus-flow-start")).toHaveCount(1);
   await expect(page.locator(".leve-cost-title")).toHaveText("中間素材を買って最終品だけ作る");
   await expect(page.locator(".leve-cost-advice")).toContainText("13,200G");
+
+  await page.locator("button[data-gc-done]").click();
+  await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-gc-content]")).toBeHidden();
+  await expect(page.locator("[data-retainer-content]")).toBeVisible();
+
+  await page.locator("[data-retainer-done]").click();
+  await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-retainer-content]")).toBeHidden();
 
   const beforeStart = await page.evaluate(() => new Promise(resolve => setTimeout(() => resolve("responsive"), 250)));
   expect(beforeStart).toBe("responsive");
@@ -127,6 +194,8 @@ test("page, Focus Flow, and leve advice stay responsive through reload", async (
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#characterName")).toHaveText("Kanade Tachibana");
+  await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-gc-tab-status]")).toContainText("納品済み");
   await expect(page.locator(".focus-flow-start")).toContainText("実行中");
   await expect(page.locator("#focusFlowResume")).toContainText("いま実行中");
   await expect(page.locator(".leve-cost-title")).toHaveText("中間素材を買って最終品だけ作る");

@@ -1,4 +1,4 @@
-import app from "./retainer-first-wrapper.js";
+import app from "./grand-company-wrapper.js";
 import { applyCombatJobFocus } from "./combat-job-focus.js";
 
 const OWNER_LODESTONE_ID = "3091607";
