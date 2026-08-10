@@ -1,4 +1,10 @@
-const LEVELING_DUNGEONS_90_100 = [
+const LEVELING_DUNGEONS_80_100 = [
+  { min: 80, max: 80, name: "偽造天界 グルグ火山", level: 79 },
+  { min: 81, max: 82, name: "異形楼閣 ゾットの塔", level: 81 },
+  { min: 83, max: 84, name: "魔導神門 バブイルの塔", level: 83 },
+  { min: 85, max: 86, name: "終末樹海 ヴァナスパティ", level: 85 },
+  { min: 87, max: 88, name: "創造環境 ヒュペルボレア造物院", level: 87 },
+  { min: 89, max: 90, name: "星海潜航 アイティオン星晶鏡", level: 89 },
   { min: 91, max: 92, name: "濁流遡上 イフイカ・トゥム", level: 91 },
   { min: 93, max: 94, name: "山嶺登頂 ウォーコー・ゾーモー", level: 93 },
   { min: 95, max: 96, name: "遺産踏査 天深きセノーテ", level: 95 },
@@ -30,7 +36,7 @@ function findFocusedJob(character, code) {
 }
 
 function dungeonForLevel(level) {
-  return LEVELING_DUNGEONS_90_100.find(duty => level >= duty.min && level <= duty.max) || null;
+  return LEVELING_DUNGEONS_80_100.find(duty => level >= duty.min && level <= duty.max) || null;
 }
 
 function withJob(method, job) {
@@ -68,13 +74,13 @@ function repeatDungeonMethod(job, duty) {
   return withJob({
     task_key: `leveling-dungeon:${job.code}:${duty.level}`,
     daily_key: null,
-    badge: "現在LvのレベリングID",
+    badge: "日課後の高効率基準",
     title: `${job.name_ja}で「${duty.name}」を1周`,
     minutes: dps ? 35 : 25,
-    reason: `選択中の${job.name_ja}はLv${job.level}。現在登録済みのレベル帯データでは、Lv${duty.level}の「${duty.name}」が日課後の具体的な育成候補です。`,
+    reason: `選択中の${job.name_ja}はLv${job.level}。日次ボーナス消化後は、現在Lvで入れる最も高いレベル帯のレベリングID「${duty.name}」（Lv${duty.level}）を基準候補にします。`,
     condition: dps
-      ? "目的：待ち時間の判断を増やさず、コンテンツサポーターで経験値を積む。"
-      : "目的：現在レベル帯のIDを1周して経験値を積む。",
+      ? "目的：待ち時間のブレを避け、コンテンツサポーターで安定して経験値を積む。"
+      : "目的：現在Lvで入れる最高帯のレベリングIDを1周し、経験値を積む。",
     steps: dps
       ? [`${job.name_ja}（Lv${job.level}）へジョブチェンジ`, `コンテンツサポーターで「${duty.name}」を選択`, "1周する", "終わったら「✓ 完了！」"]
       : [`${job.name_ja}（Lv${job.level}）へジョブチェンジ`, `コンテンツファインダーで「${duty.name}」を選択`, "1周する", "終わったら「✓ 完了！」"]
@@ -149,7 +155,7 @@ export function applyCombatJobFocus(plan, character, options = {}) {
   if (!combined.length) {
     return {
       ...plan,
-      planner_kind: "combat-job-focus-v1.7",
+      planner_kind: "combat-job-focus-v1.7.1",
       session_complete: true,
       focus_job: focusFromJob(job),
       methods: [],
@@ -164,7 +170,7 @@ export function applyCombatJobFocus(plan, character, options = {}) {
   const recommended = combined[0];
   return {
     ...plan,
-    planner_kind: "combat-job-focus-v1.7",
+    planner_kind: "combat-job-focus-v1.7.1",
     session_complete: false,
     focus_job: focusFromJob(job),
     methods: combined,

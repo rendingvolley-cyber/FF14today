@@ -101,7 +101,7 @@ function rewriteHtml(response) {
     })
     .on(".version", {
       element(element) {
-        element.setInnerContent("v1.7 · JOB FOCUS");
+        element.setInnerContent("v1.7.1 · 80-90 ROUTES");
       }
     })
     .transform(response);
@@ -138,9 +138,10 @@ export default {
       catch { return response; }
       return json({
         ...data,
-        version: "1.7.0",
+        version: "1.7.1",
         combat_job_switcher: true,
-        combat_job_focus_leveling: true
+        combat_job_focus_leveling: true,
+        combat_leveling_routes_80_90: true
       }, response.status);
     }
     if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
