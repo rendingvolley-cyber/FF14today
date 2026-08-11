@@ -73,8 +73,10 @@ function currentRoutineStep() {
   const root = document.getElementById("retainerAdvice");
   if (!root) return "plan";
   const gc = root.querySelector("[data-gc-content]");
+  const tribe = root.querySelector("[data-tribe-content]");
   const retainer = root.querySelector("[data-retainer-content]");
   if (gc && !gc.hidden) return "grand-company";
+  if (tribe && !tribe.hidden) return "tribe";
   if (retainer && !retainer.hidden) return "retainer";
   return "plan";
 }
@@ -83,6 +85,14 @@ function placeInbox(step = currentRoutineStep()) {
   const nodes = inboxNodes();
   if (!nodes) return false;
   const { inbox, title, copy, status } = nodes;
+
+  if (step === "tribe") {
+    inbox.hidden = true;
+    inbox.dataset.workflowContext = "tribe";
+    return true;
+  }
+
+  inbox.hidden = false;
   const text = copyFor(step);
   let target = null;
   let anchor = null;
@@ -123,9 +133,9 @@ function queueReconcile() {
 function boot() {
   injectPlacementStyles();
   reconcilePlacement();
-  for (const delay of [80, 250, 800]) setTimeout(reconcilePlacement, delay);
+  for (const delay of [80, 250, 800, 1800]) setTimeout(reconcilePlacement, delay);
   document.addEventListener("click", event => {
-    if (event.target?.closest?.("[data-gc-open],[data-retainer-open],[data-plan-open]")) queueReconcile();
+    if (event.target?.closest?.("[data-gc-open],[data-tribe-open],[data-retainer-open],[data-plan-open],[data-tribe-craft-toggle],[data-tribe-gather-toggle]")) queueReconcile();
   });
 }
 
