@@ -237,6 +237,12 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-tribe-content]")).toBeHidden();
 
+  await expect(page.locator("#nowPanel")).toBeHidden();
+  await expect(page.locator("#taskBoardGrid .task-now-button").first()).toBeVisible();
+  await page.locator("#taskBoardGrid .task-now-button").first().click();
+  await expect(page.locator("#nowPanel")).toBeVisible();
+  await expect(page.locator(".focus-flow-start")).toBeVisible();
+
   const beforeStart = await page.evaluate(() => new Promise(resolve => setTimeout(() => resolve("responsive"), 250)));
   expect(beforeStart).toBe("responsive");
 
@@ -253,6 +259,7 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-gc-tab-status]")).toContainText("納品済み");
   await expect(page.locator("[data-tribe-tab-status]")).toContainText("完了");
+  await expect(page.locator("#nowPanel")).toBeVisible();
   await expect(page.locator(".focus-flow-start")).toContainText("実行中");
   await expect(page.locator("#focusFlowResume")).toContainText("いま実行中");
   await expect(page.locator(".leve-cost-inventory-economics")).toContainText("追加支出");
