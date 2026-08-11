@@ -36,6 +36,50 @@ const pastedDelivery = {
   recommendation_reason: "必要数をすでに所持していて、画面上にボーナス表示もあります。最初にこれを納品します。"
 };
 
+const sealMarket = {
+  ok: true,
+  world: "Chocobo",
+  source: "Universalis",
+  cached: false,
+  cache_age_minutes: 0,
+  recommendations: [
+    {
+      rank: 1,
+      score: 86.4,
+      item_id: 5530,
+      item_name: "コークス",
+      item_name_en: "Coke",
+      seal_cost: 200,
+      exchange_quantity: 1,
+      daily_sale_velocity: 28.4,
+      average_sale_price: 820,
+      minimum_listing_price: 790,
+      listed_quantity: 34,
+      estimated_days_supply: 1.2,
+      estimated_gross_per_exchange: 820,
+      estimated_gil_per_1000_seals: 4100,
+      market_age_minutes: 4
+    },
+    {
+      rank: 2,
+      score: 74.2,
+      item_id: 5268,
+      item_name: "樹液塊",
+      item_name_en: "Hardened Sap",
+      seal_cost: 200,
+      exchange_quantity: 1,
+      daily_sale_velocity: 14.1,
+      average_sale_price: 900,
+      minimum_listing_price: 850,
+      listed_quantity: 55,
+      estimated_days_supply: 3.9,
+      estimated_gross_per_exchange: 900,
+      estimated_gil_per_1000_seals: 4500,
+      market_age_minutes: 5
+    }
+  ]
+};
+
 const savedPlanContext = {
   journal: {
     page_type: "journal",
@@ -56,6 +100,7 @@ function payload(pathname, gcUploaded = false) {
   }
   if (pathname === "/api/activity/today") return { count: 0 };
   if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [], message: "調達依頼画面を貼ってください。" };
+  if (pathname === "/api/grand-company/seal-exchange-recommendations") return sealMarket;
   if (pathname === "/api/grand-company/deliveries") {
     return gcUploaded
       ? {
@@ -122,6 +167,14 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect(page.locator("#grandCompanyRoutineContent #contextInbox")).toHaveCount(1);
   await expect(page.locator("#contextInbox")).toHaveAttribute("data-workflow-context", "grand-company");
   await expect(page.locator("#grandCompanyRoutineContent #contextInboxSaved")).not.toContainText("ジャーナル 3件");
+
+  const sealSection = page.locator("[data-gc-seal-market]");
+  await expect(sealSection).toBeVisible();
+  await expect(sealSection).toContainText("マーケットの売れ筋から交換先を決める");
+  await expect(sealSection).toContainText("コークス");
+  await expect(sealSection).toContainText("いま交換するならこれ");
+  await expect(sealSection).toContainText("4,100ギル");
+  await expect(sealSection).toContainText("28.4個");
 
   await page.evaluate(() => {
     const file = new File([new Uint8Array([1, 2, 3, 4])], "gc.png", { type: "image/png" });
