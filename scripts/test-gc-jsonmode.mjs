@@ -17,6 +17,7 @@ const pageWrapper = readFileSync(new URL("../src/gc-jsonmode-wrapper.js", import
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
 const fallbackWrapper = readFileSync(new URL("../src/gc-market-fallback-wrapper.js", import.meta.url), "utf8");
 const categoryJobWrapper = readFileSync(new URL("../src/category-job-focus-wrapper.js", import.meta.url), "utf8");
+const retainerBandWrapper = readFileSync(new URL("../src/retainer-level-band-wrapper.js", import.meta.url), "utf8");
 const recoveryWrapper = readFileSync(new URL("../src/task-board-recovery-wrapper.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
 const contextWrapper = readFileSync(new URL("../public/context-inbox.js", import.meta.url), "utf8");
@@ -30,7 +31,8 @@ assert.match(source, /調達依頼品/);
 assert.match(source, /supply-duty-json-v3/);
 assert.match(source, /画像解析側で一時的なエラー/);
 assert.match(entry, /task-board-recovery-wrapper\.js/, "production entry must preserve task-board recovery as the outer API layer");
-assert.match(recoveryWrapper, /category-job-focus-wrapper\.js/, "task-board recovery must preserve category job focus underneath it");
+assert.match(recoveryWrapper, /retainer-level-band-wrapper\.js/, "task-board recovery must preserve retainer level-band recommendations underneath it");
+assert.match(retainerBandWrapper, /category-job-focus-wrapper\.js/, "retainer level-band layer must preserve category job focus underneath it");
 assert.match(categoryJobWrapper, /gc-market-fallback-wrapper\.js/, "category job focus must preserve the market fallback wrapper underneath it");
 assert.match(fallbackWrapper, /gc-delivery-cost-wrapper\.js/, "market fallback must preserve the existing GC cost comparison underneath it");
 assert.match(fallbackWrapper, /searchItemExact/);
@@ -128,4 +130,4 @@ assert.equal(unresolved.market_buy, null);
 assert.equal(unresolved.recommended_route.available, false);
 assert.match(unresolved.recommended_route.label, /品名をXIVAPIで特定できず/);
 
-console.log("GC JSON-mode, two-page storage, market fallback, and task-board recovery chain regression: ok");
+console.log("GC JSON-mode, two-page storage, market fallback, retainer-level-band, and task-board recovery chain regression: ok");
