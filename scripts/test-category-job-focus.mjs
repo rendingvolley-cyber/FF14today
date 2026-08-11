@@ -31,6 +31,11 @@ function base(mode) {
   assert.ok(plan.methods.length >= 2);
   assert.ok(plan.methods.every(row => row.job_code === "ALC"));
   assert.match(plan.methods[0].title, /ウコギ・アングルブラシ/);
+  const collectable = plan.methods.find(row => row.task_key === "craft:alc91:collectable:loboskin-grimoire");
+  assert.ok(collectable);
+  assert.match(collectable.title, /収集用のシルバリオ・グリモア/);
+  assert.doesNotMatch(collectable.title, /^Lv91錬金術師の収集品を1個作って納品する$/);
+  assert.ok(collectable.steps.some(step => step.includes("収集用のシルバリオ・グリモア")));
 }
 
 {
