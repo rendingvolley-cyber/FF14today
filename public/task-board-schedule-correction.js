@@ -49,6 +49,12 @@ export function correctPreparationRows(root = typeof document !== "undefined" ? 
   return corrected;
 }
 
+export function activateNowLayout(root = typeof document !== "undefined" ? document : null) {
+  if (!root?.body) return false;
+  root.body.classList.add("task-board-now-active");
+  return true;
+}
+
 function promoteTaskBoard(root = document) {
   if (!root?.body || root.getElementById("taskBoardPrimaryStyles")) return;
   const style = root.createElement("style");
@@ -58,6 +64,9 @@ function promoteTaskBoard(root = document) {
     body.task-board-primary .mode-picker,
     body.task-board-primary #planButton { display: none !important; }
     body.task-board-primary #planner { padding-bottom: 10px; }
+    body.task-board-primary:not(.task-board-now-active) #nowPanel { display: none !important; }
+    body.task-board-primary.task-board-now-active #nowPanel .method-alternative,
+    body.task-board-primary.task-board-now-active #nowPanel .methods-help { display: none !important; }
   `;
   root.head.append(style);
   root.body.classList.add("task-board-primary");
@@ -77,6 +86,7 @@ if (typeof document !== "undefined") {
   promoteTaskBoard(document);
   for (const eventName of ["click", "change"]) {
     document.addEventListener(eventName, event => {
+      if (event.target?.closest?.(".task-now-button")) activateNowLayout(document);
       if (event.target?.closest?.("#taskBoard")) queueCorrection();
     });
   }
