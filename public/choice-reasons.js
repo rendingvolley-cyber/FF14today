@@ -1,6 +1,8 @@
 import "./ui-context-placement.js";
+import "./routine-tribe-step.js";
 import "./task-board-v2.js";
 import "./task-board-schedule-correction.js";
+import "./task-board-zero-state.js";
 
 const $ = id => document.getElementById(id);
 
