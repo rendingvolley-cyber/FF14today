@@ -1,4 +1,5 @@
 const PREP_MINUTES = 7;
+const FOCUS_FLOW_PREFIX = "ff14_today_focus_flow_v1_";
 
 function toMinutes(clock) {
   const match = String(clock || "").match(/^(\d{1,2}):(\d{2})$/);
@@ -15,6 +16,28 @@ function clockFromMinutes(value) {
   const hours = Math.floor(normalized / 60);
   const minutes = normalized % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function japanDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function hasActiveFocusFlow(storage = typeof localStorage !== "undefined" ? localStorage : null, date = new Date()) {
+  if (!storage) return false;
+  try {
+    const raw = storage.getItem(`${FOCUS_FLOW_PREFIX}${japanDateKey(date)}`);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Boolean(parsed?.active?.title && Number(parsed?.active?.startedAt) > 0);
+  } catch {
+    return false;
+  }
 }
 
 export function correctedPreparationRange(timedRange, prepMinutes = PREP_MINUTES) {
@@ -70,6 +93,7 @@ function promoteTaskBoard(root = document) {
   `;
   root.head.append(style);
   root.body.classList.add("task-board-primary");
+  if (hasActiveFocusFlow()) activateNowLayout(root);
 }
 
 let queued = false;
@@ -79,6 +103,7 @@ function queueCorrection() {
   requestAnimationFrame(() => {
     queued = false;
     correctPreparationRows();
+    if (hasActiveFocusFlow()) activateNowLayout(document);
   });
 }
 
