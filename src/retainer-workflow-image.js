@@ -1,7 +1,5 @@
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_PROFILE_ANALYSES_PER_DAY = 12;
-const MAX_GLOBAL_ANALYSES_PER_DAY = 50;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 function json(data, status = 200) {
@@ -53,17 +51,6 @@ async function sha256Hex(value) {
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function japanDateKey(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(date);
-  const get = type => parts.find(part => part.type === type)?.value || "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
 async function profileHashFromRequest(request) {
   const token = request.headers.get("x-profile-token") || "";
   if (!/^[A-Za-z0-9_-]{43,128}$/.test(token)) {
@@ -95,53 +82,7 @@ async function ensureSchema(env) {
         observed_at TEXT NOT NULL,
         PRIMARY KEY (profile_hash, image_sha256)
       )
-    `),
-    env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS decision_context_usage (
-        usage_date TEXT NOT NULL,
-        profile_hash TEXT NOT NULL,
-        analyses INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (usage_date, profile_hash)
-      )
-    `),
-    env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS decision_context_global_usage (
-        usage_date TEXT PRIMARY KEY,
-        analyses INTEGER NOT NULL DEFAULT 0
-      )
     `)
-  ]);
-}
-
-async function reserveBudget(env, profileHash) {
-  const day = japanDateKey();
-  const [profileRow, globalRow] = await Promise.all([
-    env.DB.prepare(`SELECT analyses FROM decision_context_usage WHERE usage_date=? AND profile_hash=?`).bind(day, profileHash).first(),
-    env.DB.prepare(`SELECT analyses FROM decision_context_global_usage WHERE usage_date=?`).bind(day).first()
-  ]);
-  const profileCount = Number(profileRow?.analyses || 0);
-  const globalCount = Number(globalRow?.analyses || 0);
-  if (profileCount >= MAX_PROFILE_ANALYSES_PER_DAY) {
-    const error = new Error(`今日のスクショ解析は${MAX_PROFILE_ANALYSES_PER_DAY}回までです。同じ画像の貼り直しは回数に含まれません。`);
-    error.status = 429;
-    throw error;
-  }
-  if (globalCount >= MAX_GLOBAL_ANALYSES_PER_DAY) {
-    const error = new Error("今日の画像解析枠を使い切りました。時間を置いて試してください。");
-    error.status = 429;
-    throw error;
-  }
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO decision_context_usage (usage_date, profile_hash, analyses)
-      VALUES (?, ?, 1)
-      ON CONFLICT(usage_date, profile_hash) DO UPDATE SET analyses=analyses+1
-    `).bind(day, profileHash),
-    env.DB.prepare(`
-      INSERT INTO decision_context_global_usage (usage_date, analyses)
-      VALUES (?, 1)
-      ON CONFLICT(usage_date) DO UPDATE SET analyses=analyses+1
-    `).bind(day)
   ]);
 }
 
@@ -392,7 +333,6 @@ export async function handleRetainerWorkflowImage(request, env) {
   let analysis = await cached(env, profileHash, imageSha);
   const duplicate = Boolean(analysis);
   if (!analysis) {
-    await reserveBudget(env, profileHash);
     analysis = await analyze(file, bytes, env);
     await cache(env, profileHash, imageSha, analysis);
   }
