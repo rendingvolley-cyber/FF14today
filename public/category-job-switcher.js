@@ -10,6 +10,7 @@
   const modeNotice = new Map();
   let character = null;
   let renderTimer = null;
+  let pendingCategory = "";
 
   function selectedCode(mode) {
     return String(localStorage.getItem(KEYS[mode] || "") || "").trim().toUpperCase();
@@ -123,9 +124,8 @@
     panel.innerHTML = `<span class="category-job-focus-label">対象ジョブ</span><select id="categoryJobFocusSelect" aria-label="このカテゴリで育てるジョブ"></select><span class="category-job-focus-note" id="categoryJobFocusNote">選んだジョブ以外へ勝手に切り替えません。</span>`;
     tabs.insertAdjacentElement("afterend", panel);
     panel.querySelector("select")?.addEventListener("change", event => {
-      const active = document.querySelector("#taskBoardTabs .task-board-tab.active")?.dataset.category || "";
-      const mode = CATEGORY_MODE[active];
-      if (!mode) return;
+      const mode = String(panel.dataset.mode || "");
+      if (!KEYS[mode]) return;
       const code = String(event.target.value || "").trim().toUpperCase();
       if (!code) return;
       localStorage.setItem(KEYS[mode], code);
@@ -136,12 +136,14 @@
     return panel;
   }
 
-  function render() {
+  function render(categoryOverride = "") {
     injectStyle();
     const panel = ensurePanel();
     if (!panel) return;
-    const active = document.querySelector("#taskBoardTabs .task-board-tab.active")?.dataset.category || "";
+    const active = String(categoryOverride || pendingCategory || document.querySelector("#taskBoardTabs .task-board-tab.active")?.dataset.category || "");
     const mode = CATEGORY_MODE[active];
+    panel.dataset.category = active;
+    panel.dataset.mode = mode || "";
     if (!mode || !character) {
       panel.classList.add("hidden");
       return;
@@ -173,16 +175,24 @@
     note.textContent = unsupported ? "このジョブの根拠付き候補はまだ未整備です。別ジョブへ自動変更しません。" : "選んだジョブに合わせて候補を更新します。別ジョブへ勝手に切り替えません。";
   }
 
-  function scheduleRender() {
+  function scheduleRender(categoryOverride = "") {
     clearTimeout(renderTimer);
-    renderTimer = setTimeout(render, 0);
+    renderTimer = setTimeout(() => render(categoryOverride), 0);
   }
 
   window.fetch = interceptedFetch;
   document.addEventListener("click", event => {
-    if (event.target.closest("#taskBoardTabs .task-board-tab")) setTimeout(render, 0);
-  });
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scheduleRender, { once: true });
+    const tab = event.target.closest("#taskBoardTabs .task-board-tab");
+    if (!tab) return;
+    pendingCategory = String(tab.dataset.category || "");
+    render(pendingCategory);
+    setTimeout(() => render(pendingCategory), 40);
+    setTimeout(() => {
+      pendingCategory = "";
+      render();
+    }, 250);
+  }, true);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => scheduleRender(), { once: true });
   else scheduleRender();
   setInterval(() => {
     if (!document.getElementById("categoryJobFocus") && document.getElementById("taskBoardTabs")) render();
