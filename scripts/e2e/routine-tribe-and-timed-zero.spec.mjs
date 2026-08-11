@@ -36,6 +36,17 @@ const pastedDelivery = {
   recommendation_reason: "必要数をすでに所持していて、画面上にボーナス表示もあります。最初にこれを納品します。"
 };
 
+const savedPlanContext = {
+  journal: {
+    page_type: "journal",
+    journal_entries: [
+      { title: "誤分類1" },
+      { title: "誤分類2" },
+      { title: "誤分類3" }
+    ]
+  }
+};
+
 function payload(pathname, gcUploaded = false) {
   if (pathname === "/api/sync") return { character };
   if (pathname === "/api/state") return { character, preferences: { available_minutes: 60, energy: 3 }, plan: emptyPlan };
@@ -58,7 +69,7 @@ function payload(pathname, gcUploaded = false) {
         }
       : { setup_required: true, deliveries: [], recommended: null, message: "双蛇党の納品一覧スクショをCtrl+Vしてください。" };
   }
-  if (pathname === "/api/context") return { context: {} };
+  if (pathname === "/api/context") return { context: savedPlanContext };
   return {};
 }
 
@@ -110,6 +121,7 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect(page.locator("[data-gc-content]")).toBeVisible();
   await expect(page.locator("#grandCompanyRoutineContent #contextInbox")).toHaveCount(1);
   await expect(page.locator("#contextInbox")).toHaveAttribute("data-workflow-context", "grand-company");
+  await expect(page.locator("#grandCompanyRoutineContent #contextInboxSaved")).not.toContainText("ジャーナル 3件");
 
   await page.evaluate(() => {
     const file = new File([new Uint8Array([1, 2, 3, 4])], "gc.png", { type: "image/png" });
@@ -126,11 +138,13 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect(page.locator("[data-gc-content]")).toContainText("E2E貼付納品薬");
   await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 3");
   await expect(page.locator("[data-gc-tab-status]")).toHaveText("すぐ納品");
+  await expect(page.locator("#grandCompanyRoutineContent #contextInboxSaved")).not.toContainText("ジャーナル 3件");
 
   await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-retainer-content]")).toBeVisible();
   await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#retainerRoutineContent #contextInbox")).toHaveCount(1);
+  await expect(page.locator("#retainerRoutineContent #contextInboxSaved")).not.toContainText("ジャーナル 3件");
 
   await page.locator("button[data-retainer-done]").click();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
@@ -142,6 +156,7 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await page.locator("[data-tribe-gather-toggle]").click();
   await expect(page.locator("[data-tribe-tab-status]")).toHaveText("✓ 完了");
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#planner #contextInboxSaved")).toContainText("ジャーナル 3件");
 
   await expect(page.locator("#taskBoard")).toBeVisible();
   await page.getByRole("button", { name: /^釣り/ }).click();
