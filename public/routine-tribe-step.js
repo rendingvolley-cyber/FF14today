@@ -70,8 +70,8 @@ function setVisualStep(name) {
   if (!panel) return;
   const contents = {
     "grand-company": panel.querySelector("[data-gc-content]"),
-    tribe: panel.querySelector("[data-tribe-content]"),
-    retainer: panel.querySelector("[data-retainer-content]")
+    retainer: panel.querySelector("[data-retainer-content]"),
+    tribe: panel.querySelector("[data-tribe-content]")
   };
   for (const [keyName, node] of Object.entries(contents)) {
     if (node) node.hidden = keyName !== name;
@@ -79,8 +79,8 @@ function setVisualStep(name) {
 
   const tabs = {
     "grand-company": panel.querySelector("[data-gc-open]"),
-    tribe: panel.querySelector("[data-tribe-open]"),
     retainer: panel.querySelector("[data-retainer-open]"),
+    tribe: panel.querySelector("[data-tribe-open]"),
     plan: panel.querySelector("[data-plan-open]")
   };
   for (const [keyName, tab] of Object.entries(tabs)) {
@@ -109,8 +109,8 @@ function updateUi() {
   const progress = panel.querySelector("[data-tribe-progress]");
   if (progress) {
     progress.textContent = count === 2
-      ? "生産・採集の友好部族は今日ぶん完了。次はリテイナーです。"
-      : `今日の友好部族 ${count}/2 完了。生産と採集をそれぞれ終えたら次へ進みます。`;
+      ? "生産・採集の友好部族は今日ぶん完了。次は今日のプランです。"
+      : `今日の友好部族 ${count}/2 完了。生産と採集をそれぞれ終えたら今日のプランへ進みます。`;
   }
 }
 
@@ -134,13 +134,13 @@ function ensureStep() {
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", "false");
     tab.setAttribute("aria-controls", "tribeRoutineContent");
-    tab.innerHTML = '<span class="retainer-flow-step">2</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
-    tabs.insertBefore(tab, retainerTab);
+    tab.innerHTML = '<span class="retainer-flow-step">3</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
+    tabs.insertBefore(tab, planTab);
   }
 
   const retainerStep = retainerTab.querySelector(".retainer-flow-step");
   const planStep = planTab.querySelector(".retainer-flow-step");
-  if (retainerStep) retainerStep.textContent = "3";
+  if (retainerStep) retainerStep.textContent = "2";
   if (planStep) planStep.textContent = "4";
 
   let content = panel.querySelector("[data-tribe-content]");
@@ -153,8 +153,8 @@ function ensureStep() {
     content.innerHTML = `
       <div class="retainer-advice-head">
         <div>
-          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>次に友好部族（生産・採集）</span></div>
-          <p class="retainer-advice-sub">戦闘系はここに混ぜず、生産系と採集系の日課だけ先に片付けます。</p>
+          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>リテイナーの次に友好部族（生産・採集）</span></div>
+          <p class="retainer-advice-sub">戦闘系はここに混ぜず、生産系と採集系の日課だけ片付けます。</p>
         </div>
       </div>
       <div class="tribe-routine-list">
@@ -169,7 +169,7 @@ function ensureStep() {
       </div>
       <p class="tribe-routine-progress" data-tribe-progress></p>
     `;
-    panel.insertBefore(content, retainerContent);
+    retainerContent.insertAdjacentElement("afterend", content);
   }
 
   if (panel.dataset.tribeRoutineBound !== "1") {
@@ -192,19 +192,19 @@ function ensureStep() {
       if (button.matches("[data-tribe-craft-toggle]")) {
         setDone(TRIBE_CRAFT_DONE_PREFIX, !isCraftDone());
         updateUi();
-        if (tribeDone()) setVisualStep("retainer");
+        if (tribeDone()) setVisualStep("plan");
         else setVisualStep("tribe");
         return;
       }
       if (button.matches("[data-tribe-gather-toggle]")) {
         setDone(TRIBE_GATHER_DONE_PREFIX, !isGatherDone());
         updateUi();
-        if (tribeDone()) setVisualStep("retainer");
+        if (tribeDone()) setVisualStep("plan");
         else setVisualStep("tribe");
         return;
       }
       if (button.matches("[data-gc-done],[data-retainer-done]")) {
-        setTimeout(enforceAutomaticStep, 0);
+        setTimeout(enforceAutomaticStep, 20);
       }
     });
   }
@@ -219,12 +219,12 @@ function enforceAutomaticStep() {
     setVisualStep("grand-company");
     return true;
   }
-  if (!tribeDone()) {
-    setVisualStep("tribe");
-    return true;
-  }
   if (!retainerDone()) {
     setVisualStep("retainer");
+    return true;
+  }
+  if (!tribeDone()) {
+    setVisualStep("tribe");
     return true;
   }
   setVisualStep("plan");
