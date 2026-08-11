@@ -84,12 +84,13 @@ function queueCorrection() {
 
 if (typeof document !== "undefined") {
   promoteTaskBoard(document);
-  for (const eventName of ["click", "change"]) {
-    document.addEventListener(eventName, event => {
-      if (event.target?.closest?.(".task-now-button")) activateNowLayout(document);
-      if (event.target?.closest?.("#taskBoard")) queueCorrection();
-    });
-  }
+  document.addEventListener("click", event => {
+    if (event.target?.closest?.(".task-now-button")) activateNowLayout(document);
+    if (event.target?.closest?.("#taskBoard")) queueCorrection();
+  }, true);
+  document.addEventListener("change", event => {
+    if (event.target?.closest?.("#taskBoard")) queueCorrection();
+  });
   for (const delay of [100, 500, 1500]) setTimeout(queueCorrection, delay);
   setInterval(queueCorrection, 30000);
 }
