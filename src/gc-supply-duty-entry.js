@@ -1,3 +1,3 @@
-import app from "./gc-supply-duty-recognition-wrapper.js";
+import app from "./gc-jsonmode-wrapper.js";
 
 export default app;
