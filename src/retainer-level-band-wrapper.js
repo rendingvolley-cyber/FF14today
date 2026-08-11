@@ -3,6 +3,7 @@ import { fetchRetainerLevelBandCandidates, retainerJobCode } from "./retainer-le
 
 const WORLD = "Chocobo";
 const CONTEXT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_RECOMMENDATIONS = 2;
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -107,14 +108,16 @@ async function candidateRows(contexts) {
 
 async function marketRows(candidates) {
   if (!candidates.length) return [];
-  const ids = candidates.map(row => row.item_id).slice(0, 100);
+  const ids = [...new Set(candidates.map(row => row.item_id))].slice(0, 100);
   const idText = ids.join(",");
   const headers = { "user-agent": "FF14Today/1.10" };
   const [aggregateResponse, currentResponse] = await Promise.all([
     fetch(`https://universalis.app/api/v2/aggregated/${encodeURIComponent(WORLD)}/${idText}`, { headers }),
     fetch(`https://universalis.app/api/v2/${encodeURIComponent(WORLD)}/${idText}?listings=100`, { headers })
   ]);
-  if (!aggregateResponse.ok || !currentResponse.ok) return [];
+  if (!aggregateResponse.ok || !currentResponse.ok) {
+    throw new Error(`Universalis HTTP aggregated=${aggregateResponse.status} current=${currentResponse.status}`);
+  }
   const [aggregateData, currentData] = await Promise.all([aggregateResponse.json(), currentResponse.json()]);
   const aggregateMap = new Map((aggregateData?.results || []).map(result => [Number(result.itemId), result]));
   const currentMap = currentItemMap(currentData);
@@ -155,7 +158,7 @@ async function marketRows(candidates) {
   }
   return rows
     .sort((a, b) => b.score - a.score || b.daily_sale_velocity - a.daily_sale_velocity || b.average_sale_price - a.average_sale_price)
-    .slice(0, 3)
+    .slice(0, MAX_RECOMMENDATIONS)
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
@@ -164,12 +167,43 @@ async function levelBandRecommendations(request, env) {
   if (!profileHash) return null;
   const contexts = await overviewContexts(env, profileHash);
   if (!contexts.length) return null;
+
   let candidates = [];
   let recommendations = [];
+  let candidateError = null;
+  let marketAttempted = false;
+  let marketChecked = false;
+  let marketError = null;
+
   try {
     candidates = await candidateRows(contexts);
-    recommendations = await marketRows(candidates);
-  } catch {}
+  } catch (error) {
+    candidateError = error instanceof Error ? error.message : String(error);
+  }
+
+  if (candidates.length) {
+    marketAttempted = true;
+    try {
+      recommendations = await marketRows(candidates);
+      marketChecked = true;
+    } catch (error) {
+      marketError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  let message;
+  if (candidateError) {
+    message = "リテイナーの派遣可能品候補を取得できなかったため、市場比較を実行できませんでした。";
+  } else if (!candidates.length) {
+    message = "リテイナーのジョブ/クラスを派遣候補へ変換できなかったため、市場比較は実行していません。リテイナー一覧を貼り直してジョブアイコンを再認識してください。";
+  } else if (!marketChecked) {
+    message = "派遣可能品候補は取得しましたが、Chocobo市場データの取得に失敗したため比較は完了していません。";
+  } else if (recommendations.length) {
+    message = "リテイナー一覧のジョブ/クラスとLvから派遣可能品を絞り、Chocobo市場をUniversalisで比較しました。";
+  } else {
+    message = "Chocobo市場をUniversalisで確認しましたが、現在の候補では販売速度0.5個/日以上かつ実売価格を確認できる派遣先がありませんでした。";
+  }
+
   return json({
     ok: true,
     setup_required: false,
@@ -178,9 +212,13 @@ async function levelBandRecommendations(request, env) {
     level_band_candidates: candidates.length,
     recommendations,
     candidate_source: "retainer_level_band",
-    message: recommendations.length
-      ? "リテイナー一覧のジョブ/クラスとLvから派遣可能品を絞り、Chocobo市場で比較しました。"
-      : "リテイナー一覧は登録済みです。現在のLv帯候補から強く推せる市場候補を確認できませんでした。"
+    recommendation_limit: MAX_RECOMMENDATIONS,
+    market_source: "Universalis",
+    market_attempted: marketAttempted,
+    market_checked: marketChecked,
+    market_error: marketError,
+    candidate_error: candidateError,
+    message
   });
 }
 
