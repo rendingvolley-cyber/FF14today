@@ -53,6 +53,7 @@ jobs:
           node --check src/gc-seal-market.js
           node --check src/gc-seal-market-wrapper.js
           node --check src/gc-supply-duty-recognition-wrapper.js
+          node --check src/gc-jsonmode-wrapper.js
           node --check src/gc-supply-duty-entry.js
           node --check public/app.js
           node --check public/choice-reasons.js
@@ -69,6 +70,7 @@ jobs:
           node --check public/focus-flow.js
           node --check public/leve-cost-advice.js
           node --check scripts/test-grand-company-deliveries.mjs
+          node --check scripts/test-gc-jsonmode.mjs
           node --check scripts/test-gc-seal-market.mjs
           node --check scripts/test-inventory-context.mjs
           node --check scripts/test-dynamic-recipe-resolver.mjs
@@ -101,6 +103,8 @@ jobs:
         run: node scripts/test-dynamic-recipe-resolver.mjs
       - name: Grand Company delivery rules
         run: node scripts/test-grand-company-deliveries.mjs
+      - name: Grand Company JSON mode rules
+        run: node scripts/test-gc-jsonmode.mjs
       - name: Grand Company seal market rules
         run: node scripts/test-gc-seal-market.mjs
       - name: Inventory evidence rules
