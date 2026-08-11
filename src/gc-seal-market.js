@@ -12,6 +12,8 @@ export const GC_SEAL_MARKET_CANDIDATES = Object.freeze([
   { name_en: "Emery", seal_cost: 1500, exchange_quantity: 1 }
 ]);
 
+const MIN_DAILY_SALES = 5;
+
 function finiteNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -24,18 +26,24 @@ function round1(value) {
 function efficiencyPoints(gilPer1000Seals) {
   const value = finiteNumber(gilPer1000Seals);
   if (value <= 0) return 0;
-  if (value < 500) return 5;
-  if (value < 1000) return 12;
-  if (value < 2500) return 22;
-  if (value < 5000) return 32;
-  if (value < 10000) return 40;
-  return 45;
+  if (value < 500) return 2;
+  if (value < 1000) return 5;
+  if (value < 2500) return 9;
+  if (value < 5000) return 13;
+  if (value < 10000) return 17;
+  return 20;
 }
 
 function demandPoints(velocity) {
   const value = finiteNumber(velocity);
-  if (value <= 0) return 0;
-  return Math.min(45, Math.log1p(value) * 12);
+  if (value < MIN_DAILY_SALES) return 0;
+  if (value < 10) return 30;
+  if (value < 20) return 40;
+  if (value < 50) return 50;
+  if (value < 100) return 58;
+  if (value < 250) return 64;
+  if (value < 500) return 68;
+  return 70;
 }
 
 function scarcityPoints(daysSupply, listingRows) {
@@ -45,6 +53,14 @@ function scarcityPoints(daysSupply, listingRows) {
   if (daysSupply <= 3) return 8;
   if (daysSupply <= 7) return 4;
   return 0;
+}
+
+function salesPriority(velocity) {
+  const value = finiteNumber(velocity);
+  if (value >= 100) return "非常に売れやすい";
+  if (value >= 20) return "売れやすい";
+  if (value >= MIN_DAILY_SALES) return "実売あり";
+  return "売れ行き不足";
 }
 
 export function scoreSealExchangeCandidate(input) {
@@ -57,11 +73,16 @@ export function scoreSealExchangeCandidate(input) {
   const grossPerExchange = averageSalePrice * exchangeQuantity;
   const gilPer1000Seals = grossPerExchange / sealCost * 1000;
   const daysSupply = dailySaleVelocity > 0 ? listedQuantity / dailySaleVelocity : Infinity;
-  const score = efficiencyPoints(gilPer1000Seals)
-    + demandPoints(dailySaleVelocity)
-    + scarcityPoints(daysSupply, listingRows);
+  const demand = demandPoints(dailySaleVelocity);
+  const efficiency = efficiencyPoints(gilPer1000Seals);
+  const scarcity = scarcityPoints(daysSupply, listingRows);
+  const score = demand + efficiency + scarcity;
   return {
     score: round1(score),
+    demand_score: round1(demand),
+    efficiency_score: round1(efficiency),
+    scarcity_score: round1(scarcity),
+    sales_priority: salesPriority(dailySaleVelocity),
     estimated_gross_per_exchange: Math.round(grossPerExchange),
     estimated_gil_per_1000_seals: Math.round(gilPer1000Seals),
     estimated_days_supply: Number.isFinite(daysSupply) ? round1(daysSupply) : null
@@ -70,11 +91,11 @@ export function scoreSealExchangeCandidate(input) {
 
 export function rankSealExchangeRows(rows, limit = 3) {
   return (Array.isArray(rows) ? rows : [])
-    .filter(row => finiteNumber(row?.daily_sale_velocity) >= 0.2 && finiteNumber(row?.average_sale_price) > 0)
+    .filter(row => finiteNumber(row?.daily_sale_velocity) >= MIN_DAILY_SALES && finiteNumber(row?.average_sale_price) > 0)
     .map(row => ({ ...row, ...scoreSealExchangeCandidate(row) }))
     .sort((a, b) => b.score - a.score
-      || b.estimated_gil_per_1000_seals - a.estimated_gil_per_1000_seals
-      || b.daily_sale_velocity - a.daily_sale_velocity)
+      || b.daily_sale_velocity - a.daily_sale_velocity
+      || b.estimated_gil_per_1000_seals - a.estimated_gil_per_1000_seals)
     .slice(0, Math.max(1, Number(limit) || 3))
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
