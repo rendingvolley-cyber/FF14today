@@ -193,6 +193,10 @@ document.addEventListener("click", event => {
   setTimeout(() => renderSavedContext(lastSavedContext), 20);
 });
 
+window.addEventListener("ff14today:workflow-context-changed", () => {
+  renderSavedContext(lastSavedContext);
+});
+
 $("contextInbox")?.addEventListener("click", () => {
   $("contextInbox")?.focus();
   setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績・装備情報を自動判定します。", "idle");
