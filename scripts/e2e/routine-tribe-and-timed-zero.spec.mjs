@@ -53,7 +53,7 @@ test("routine flows from Grand Company to craft/gather tribes to retainer and ti
   await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("4");
   await expect(page.locator("[data-gc-content]")).toBeVisible();
 
-  await page.locator("[data-gc-done]").click();
+  await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
   await expect(page.locator("[data-tribe-content]")).toContainText("次に友好部族（生産・採集）");
   await expect(page.locator("#contextInbox")).toBeHidden();
