@@ -1,9 +1,15 @@
 import app from "./gc-misclassification-cleanup-wrapper.js";
-import { GC_SEAL_MARKET_CANDIDATES, rankSealExchangeRows } from "./gc-seal-market.js";
+import {
+  GC_SEAL_MARKET_CANDIDATES,
+  GC_SEAL_MAX_BATCH_DAYS,
+  GC_SEAL_SELL_BATCH_QUANTITY,
+  rankSealExchangeRows
+} from "./gc-seal-market.js";
 
 const WORLD = "Chocobo";
 const ITEM_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MARKET_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
+const MARKET_CACHE_SCHEMA = "sell-through-300-v1";
 let schemaReady = null;
 
 function json(data, status = 200) {
@@ -188,9 +194,10 @@ async function readMarketCache(env) {
   try { payload = JSON.parse(row.payload_json); }
   catch { return null; }
   const ageMs = Date.now() - new Date(row.refreshed_at).getTime();
+  const schemaMatches = payload?.ranking_schema === MARKET_CACHE_SCHEMA;
   return {
     payload,
-    fresh: Number.isFinite(ageMs) && ageMs >= 0 && ageMs < MARKET_CACHE_MAX_AGE_MS,
+    fresh: schemaMatches && Number.isFinite(ageMs) && ageMs >= 0 && ageMs < MARKET_CACHE_MAX_AGE_MS,
     age_minutes: Number.isFinite(ageMs) ? Math.max(0, Math.round(ageMs / 60000)) : null
   };
 }
@@ -209,18 +216,22 @@ async function writeMarketCache(env, payload) {
 async function buildRecommendations(env) {
   const resolved = await resolveCandidates(env);
   const marketRows = await fetchMarketRows(resolved);
-  const recommendations = rankSealExchangeRows(marketRows, 3);
+  const recommendations = rankSealExchangeRows(marketRows, 5);
   return {
     ok: true,
     world: WORLD,
     source: "Universalis",
     catalog_source: "Grand Company material exchange catalog",
+    ranking_schema: MARKET_CACHE_SCHEMA,
+    ranking_mode: "daily_sale_velocity_desc_with_value_floor",
+    sell_batch_quantity: GC_SEAL_SELL_BATCH_QUANTITY,
+    target_max_days: GC_SEAL_MAX_BATCH_DAYS,
     recommendations,
     candidate_count: GC_SEAL_MARKET_CANDIDATES.length,
     resolved_count: resolved.length,
     message: recommendations.length
-      ? "軍票効率・実売数・現在の出品在庫を比較した交換候補です。"
-      : "現在の市場データでは、十分に売れている交換候補を確認できませんでした。"
+      ? `約${GC_SEAL_SELL_BATCH_QUANTITY}個を出す前提で、実売数の多い順に比較しています。`
+      : `約${GC_SEAL_SELL_BATCH_QUANTITY}個を${GC_SEAL_MAX_BATCH_DAYS}日以内で吸収できる実売速度と最低限の軍票効率を両立する候補を確認できませんでした。`
   };
 }
 
@@ -232,13 +243,17 @@ async function handleRecommendations(env) {
     await writeMarketCache(env, payload);
     return json({ ...payload, cached: false, cache_age_minutes: 0 });
   } catch {
-    if (cached?.payload) {
+    if (cached?.payload && cached.payload.ranking_schema === MARKET_CACHE_SCHEMA) {
       return json({ ...cached.payload, cached: true, stale: true, cache_age_minutes: cached.age_minutes });
     }
     return json({
       ok: true,
       world: WORLD,
       source: "Universalis",
+      ranking_schema: MARKET_CACHE_SCHEMA,
+      ranking_mode: "daily_sale_velocity_desc_with_value_floor",
+      sell_batch_quantity: GC_SEAL_SELL_BATCH_QUANTITY,
+      target_max_days: GC_SEAL_MAX_BATCH_DAYS,
       recommendations: [],
       message: "マーケットデータを取得できませんでした。少し時間を置いて再確認してください。"
     });
@@ -260,7 +275,10 @@ export default {
         ...data,
         gc_seal_market_advice: true,
         gc_seal_market_world: WORLD,
-        gc_seal_market_source: "Universalis"
+        gc_seal_market_source: "Universalis",
+        gc_seal_market_ranking: MARKET_CACHE_SCHEMA,
+        gc_seal_market_sell_batch_quantity: GC_SEAL_SELL_BATCH_QUANTITY,
+        gc_seal_market_target_max_days: GC_SEAL_MAX_BATCH_DAYS
       }, response.status);
     }
     return response;
