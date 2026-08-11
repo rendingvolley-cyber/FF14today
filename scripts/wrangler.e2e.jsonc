@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "ff14-today-e2e",
-  "main": "../src/gc-misclassification-cleanup-wrapper.js",
+  "main": "../src/gc-seal-market-wrapper.js",
   "compatibility_date": "2026-08-08",
   "assets": {
     "directory": "../public",
