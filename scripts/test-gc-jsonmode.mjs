@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  buildMarketFallbackProcurement,
+  marketCostFromListings,
+  recipeIssueLabel
+} from "../src/gc-market-fallback.js";
+import {
   gcAnalysisBudgetToken,
   mergeGcPagePayloads,
   nextGcPageKind,
@@ -10,6 +15,7 @@ import {
 const source = readFileSync(new URL("../src/gc-jsonmode-core-wrapper.js", import.meta.url), "utf8");
 const pageWrapper = readFileSync(new URL("../src/gc-jsonmode-wrapper.js", import.meta.url), "utf8");
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
+const fallbackWrapper = readFileSync(new URL("../src/gc-market-fallback-wrapper.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
 const contextWrapper = readFileSync(new URL("../public/context-inbox.js", import.meta.url), "utf8");
 const twoPageUi = readFileSync(new URL("../public/gc-two-page-ui.js", import.meta.url), "utf8");
@@ -21,7 +27,11 @@ assert.match(source, /軍需品調達/);
 assert.match(source, /調達依頼品/);
 assert.match(source, /supply-duty-json-v3/);
 assert.match(source, /画像解析側で一時的なエラー/);
-assert.match(entry, /gc-delivery-cost-wrapper\.js/, "production entry must route through the outer GC cost wrapper");
+assert.match(entry, /gc-market-fallback-wrapper\.js/, "production entry must route through the market fallback wrapper");
+assert.match(fallbackWrapper, /gc-delivery-cost-wrapper\.js/, "market fallback must preserve the existing GC cost comparison underneath it");
+assert.match(fallbackWrapper, /searchItemExact/);
+assert.match(fallbackWrapper, /marketCostFromListings/);
+assert.match(fallbackWrapper, /market_fallback/);
 assert.match(costWrapper, /gc-jsonmode-wrapper\.js/, "GC cost wrapper must preserve the JSON-mode parser underneath it");
 
 assert.match(pageWrapper, /grand_company_delivery_pages/);
@@ -74,4 +84,44 @@ const partial = mergeGcPagePayloads({ crafting: { deliveries: [{ item_name: "製
 assert.deepEqual(partial.page_status, { crafting: true, gathering: false });
 assert.deepEqual(partial.missing_pages, ["gathering"]);
 
-console.log("GC JSON-mode and two-page storage regression: ok");
+const marketCost = marketCostFromListings([
+  { pricePerUnit: 100, quantity: 2, hq: false },
+  { pricePerUnit: 120, quantity: 3, hq: true }
+], 4);
+assert.deepEqual(marketCost, { available: true, gil: 440, quantity: 4, listed_quantity: 5 });
+const insufficient = marketCostFromListings([{ pricePerUnit: 100, quantity: 2 }], 4);
+assert.equal(insufficient.available, false);
+assert.equal(insufficient.gil, null);
+assert.equal(insufficient.listed_quantity, 2);
+
+assert.equal(recipeIssueLabel("recipe_not_found"), "製作レシピを取得できず");
+assert.equal(recipeIssueLabel("recipe_ambiguous"), "複数レシピのため自動選択を停止");
+assert.equal(recipeIssueLabel("item_not_found"), "品名をXIVAPIで特定できず");
+
+const marketOnly = buildMarketFallbackProcurement({
+  quantity: 2,
+  quantityBasis: "missing_quantity",
+  recipeError: "recipe_not_found",
+  itemId: 1234,
+  marketCost: { available: true, gil: 2800 }
+});
+assert.equal(marketOnly.status, "ok");
+assert.equal(marketOnly.market_buy.gil, 2800);
+assert.equal(marketOnly.craft_raw, null);
+assert.match(marketOnly.recommended_route.label, /完成品を買う/);
+assert.match(marketOnly.recommended_route.label, /製作レシピを取得できず/);
+assert.match(marketOnly.recommendation_reason, /製作費.*未比較/);
+
+const unresolved = buildMarketFallbackProcurement({
+  quantity: 1,
+  recipeError: "item_not_found",
+  itemError: "item_not_found",
+  itemId: null,
+  marketCost: null
+});
+assert.equal(unresolved.status, "ok");
+assert.equal(unresolved.market_buy, null);
+assert.equal(unresolved.recommended_route.available, false);
+assert.match(unresolved.recommended_route.label, /品名をXIVAPIで特定できず/);
+
+console.log("GC JSON-mode, two-page storage, and market-without-recipe fallback regression: ok");

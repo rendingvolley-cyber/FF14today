@@ -86,6 +86,7 @@ assert.equal(ranked[2].item_name, "ぎりぎり300個向き");
 assert.equal(ranked[2].estimated_days_to_sell_batch, 3);
 
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
+const fallbackWrapper = readFileSync(new URL("../src/gc-market-fallback-wrapper.js", import.meta.url), "utf8");
 const sealWrapper = readFileSync(new URL("../src/gc-seal-market-wrapper.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
 assert.match(costWrapper, /\/api\/grand-company\/delivery-costs/);
@@ -93,7 +94,9 @@ assert.match(costWrapper, /resolveDynamicCraftTarget/);
 assert.match(costWrapper, /buildDynamicLeveCostAdvice/);
 assert.match(costWrapper, /decision_owner:\s*"user"/);
 assert.match(costWrapper, /listing_quantity_curve/);
-assert.match(entry, /gc-delivery-cost-wrapper\.js/);
+assert.match(entry, /gc-market-fallback-wrapper\.js/);
+assert.match(fallbackWrapper, /gc-delivery-cost-wrapper\.js/);
+assert.match(fallbackWrapper, /marketCostFromListings/);
 assert.match(sealWrapper, /sell-through-300-v1/);
 assert.match(sealWrapper, /rankSealExchangeRows\(marketRows, 5\)/);
 
@@ -106,4 +109,4 @@ assert.match(gcUi, /300個出す前提で、売れ筋順に比較/);
 assert.match(gcUi, /data-gc-delivery-item/);
 assert.match(gcUi, /button\.textContent = "詳細"/);
 
-console.log("GC table UI and 300-item seal sell-through ranking: ok");
+console.log("GC table UI, market fallback chain, and 300-item seal sell-through ranking: ok");
