@@ -26,14 +26,75 @@ const pastedDelivery = {
   class_or_job: "錬金術師",
   item_name: "E2E貼付納品薬",
   requested_quantity: 3,
-  owned_quantity: 3,
+  owned_quantity: 1,
   starred: true,
   bonus_text: "ボーナス",
   reward_text: "軍票 1000",
   confidence: 0.96,
-  ready_now: true,
-  missing_quantity: 0,
-  recommendation_reason: "必要数をすでに所持していて、画面上にボーナス表示もあります。最初にこれを納品します。"
+  ready_now: false,
+  missing_quantity: 2,
+  recommendation_reason: "★表示があり、必要数まであと2個です。"
+};
+
+const deliveryCosts = {
+  ok: true,
+  world: "Chocobo",
+  source: "Universalis",
+  market_age_minutes: 3,
+  market_pricing: "listing_quantity_curve",
+  cost_advice: true,
+  company_name: "双蛇党",
+  observed_at: "2026-08-11T01:10:00.000Z",
+  decision_owner: "user",
+  recommendation: {
+    row_index: 0,
+    item_name: "E2E貼付納品薬",
+    reason: "★表示があり、調達おすすめは「原材料から全部作る」約1,200Gです。"
+  },
+  deliveries: [{
+    ...pastedDelivery,
+    procurement: {
+      quantity_to_acquire: 2,
+      quantity_basis: "missing_quantity",
+      status: "ok",
+      market_buy: {
+        key: "buy_finished",
+        label: "完成品を買う",
+        available: true,
+        gil: 2800,
+        estimated_minutes: 2,
+        craft_count: 0,
+        materials: [{ item_id: 1001, item_name: "E2E貼付納品薬", quantity: 2, unit_price: 1400, total_gil: 2800 }],
+        crafts: []
+      },
+      craft_raw: {
+        key: "craft_raw",
+        label: "原材料から全部作る",
+        available: true,
+        gil: 1200,
+        estimated_minutes: 5,
+        craft_count: 2,
+        materials: [
+          { item_id: 2001, item_name: "薬草", quantity: 4, unit_price: 200, total_gil: 800 },
+          { item_id: 2002, item_name: "蒸留水", quantity: 2, unit_price: 200, total_gil: 400 }
+        ],
+        crafts: [{ item_id: 1001, item_name: "E2E貼付納品薬", syntheses: 2, output_quantity: 2 }]
+      },
+      recommended_route: {
+        key: "craft_raw",
+        label: "原材料から全部作る",
+        available: true,
+        gil: 1200,
+        estimated_minutes: 5,
+        craft_count: 2,
+        materials: [],
+        crafts: []
+      },
+      recommendation_reason: "実質コストが最安です。"
+    },
+    recipe_source: "XIVAPI v2",
+    recipe_error: null
+  }]
 };
 
 const sealMarket = {
@@ -101,6 +162,9 @@ function payload(pathname, gcUploaded = false) {
   if (pathname === "/api/activity/today") return { count: 0 };
   if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [], message: "調達依頼画面を貼ってください。" };
   if (pathname === "/api/grand-company/seal-exchange-recommendations") return sealMarket;
+  if (pathname === "/api/grand-company/delivery-costs") {
+    return gcUploaded ? deliveryCosts : { ok: true, setup_required: true, deliveries: [], recommendation: null, cost_advice: false };
+  }
   if (pathname === "/api/grand-company/deliveries") {
     return gcUploaded
       ? {
@@ -163,6 +227,11 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect(page.locator("[data-retainer-open] .retainer-flow-step")).toHaveText("2");
   await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("3");
   await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("4");
+  const routineY = await page.evaluate(() => ["[data-gc-open]", "[data-retainer-open]", "[data-tribe-open]", "[data-plan-open]"]
+    .map(selector => document.querySelector(selector)?.getBoundingClientRect().top ?? null));
+  expect(routineY.every(value => Number.isFinite(value))).toBe(true);
+  expect(Math.max(...routineY) - Math.min(...routineY)).toBeLessThan(2);
+
   await expect(page.locator("[data-gc-content]")).toBeVisible();
   await expect(page.locator("#grandCompanyRoutineContent #contextInbox")).toHaveCount(1);
   await expect(page.locator("#contextInbox")).toHaveAttribute("data-workflow-context", "grand-company");
@@ -170,9 +239,9 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
 
   const sealSection = page.locator("[data-gc-seal-market]");
   await expect(sealSection).toBeVisible();
-  await expect(sealSection).toContainText("マーケットの売れ筋から交換先を決める");
+  await expect(sealSection).toContainText("よく売れる交換品を優先する");
   await expect(sealSection).toContainText("コークス");
-  await expect(sealSection).toContainText("いま交換するならこれ");
+  await expect(sealSection).toContainText("よく売れるのでこれ");
   await expect(sealSection).toContainText("4,100ギル");
   await expect(sealSection).toContainText("28.4個");
 
@@ -189,9 +258,17 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect.poll(() => contextPasteBody).toContain("grand-company");
   await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("双蛇党納品を1件");
   await expect(page.locator("[data-gc-content]")).toContainText("E2E貼付納品薬");
-  await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 3");
-  await expect(page.locator("[data-gc-tab-status]")).toHaveText("すぐ納品");
-  await expect(page.locator("#grandCompanyRoutineContent #contextInboxSaved")).not.toContainText("ジャーナル 3件");
+  await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 1");
+
+  await expect(page.locator("[data-gc-content]")).toContainText("今日の納品一覧");
+  await expect(page.locator("[data-gc-content]")).toContainText("マケボで買う");
+  await expect(page.locator("[data-gc-content]")).toContainText("約2,800G");
+  await expect(page.locator("[data-gc-content]")).toContainText("原材料から作る");
+  await expect(page.locator("[data-gc-content]")).toContainText("約1,200G");
+  await expect(page.locator("[data-gc-content]")).toContainText("製作素材：");
+  await expect(page.locator("[data-gc-content]")).toContainText("薬草 ×4（約800G）");
+  await expect(page.locator("[data-gc-content]")).toContainText("おすすめ");
+  await expect(page.locator("[data-gc-content]")).toContainText("納品する件数・どこまでやるかは自分で決めます");
 
   await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-retainer-content]")).toBeVisible();
