@@ -4,6 +4,11 @@ import {
   decorateGrandCompanyDelivery,
   sanitizeGrandCompanyAnalysis
 } from "../src/grand-company-deliveries.js";
+import { isGrandCompanyWorkflowContext } from "../src/grand-company-wrapper.js";
+
+assert.equal(isGrandCompanyWorkflowContext("grand-company"), true);
+assert.equal(isGrandCompanyWorkflowContext(" plan "), false);
+assert.equal(isGrandCompanyWorkflowContext("journal"), false);
 
 const analysis = sanitizeGrandCompanyAnalysis({
   recognized: true,

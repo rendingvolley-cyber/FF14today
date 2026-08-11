@@ -194,8 +194,8 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#characterName")).toHaveText("Kanade Tachibana");
   await expect(page.locator("[data-gc-open]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("2");
-  await expect(page.locator("[data-retainer-open] .retainer-flow-step")).toHaveText("3");
+  await expect(page.locator("[data-retainer-open] .retainer-flow-step")).toHaveText("2");
+  await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("3");
   await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("4");
   await expect(page.locator("[data-gc-content]")).toContainText("E2E納品薬");
   await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 3");
@@ -223,19 +223,19 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await expect(page.locator(".leve-cost-source")).toContainText("0G扱いせず");
 
   await page.locator("button[data-gc-done]").click();
-  await expect(page.locator("[data-tribe-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-gc-content]")).toBeHidden();
+  await expect(page.locator("[data-retainer-content]")).toBeVisible();
+
+  await page.locator("button[data-retainer-done]").click();
+  await expect(page.locator("[data-tribe-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-retainer-content]")).toBeHidden();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
 
   await page.locator("[data-tribe-craft-toggle]").click();
   await page.locator("[data-tribe-gather-toggle]").click();
-  await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-tribe-content]")).toBeHidden();
-  await expect(page.locator("[data-retainer-content]")).toBeVisible();
-
-  await page.locator("button[data-retainer-done]").click();
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-retainer-content]")).toBeHidden();
+  await expect(page.locator("[data-tribe-content]")).toBeHidden();
 
   const beforeStart = await page.evaluate(() => new Promise(resolve => setTimeout(() => resolve("responsive"), 250)));
   expect(beforeStart).toBe("responsive");

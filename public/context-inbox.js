@@ -19,7 +19,11 @@ function setInboxState(message, kind = "idle") {
   status.dataset.kind = kind;
 }
 
-function statSummary(analysis) {
+function activeWorkflowContext() {
+  return $("contextInbox")?.dataset.workflowContext || "plan";
+}
+
+function statSummary(analysis, workflowContext = "plan") {
   if (analysis.page_type === "grand_company_deliveries" && analysis.grand_company_deliveries) {
     const entries = analysis.grand_company_deliveries.deliveries || [];
     const first = entries[0]?.item_name ? `「${entries[0].item_name}」など` : "";
@@ -56,6 +60,12 @@ function statSummary(analysis) {
       return `アチーブメント進捗を保存：「${first.name}」 ${first.current}/${first.target}。おすすめの残り回数計算に使います。`;
     }
     return `アチーブメント画面から ${entries.length}件を判断材料に追加しました。`;
+  }
+  if (workflowContext === "grand-company") {
+    return "双蛇党の納品一覧として認識できませんでした。納品行・必要数・所持数が見える状態で貼り直してください。";
+  }
+  if (workflowContext === "retainer") {
+    return "リテイナーの調達依頼一覧として認識できませんでした。候補一覧が見える状態で貼り直してください。";
   }
   return "この画像は双蛇党納品/リテイナー調達/手持ち素材/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
@@ -126,12 +136,19 @@ async function uploadImage(file) {
     setInboxState("画像が8MBを超えています。", "error");
     return;
   }
-  setInboxState("画像を解析中… 双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績進捗・装備ステータスを自動判定しています。", "working");
+  const workflowContext = activeWorkflowContext();
+  const workingMessage = workflowContext === "grand-company"
+    ? "画像を解析中… 双蛇党の納品一覧として読み取っています。"
+    : workflowContext === "retainer"
+      ? "画像を解析中… リテイナーの調達依頼一覧として読み取っています。"
+      : "画像を解析中… 双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績進捗・装備ステータスを自動判定しています。";
+  setInboxState(workingMessage, "working");
   const box = $("contextInbox");
   box?.classList.add("working");
   try {
     const form = new FormData();
     form.append("image", file, file.name || "clipboard.png");
+    form.append("workflow_context", workflowContext);
     const response = await fetch("/api/context/image", {
       method: "POST",
       headers: { "x-profile-token": profileToken() },
@@ -140,7 +157,7 @@ async function uploadImage(file) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
     const analysis = data.analysis || {};
-    setInboxState(statSummary(analysis), analysis.page_type === "unknown" ? "warning" : "success");
+    setInboxState(statSummary(analysis, workflowContext), analysis.page_type === "unknown" ? "warning" : "success");
     announceContextSaved(analysis, data);
     await loadSavedContext();
     if (data.context_saved) await refreshPlanWithoutResettingSession();
