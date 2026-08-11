@@ -1,3 +1,3 @@
-import app from "./gc-market-fallback-wrapper.js";
+import app from "./plan-japanese-wrapper.js";
 
 export default app;
