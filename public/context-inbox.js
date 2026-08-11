@@ -1,5 +1,6 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const $ = id => document.getElementById(id);
+let lastSavedContext = {};
 
 function profileToken() {
   let token = localStorage.getItem(PROFILE_TOKEN_KEY);
@@ -70,9 +71,14 @@ function statSummary(analysis, workflowContext = "plan") {
   return "この画像は双蛇党納品/リテイナー調達/手持ち素材/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
 
-function renderSavedContext(context) {
+function renderSavedContext(context = lastSavedContext) {
   const list = $("contextInboxSaved");
   if (!list) return;
+  lastSavedContext = context || {};
+  if (activeWorkflowContext() !== "plan") {
+    list.replaceChildren();
+    return;
+  }
   const chips = [];
   const journal = context?.journal;
   if (journal?.journal_entries?.length) {
@@ -180,6 +186,11 @@ document.addEventListener("paste", event => {
   if (!file) return;
   event.preventDefault();
   void uploadImage(file);
+});
+
+document.addEventListener("click", event => {
+  if (!event.target?.closest?.("[data-gc-open],[data-retainer-open],[data-tribe-open],[data-plan-open]")) return;
+  setTimeout(() => renderSavedContext(lastSavedContext), 20);
 });
 
 $("contextInbox")?.addEventListener("click", () => {
