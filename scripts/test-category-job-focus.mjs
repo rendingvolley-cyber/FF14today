@@ -1,0 +1,61 @@
+import assert from "node:assert/strict";
+import { applyCategoryJobFocus } from "../src/category-job-focus.js";
+
+const character = {
+  jobs: [
+    { code: "ALC", name_ja: "錬金術師", level: 91, role: "crafter" },
+    { code: "BSM", name_ja: "鍛冶師", level: 95, role: "crafter" },
+    { code: "MIN", name_ja: "採掘師", level: 81, role: "gatherer" },
+    { code: "BTN", name_ja: "園芸師", level: 90, role: "gatherer" }
+  ]
+};
+
+function base(mode) {
+  return {
+    selected_mode: mode,
+    planner_kind: "base",
+    session_complete: true,
+    remaining_minutes: 60,
+    focus_job: null,
+    methods: [],
+    now: null,
+    next: null,
+    fallback: { title: "base", minutes: 0 }
+  };
+}
+
+{
+  const plan = applyCategoryJobFocus(base("craft"), character, { focusCraftJobCode: "ALC", availableMinutes: 60 });
+  assert.equal(plan.session_complete, false);
+  assert.equal(plan.focus_job.code, "ALC");
+  assert.ok(plan.methods.length >= 2);
+  assert.ok(plan.methods.every(row => row.job_code === "ALC"));
+  assert.match(plan.methods[0].title, /ウコギ・アングルブラシ/);
+}
+
+{
+  const plan = applyCategoryJobFocus(base("craft"), character, { focusCraftJobCode: "BSM", availableMinutes: 60 });
+  assert.equal(plan.session_complete, true);
+  assert.equal(plan.focus_job.code, "BSM");
+  assert.equal(plan.methods.length, 0);
+  assert.match(plan.notice, /別ジョブへ勝手に切り替えません/);
+}
+
+{
+  const plan = applyCategoryJobFocus(base("gather"), character, { focusGatherJobCode: "MIN", availableMinutes: 60 });
+  assert.equal(plan.session_complete, false);
+  assert.equal(plan.focus_job.code, "MIN");
+  assert.equal(plan.methods.length, 2);
+  assert.ok(plan.methods.every(row => row.job_code === "MIN"));
+  assert.match(plan.methods[0].title, /アメトリン原石/);
+}
+
+{
+  const plan = applyCategoryJobFocus(base("gather"), character, { focusGatherJobCode: "BTN", availableMinutes: 60 });
+  assert.equal(plan.session_complete, true);
+  assert.equal(plan.focus_job.code, "BTN");
+  assert.equal(plan.methods.length, 0);
+  assert.match(plan.notice, /別ジョブへ勝手に切り替えません/);
+}
+
+console.log("category-job-focus OK");

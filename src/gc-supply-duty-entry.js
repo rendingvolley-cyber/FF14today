@@ -1,4 +1,4 @@
-import app from "./gc-market-fallback-wrapper.js";
+import app from "./category-job-focus-wrapper.js";
 import { localizeGuildlevePlan } from "./plan-japanese-wrapper.js";
 
 function json(data, status = 200) {
