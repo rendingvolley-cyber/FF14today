@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ametrineWindow, updatePlan } from "../src/gather-window-wrapper.js";
+import { ametrineWindow, recoverGatherPlan, updatePlan } from "../src/gather-window-wrapper.js";
 
 const PERIOD = 12 * 175 * 1000;
 const baseStart = PERIOD * 1000;
@@ -72,6 +72,32 @@ function plan(remaining = 60) {
   assert.equal(result.planner_kind, "gather-efficient-v1.5.1");
   assert.equal(result.methods[0].task_key, "gather:min81:collectable:rarefied-high-durium-ore");
   assert.match(result.methods[0].title, /収集用の輝翠銀鉱/);
+}
+
+{
+  const emptyGather = {
+    selected_mode: "gather",
+    session_complete: true,
+    remaining_minutes: 60,
+    methods: [],
+    now: null,
+    next: null
+  };
+  const character = {
+    jobs: [
+      { code: "BTN", name_ja: "園芸師", level: 95, role: "gatherer" },
+      { code: "MIN", name_ja: "採掘師", level: 81, role: "gatherer" },
+      { code: "FSH", name_ja: "漁師", level: 80, role: "gatherer" }
+    ]
+  };
+  const recovered = recoverGatherPlan(emptyGather, character);
+  assert.equal(recovered.session_complete, false);
+  assert.equal(recovered.focus_job.code, "MIN");
+  assert.equal(recovered.methods.length, 2);
+  assert.equal(recovered.methods[0].task_key, "gather:min81:collectable:rarefied-raw-ametrine");
+  assert.equal(recovered.methods[1].task_key, "gather:min81:collectable:rarefied-high-durium-ore");
+  assert.match(recovered.methods[0].title, /アメトリン原石/);
+  assert.match(recovered.methods[1].title, /輝翠銀鉱/);
 }
 
 console.log("gather-window-ux OK");
