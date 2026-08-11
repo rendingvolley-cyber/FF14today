@@ -16,6 +16,7 @@
   }
 
   function focusField(mode) {
+    if (mode === "efficient") return "focus_combat_job_code";
     if (mode === "craft") return "focus_craft_job_code";
     if (mode === "gather") return "focus_gather_job_code";
     return null;
