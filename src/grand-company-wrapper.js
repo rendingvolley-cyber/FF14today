@@ -7,6 +7,8 @@ import {
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_PROFILE_ANALYSES_PER_DAY = 12;
+const MAX_GLOBAL_ANALYSES_PER_DAY = 50;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 let schemaReady = null;
 
@@ -47,6 +49,10 @@ function japanDateKey(date = new Date()) {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+export function isGrandCompanyWorkflowContext(value) {
+  return String(value || "").trim() === "grand-company";
+}
+
 async function ensureSchema(env) {
   if (!schemaReady) {
     schemaReady = env.DB.batch([
@@ -64,6 +70,29 @@ async function ensureSchema(env) {
       env.DB.prepare(`
         CREATE INDEX IF NOT EXISTS idx_grand_company_delivery_time
         ON grand_company_delivery_context(profile_hash, observed_at DESC)
+      `),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS grand_company_image_cache (
+          profile_hash TEXT NOT NULL,
+          image_sha256 TEXT NOT NULL,
+          analysis_json TEXT NOT NULL,
+          observed_at TEXT NOT NULL,
+          PRIMARY KEY (profile_hash, image_sha256)
+        )
+      `),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS decision_context_usage (
+          usage_date TEXT NOT NULL,
+          profile_hash TEXT NOT NULL,
+          analyses INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (usage_date, profile_hash)
+        )
+      `),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS decision_context_global_usage (
+          usage_date TEXT PRIMARY KEY,
+          analyses INTEGER NOT NULL DEFAULT 0
+        )
       `)
     ]).catch(error => {
       schemaReady = null;
@@ -198,6 +227,110 @@ async function storeGrandCompanyContext(env, profileHash, analysis) {
   return true;
 }
 
+async function cachedGrandCompanyAnalysis(env, profileHash, imageSha) {
+  await ensureSchema(env);
+  const row = await env.DB.prepare(`
+    SELECT analysis_json
+    FROM grand_company_image_cache
+    WHERE profile_hash=? AND image_sha256=?
+    LIMIT 1
+  `).bind(profileHash, imageSha).first();
+  if (!row?.analysis_json) return null;
+  try { return JSON.parse(row.analysis_json); }
+  catch { return null; }
+}
+
+async function cacheGrandCompanyAnalysis(env, profileHash, imageSha, analysis) {
+  await ensureSchema(env);
+  await env.DB.prepare(`
+    INSERT INTO grand_company_image_cache (profile_hash, image_sha256, analysis_json, observed_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(profile_hash, image_sha256) DO UPDATE SET
+      analysis_json=excluded.analysis_json,
+      observed_at=excluded.observed_at
+  `).bind(profileHash, imageSha, JSON.stringify(analysis), new Date().toISOString()).run();
+}
+
+async function reserveAnalysisBudget(env, profileHash) {
+  await ensureSchema(env);
+  const day = japanDateKey();
+  const [profileRow, globalRow] = await Promise.all([
+    env.DB.prepare(`SELECT analyses FROM decision_context_usage WHERE usage_date=? AND profile_hash=?`).bind(day, profileHash).first(),
+    env.DB.prepare(`SELECT analyses FROM decision_context_global_usage WHERE usage_date=?`).bind(day).first()
+  ]);
+  const profileCount = Number(profileRow?.analyses || 0);
+  const globalCount = Number(globalRow?.analyses || 0);
+  if (profileCount >= MAX_PROFILE_ANALYSES_PER_DAY) {
+    const error = new Error(`今日のスクショ解析は${MAX_PROFILE_ANALYSES_PER_DAY}回までです。同じ画像の貼り直しは回数に含まれません。`);
+    error.status = 429;
+    throw error;
+  }
+  if (globalCount >= MAX_GLOBAL_ANALYSES_PER_DAY) {
+    const error = new Error("今日の画像解析枠を使い切りました。時間を置いて試してください。");
+    error.status = 429;
+    throw error;
+  }
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT INTO decision_context_usage (usage_date, profile_hash, analyses)
+      VALUES (?, ?, 1)
+      ON CONFLICT(usage_date, profile_hash) DO UPDATE SET analyses=analyses+1
+    `).bind(day, profileHash),
+    env.DB.prepare(`
+      INSERT INTO decision_context_global_usage (usage_date, analyses)
+      VALUES (?, 1)
+      ON CONFLICT(usage_date) DO UPDATE SET analyses=analyses+1
+    `).bind(day)
+  ]);
+}
+
+async function forcedGrandCompanyImage(request, env) {
+  let form;
+  try { form = await request.formData(); }
+  catch { return null; }
+  if (!isGrandCompanyWorkflowContext(form.get("workflow_context"))) return null;
+
+  const profileHash = await profileHashFromRequest(request);
+  if (!profileHash) return json({ error: "profile token required" }, 401);
+  const file = form.get("image");
+  if (!(file instanceof File)) return json({ error: "クリップボード画像がありません。" }, 400);
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) return json({ error: "PNG / JPEG / WebP の画像だけ使えます。" }, 415);
+  if (file.size <= 0 || file.size > MAX_IMAGE_BYTES) return json({ error: "画像は8MB以下にしてください。" }, 413);
+
+  const bytes = await file.arrayBuffer();
+  const imageSha = await sha256Hex(bytes);
+  const duplicate = await cachedGrandCompanyAnalysis(env, profileHash, imageSha);
+  if (duplicate) {
+    const saved = await storeGrandCompanyContext(env, profileHash, duplicate);
+    return json({
+      ok: true,
+      duplicate: true,
+      context_saved: false,
+      analysis: duplicate,
+      grand_company_context_saved: saved,
+      image_saved: false
+    });
+  }
+
+  await reserveAnalysisBudget(env, profileHash);
+  const analysis = await analyzeGrandCompanyImage(file, bytes, env) || sanitizeGrandCompanyAnalysis({
+    recognized: false,
+    confidence: 0,
+    company_name: null,
+    deliveries: []
+  });
+  await cacheGrandCompanyAnalysis(env, profileHash, imageSha, analysis);
+  const saved = await storeGrandCompanyContext(env, profileHash, analysis);
+  return json({
+    ok: true,
+    duplicate: false,
+    context_saved: false,
+    analysis,
+    grand_company_context_saved: saved,
+    image_saved: false
+  });
+}
+
 async function fallbackGrandCompanyImage(request, response, env) {
   if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
   let data;
@@ -268,6 +401,8 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/context/image" && request.method === "POST") {
+      const forced = await forcedGrandCompanyImage(request.clone(), env);
+      if (forced) return forced;
       const response = await app.fetch(request.clone(), env);
       return fallbackGrandCompanyImage(request, response, env);
     }
@@ -284,6 +419,7 @@ export default {
         ...data,
         grand_company_daily_flow: true,
         grand_company_screenshot_evidence: true,
+        grand_company_context_priority: true,
         grand_company_today_only_context: true
       }, response.status);
     }
