@@ -90,6 +90,90 @@ function promoteTaskBoard(root = document) {
     body.task-board-primary:not(.task-board-now-active) #nowPanel { display: none !important; }
     body.task-board-primary.task-board-now-active #nowPanel .method-alternative,
     body.task-board-primary.task-board-now-active #nowPanel .methods-help { display: none !important; }
+
+    body.task-board-primary .task-board-schedule {
+      margin: 0 14px 10px;
+      padding: 16px;
+      border: 1px solid #dbe7f2;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+    body.task-board-primary .task-board-schedule-head {
+      margin-bottom: 11px;
+    }
+    body.task-board-primary .task-board-schedule-head strong {
+      font-size: 1rem;
+      color: #173f68;
+    }
+    body.task-board-primary .task-board-schedule-head span {
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #edf4fb;
+      color: #66809a;
+    }
+    body.task-board-primary .schedule-empty {
+      padding: 13px 14px;
+      border: 1px dashed #c9d9e8;
+      border-radius: 12px;
+      background: #fbfdff;
+      color: #6d8298;
+      line-height: 1.55;
+    }
+    body.task-board-primary .task-board-summary {
+      position: static;
+      bottom: auto;
+      z-index: auto;
+      margin: 0 14px 16px;
+      padding: 14px 15px;
+      border: 1px solid #d7e4f0;
+      border-radius: 16px;
+      background: #f6faff;
+      color: #234c73;
+      box-shadow: none;
+    }
+    body.task-board-primary .task-board-summary-main {
+      gap: 16px;
+    }
+    body.task-board-primary .task-board-summary-text {
+      font-size: .86rem;
+      line-height: 1.45;
+      color: #244e76;
+    }
+    body.task-board-primary .task-board-summary-text small {
+      margin-top: 4px;
+      color: #71869b;
+      opacity: 1;
+    }
+    body.task-board-primary .task-board-prep-button {
+      padding: 9px 14px;
+      border: 1px solid #2f6599;
+      border-radius: 10px;
+      background: #2f6599;
+      color: #fff;
+      box-shadow: 0 5px 12px rgba(47, 101, 153, .16);
+      transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+    }
+    body.task-board-primary .task-board-prep-button:hover {
+      background: #285a8b;
+      box-shadow: 0 6px 14px rgba(47, 101, 153, .22);
+      transform: translateY(-1px);
+    }
+    body.task-board-primary .task-board-materials {
+      border-top-color: #d7e4f0;
+      color: #365c80;
+    }
+    body.task-board-primary .material-muted {
+      color: #71869b;
+      opacity: 1;
+    }
+    @media(max-width:680px) {
+      body.task-board-primary .task-board-schedule,
+      body.task-board-primary .task-board-summary { margin-left: 10px; margin-right: 10px; }
+      body.task-board-primary .task-board-schedule-head { align-items: flex-start; }
+      body.task-board-primary .task-board-schedule-head span { text-align: right; }
+      body.task-board-primary .task-board-summary-main { align-items: stretch; flex-direction: column; }
+      body.task-board-primary .task-board-prep-button { width: 100%; }
+    }
   `;
   root.head.append(style);
   root.body.classList.add("task-board-primary");
