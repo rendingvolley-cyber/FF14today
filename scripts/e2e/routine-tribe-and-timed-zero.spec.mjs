@@ -122,7 +122,7 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
 
   await expect.poll(() => contextPasteBody).toContain('name="workflow_context"');
   await expect.poll(() => contextPasteBody).toContain("grand-company");
-  await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("双蛇党納品を 1件");
+  await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("双蛇党納品を1件");
   await expect(page.locator("[data-gc-content]")).toContainText("E2E貼付納品薬");
   await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 3");
   await expect(page.locator("[data-gc-tab-status]")).toHaveText("すぐ納品");
