@@ -40,6 +40,7 @@ function planFor(url) {
     remaining_minutes: 60,
     notice: methods.length ? `${job?.name_ja || code}を選択中` : `${job?.name_ja || code}向け候補は未整備です。別ジョブへ勝手に切り替えません。`,
     focus_job: job ? { code: job.code, name: job.name_ja, level: job.level, role: job.role } : null,
+    completed_daily: { leveling: false, alliance: false },
     methods,
     now: methods[0] || null,
     next: null,
@@ -58,7 +59,7 @@ function generic(pathname) {
   return {};
 }
 
-test("task board lists jobs and keeps the selected job per category", async ({ page }) => {
+test("task board lists jobs, keeps selected jobs, and exposes daily roulette checks", async ({ page }) => {
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/state") {
@@ -73,7 +74,9 @@ test("task board lists jobs and keeps the selected job per category", async ({ p
       if (payload.focus_combat_job_code) fake.searchParams.set("focus_combat_job_code", payload.focus_combat_job_code);
       if (payload.focus_craft_job_code) fake.searchParams.set("focus_craft_job_code", payload.focus_craft_job_code);
       if (payload.focus_gather_job_code) fake.searchParams.set("focus_gather_job_code", payload.focus_gather_job_code);
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ plan: planFor(fake) }) });
+      const plan = planFor(fake);
+      plan.completed_daily = payload.completed_daily || { leveling: false, alliance: false };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ plan }) });
       return;
     }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(generic(url.pathname)) });
@@ -84,6 +87,19 @@ test("task board lists jobs and keeps the selected job per category", async ({ p
 
   await page.locator('#taskBoardTabs [data-category="combat"]').click();
   await expect(page.locator("#categoryJobFocus")).toBeVisible();
+  await expect(page.locator("#dailyChecklist")).toBeVisible();
+  await expect(page.locator("#dailyChecklist")).toContainText("今日の戦闘日課");
+  await expect(page.locator("#dailyChecklist")).toContainText("レベルレ済み");
+  await expect(page.locator("#dailyChecklist")).toContainText("アラルレ済み");
+
+  const dailyRequest = page.waitForRequest(req => {
+    if (!req.url().includes("/api/plan") || req.method() !== "POST") return false;
+    try { return req.postDataJSON()?.completed_daily?.leveling === true; } catch { return false; }
+  });
+  await page.locator("#dailyLeveling").check();
+  await dailyRequest;
+  await expect(page.locator("#dailyLeveling")).toBeChecked();
+
   await expect(page.locator("#categoryJobFocusSelect option")).toHaveCount(2);
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("赤魔道士 · Lv92");
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("戦士 · Lv88");
@@ -95,6 +111,7 @@ test("task board lists jobs and keeps the selected job per category", async ({ p
   await combatRequest;
 
   await page.locator('#taskBoardTabs [data-category="craft"]').click();
+  await expect(page.locator("#dailyChecklist")).toBeHidden();
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("鍛冶師 · Lv95");
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("錬金術師 · Lv91");
   const craftRequest = page.waitForRequest(req => {
@@ -121,4 +138,9 @@ test("task board lists jobs and keeps the selected job per category", async ({ p
 
   await page.locator('#taskBoardTabs [data-category="fishing"]').click();
   await expect(page.locator("#categoryJobFocus")).toBeHidden();
+  await expect(page.locator("#dailyChecklist")).toBeHidden();
+
+  await page.locator('#taskBoardTabs [data-category="combat"]').click();
+  await expect(page.locator("#dailyChecklist")).toBeVisible();
+  await expect(page.locator("#dailyLeveling")).toBeChecked();
 });
