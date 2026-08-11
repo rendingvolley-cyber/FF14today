@@ -12,7 +12,11 @@ export const GC_SEAL_MARKET_CANDIDATES = Object.freeze([
   { name_en: "Emery", seal_cost: 1500, exchange_quantity: 1 }
 ]);
 
-const MIN_DAILY_SALES = 5;
+export const GC_SEAL_SELL_BATCH_QUANTITY = 300;
+export const GC_SEAL_MAX_BATCH_DAYS = 3;
+const MIN_DAILY_SALES = GC_SEAL_SELL_BATCH_QUANTITY / GC_SEAL_MAX_BATCH_DAYS;
+const MIN_AVERAGE_SALE_PRICE = 100;
+const MIN_GIL_PER_1000_SEALS = 1000;
 
 function finiteNumber(value, fallback = 0) {
   const n = Number(value);
@@ -23,44 +27,32 @@ function round1(value) {
   return Math.round(finiteNumber(value) * 10) / 10;
 }
 
-function efficiencyPoints(gilPer1000Seals) {
+function valuePoints(gilPer1000Seals) {
   const value = finiteNumber(gilPer1000Seals);
-  if (value <= 0) return 0;
-  if (value < 500) return 2;
-  if (value < 1000) return 5;
+  if (value < MIN_GIL_PER_1000_SEALS) return 0;
+  if (value < 1500) return 5;
   if (value < 2500) return 9;
-  if (value < 5000) return 13;
-  if (value < 10000) return 17;
+  if (value < 4000) return 13;
+  if (value < 7000) return 17;
   return 20;
 }
 
-function demandPoints(velocity) {
-  const value = finiteNumber(velocity);
-  if (value < MIN_DAILY_SALES) return 0;
-  if (value < 10) return 30;
-  if (value < 20) return 40;
-  if (value < 50) return 50;
-  if (value < 100) return 58;
-  if (value < 250) return 64;
-  if (value < 500) return 68;
-  return 70;
-}
-
-function scarcityPoints(daysSupply, listingRows) {
-  if (finiteNumber(listingRows) >= 100) return 0;
-  if (!Number.isFinite(daysSupply)) return 0;
-  if (daysSupply <= 1) return 10;
-  if (daysSupply <= 3) return 8;
-  if (daysSupply <= 7) return 4;
+function sellThroughPoints(daysToSellBatch) {
+  const days = finiteNumber(daysToSellBatch, Infinity);
+  if (days <= 0.5) return 80;
+  if (days <= 1) return 76;
+  if (days <= 1.5) return 72;
+  if (days <= 2) return 68;
+  if (days <= GC_SEAL_MAX_BATCH_DAYS) return 60;
   return 0;
 }
 
 function salesPriority(velocity) {
   const value = finiteNumber(velocity);
-  if (value >= 100) return "非常に売れやすい";
-  if (value >= 20) return "売れやすい";
-  if (value >= MIN_DAILY_SALES) return "実売あり";
-  return "売れ行き不足";
+  if (value >= 600) return "かなり売れる";
+  if (value >= 300) return "非常に売れやすい";
+  if (value >= MIN_DAILY_SALES) return "300個向き";
+  return "300個には遅い";
 }
 
 export function scoreSealExchangeCandidate(input) {
@@ -69,33 +61,35 @@ export function scoreSealExchangeCandidate(input) {
   const averageSalePrice = Math.max(0, finiteNumber(input?.average_sale_price));
   const dailySaleVelocity = Math.max(0, finiteNumber(input?.daily_sale_velocity));
   const listedQuantity = Math.max(0, finiteNumber(input?.listed_quantity));
-  const listingRows = Math.max(0, finiteNumber(input?.listing_rows_sampled));
   const grossPerExchange = averageSalePrice * exchangeQuantity;
   const gilPer1000Seals = grossPerExchange / sealCost * 1000;
   const daysSupply = dailySaleVelocity > 0 ? listedQuantity / dailySaleVelocity : Infinity;
-  const demand = demandPoints(dailySaleVelocity);
-  const efficiency = efficiencyPoints(gilPer1000Seals);
-  const scarcity = scarcityPoints(daysSupply, listingRows);
-  const score = demand + efficiency + scarcity;
+  const daysToSellBatch = dailySaleVelocity > 0 ? GC_SEAL_SELL_BATCH_QUANTITY / dailySaleVelocity : Infinity;
+  const sellThrough = sellThroughPoints(daysToSellBatch);
+  const value = valuePoints(gilPer1000Seals);
   return {
-    score: round1(score),
-    demand_score: round1(demand),
-    efficiency_score: round1(efficiency),
-    scarcity_score: round1(scarcity),
+    score: round1(sellThrough + value),
+    sell_through_score: round1(sellThrough),
+    value_score: round1(value),
     sales_priority: salesPriority(dailySaleVelocity),
+    sell_batch_quantity: GC_SEAL_SELL_BATCH_QUANTITY,
+    estimated_days_to_sell_batch: Number.isFinite(daysToSellBatch) ? Math.round(daysToSellBatch * 100) / 100 : null,
     estimated_gross_per_exchange: Math.round(grossPerExchange),
     estimated_gil_per_1000_seals: Math.round(gilPer1000Seals),
-    estimated_days_supply: Number.isFinite(daysSupply) ? round1(daysSupply) : null
+    estimated_days_supply: Number.isFinite(daysSupply) ? round1(daysSupply) : null,
+    velocity_floor_pass: dailySaleVelocity >= MIN_DAILY_SALES,
+    price_floor_pass: averageSalePrice >= MIN_AVERAGE_SALE_PRICE,
+    efficiency_floor_pass: gilPer1000Seals >= MIN_GIL_PER_1000_SEALS
   };
 }
 
-export function rankSealExchangeRows(rows, limit = 3) {
+export function rankSealExchangeRows(rows, limit = 5) {
   return (Array.isArray(rows) ? rows : [])
-    .filter(row => finiteNumber(row?.daily_sale_velocity) >= MIN_DAILY_SALES && finiteNumber(row?.average_sale_price) > 0)
     .map(row => ({ ...row, ...scoreSealExchangeCandidate(row) }))
-    .sort((a, b) => b.score - a.score
-      || b.daily_sale_velocity - a.daily_sale_velocity
-      || b.estimated_gil_per_1000_seals - a.estimated_gil_per_1000_seals)
-    .slice(0, Math.max(1, Number(limit) || 3))
+    .filter(row => row.velocity_floor_pass && row.price_floor_pass && row.efficiency_floor_pass)
+    .sort((a, b) => b.daily_sale_velocity - a.daily_sale_velocity
+      || b.estimated_gil_per_1000_seals - a.estimated_gil_per_1000_seals
+      || b.average_sale_price - a.average_sale_price)
+    .slice(0, Math.max(1, Number(limit) || 5))
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }

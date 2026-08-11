@@ -18,9 +18,9 @@ function formatNumber(value) {
   return Number.isFinite(n) ? Math.round(n).toLocaleString("ja-JP") : "—";
 }
 
-function formatDecimal(value) {
+function formatDecimal(value, digits = 1) {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) : "—";
+  return Number.isFinite(n) ? n.toLocaleString("ja-JP", { maximumFractionDigits: digits }) : "—";
 }
 
 function ensureSection() {
@@ -35,7 +35,7 @@ function ensureSection() {
     <div class="gc-seal-market-head">
       <div>
         <p class="gc-kicker">軍票の使い道</p>
-        <h3>よく売れる交換品を優先する</h3>
+        <h3>300個出す前提で、売れ筋順に比較</h3>
       </div>
       <button type="button" class="retainer-refresh" data-gc-seal-refresh>市場を再確認</button>
     </div>
@@ -48,22 +48,20 @@ function ensureSection() {
   return section;
 }
 
-function stat(label, value) {
-  const span = document.createElement("span");
-  span.className = "gc-seal-stat";
-  const small = document.createElement("small");
-  small.textContent = label;
-  const strong = document.createElement("strong");
-  strong.textContent = value;
-  span.append(small, strong);
-  return span;
+function sellBatchDaysText(row) {
+  const days = Number(row?.estimated_days_to_sell_batch);
+  if (!Number.isFinite(days)) return "—";
+  if (days < 1) return `約${formatDecimal(days, 2)}日`;
+  return `約${formatDecimal(days, 1)}日`;
 }
 
-function buildRecommendation(row, featured = false) {
-  const article = document.createElement("article");
-  article.className = `gc-seal-item${featured ? " featured" : ""}`;
+function buildSealTableRow(row, featured = false) {
+  const tr = document.createElement("tr");
+  if (featured) tr.className = "featured";
+
+  const item = document.createElement("td");
   const top = document.createElement("div");
-  top.className = "gc-seal-item-top";
+  top.className = "gc-seal-table-item";
   const rank = document.createElement("span");
   rank.className = "gc-seal-rank";
   rank.textContent = `#${row.rank || "?"}`;
@@ -73,26 +71,25 @@ function buildRecommendation(row, featured = false) {
   if (featured) {
     const badge = document.createElement("span");
     badge.className = "gc-seal-best";
-    badge.textContent = "よく売れるのでこれ";
+    badge.textContent = "300個向け1位";
     top.append(badge);
   }
-  const stats = document.createElement("div");
-  stats.className = "gc-seal-stats";
-  stats.append(
-    stat("必要軍票", `${formatNumber(row.seal_cost)} → ${formatNumber(row.exchange_quantity)}個`),
-    stat("1日実売", `${formatDecimal(row.daily_sale_velocity)}個`),
-    stat("平均実売", `${formatNumber(row.average_sale_price)}ギル/個`),
-    stat("軍票1,000あたり", `約${formatNumber(row.estimated_gil_per_1000_seals)}ギル`)
-  );
-  article.append(top, stats);
-  if (featured) {
-    const reason = document.createElement("p");
-    reason.className = "gc-seal-reason";
-    const days = row.estimated_days_supply == null ? "在庫日数不明" : `出品在庫は約${formatDecimal(row.estimated_days_supply)}日分`;
-    reason.textContent = `売れ行きを最優先した総合スコア ${formatDecimal(row.score)}。1日実売 ${formatDecimal(row.daily_sale_velocity)}個、${days}。最安出品 ${formatNumber(row.minimum_listing_price)}ギル。`;
-    article.append(reason);
-  }
-  return article;
+  const seal = document.createElement("small");
+  seal.textContent = `${formatNumber(row.seal_cost)}軍票 → ${formatNumber(row.exchange_quantity)}個`;
+  item.append(top, seal);
+
+  const velocity = document.createElement("td");
+  velocity.innerHTML = `<strong>${formatDecimal(row.daily_sale_velocity)}個</strong>`;
+  const batch = document.createElement("td");
+  batch.innerHTML = `<strong>${sellBatchDaysText(row)}</strong>`;
+  const price = document.createElement("td");
+  price.innerHTML = `<strong>${formatNumber(row.average_sale_price)}G</strong><small> / 個</small>`;
+  const efficiency = document.createElement("td");
+  efficiency.innerHTML = `<strong>${formatNumber(row.estimated_gil_per_1000_seals)}G</strong>`;
+  const supply = document.createElement("td");
+  supply.innerHTML = `<strong>${row.estimated_days_supply == null ? "—" : `${formatDecimal(row.estimated_days_supply)}日`}</strong>`;
+  tr.append(item, velocity, batch, price, efficiency, supply);
+  return tr;
 }
 
 function render(data) {
@@ -104,30 +101,35 @@ function render(data) {
   if (!rows.length) {
     const setup = document.createElement("div");
     setup.className = "retainer-setup";
-    setup.textContent = data?.message || "現在おすすめできる軍票交換品がありません。";
+    setup.textContent = data?.message || "300個規模でおすすめできる軍票交換品がありません。";
     body.append(setup);
     return;
   }
-  const lead = document.createElement("div");
-  lead.className = "gc-seal-lead";
-  lead.append(buildRecommendation(rows[0], true));
-  body.append(lead);
-  if (rows.length > 1) {
-    const details = document.createElement("details");
-    details.className = "gc-seal-alternatives";
-    const summary = document.createElement("summary");
-    summary.textContent = `次点 ${rows.length - 1}件`;
-    details.append(summary);
-    const list = document.createElement("div");
-    list.className = "gc-seal-list";
-    for (const row of rows.slice(1)) list.append(buildRecommendation(row));
-    details.append(list);
-    body.append(details);
-  }
+
+  const intro = document.createElement("p");
+  intro.className = "gc-seal-batch-intro";
+  intro.textContent = `約${formatNumber(data?.sell_batch_quantity || 300)}個を出す想定。市場全体の1日実売数が多い順で、極端に安い品は候補から外しています。`;
+  body.append(intro);
+
+  const wrap = document.createElement("div");
+  wrap.className = "gc-seal-table-wrap";
+  const table = document.createElement("table");
+  table.className = "gc-seal-table";
+  table.innerHTML = `
+    <thead><tr>
+      <th>交換品</th><th>1日実売</th><th>300個吸収目安</th><th>平均実売</th><th>軍票1,000</th><th>現出品</th>
+    </tr></thead>
+  `;
+  const tbody = document.createElement("tbody");
+  rows.forEach((row, index) => tbody.append(buildSealTableRow(row, index === 0)));
+  table.append(tbody);
+  wrap.append(table);
+  body.append(wrap);
+
   const note = document.createElement("p");
   note.className = "retainer-market-note";
   const age = Number.isFinite(Number(data?.cache_age_minutes)) ? `・更新${Number(data.cache_age_minutes)}分前` : "";
-  note.textContent = `Chocobo / Universalisの実売・出品データ${age}。売れ行きが弱い交換品は候補から外し、販売速度を軍票効率より強く評価しています。`;
+  note.textContent = `Chocobo / Universalisの実売・出品データ${age}。300個吸収目安は「300 ÷ 市場全体の1日実売数」の比較値で、自分の300個が同じ日数で必ず売れる保証ではありません。現在の出品日数も併せて確認してください。`;
   body.append(note);
 }
 
@@ -172,8 +174,12 @@ function profileToken() {
 function deliverySignatureFromDom() {
   const body = gcContent()?.querySelector("[data-gc-body]");
   if (!body) return "";
-  const names = [...body.querySelectorAll(".gc-delivery-top strong")].map(node => node.textContent?.trim()).filter(Boolean);
-  return names.join("|");
+  const compactNames = [...body.querySelectorAll("[data-gc-delivery-item]")]
+    .map(node => node.textContent?.trim()).filter(Boolean);
+  if (compactNames.length) return compactNames.join("|");
+  const legacyNames = [...body.querySelectorAll(".gc-delivery-top strong")]
+    .map(node => node.textContent?.trim()).filter(Boolean);
+  return legacyNames.join("|");
 }
 
 function quantityText(row) {
@@ -210,44 +216,26 @@ function costBox(label, value, recommended = false) {
   return box;
 }
 
-function buildCostDelivery(row, recommendation) {
+function procurementSummary(row) {
+  const procurement = row?.procurement;
+  if (procurement?.status === "ready_now") return { label: "手持ちで納品", gil: "0G" };
+  if (procurement?.status === "ok" && procurement.recommended_route) {
+    return { label: procurement.recommended_route.label || "おすすめ調達", gil: gilText(procurement.recommended_route) };
+  }
+  return { label: "比較できず", gil: "—" };
+}
+
+function buildCostDetail(row, recommendation) {
   const featured = recommendation?.row_index === row.row_index && recommendation?.item_name === row.item_name;
-  const article = document.createElement("article");
-  article.className = `gc-delivery${featured ? " featured" : ""}`;
-
-  const top = document.createElement("div");
-  top.className = "gc-delivery-top";
-  const name = document.createElement("strong");
-  name.textContent = row.item_name || "品名未確認";
-  top.append(name);
-  if (row.starred) {
-    const star = document.createElement("span");
-    star.className = "gc-star";
-    star.textContent = "★ ボーナス";
-    top.append(star);
-  }
-  if (featured) {
-    const badge = document.createElement("span");
-    badge.className = "gc-delivery-recommended";
-    badge.textContent = "おすすめ";
-    top.append(badge);
-  }
-
-  const meta = document.createElement("div");
-  meta.className = "gc-delivery-meta";
-  for (const text of [row.class_or_job, quantityText(row), row.reward_text].filter(Boolean)) {
-    const span = document.createElement("span");
-    span.textContent = text;
-    meta.append(span);
-  }
-  article.append(top, meta);
-
+  const panel = document.createElement("div");
+  panel.className = "gc-cost-detail-panel";
   const procurement = row.procurement;
+
   if (procurement?.status === "ready_now") {
     const grid = document.createElement("div");
     grid.className = "gc-cost-grid";
     grid.append(costBox("追加調達", "0G・手持ちで納品", true));
-    article.append(grid);
+    panel.append(grid);
   } else if (procurement?.status === "ok") {
     const grid = document.createElement("div");
     grid.className = "gc-cost-grid";
@@ -256,7 +244,7 @@ function buildCostDelivery(row, recommendation) {
       costBox("原材料から作る", gilText(procurement.craft_raw)),
       costBox("調達おすすめ", procurement.recommended_route ? `${procurement.recommended_route.label}・${gilText(procurement.recommended_route)}` : "比較できず", true)
     );
-    article.append(grid);
+    panel.append(grid);
 
     if (procurement.craft_raw) {
       const materials = document.createElement("div");
@@ -264,28 +252,91 @@ function buildCostDelivery(row, recommendation) {
       const label = document.createElement("strong");
       label.textContent = "製作素材：";
       materials.append(label, document.createTextNode(materialText(procurement.craft_raw.materials)));
-      article.append(materials);
+      panel.append(materials);
     }
     if (procurement.quantity_basis === "requested_quantity") {
       const note = document.createElement("p");
       note.className = "gc-cost-note";
       note.textContent = "所持数を安全に読めなかったため、必要数全量を調達する前提で比較しています。";
-      article.append(note);
+      panel.append(note);
     }
   } else {
     const note = document.createElement("p");
     note.className = "gc-cost-note";
     note.textContent = "この品は価格またはレシピを安全に特定できなかったため、ゲーム内で確認してください。";
-    article.append(note);
+    panel.append(note);
   }
 
   if (featured && recommendation?.reason) {
     const reason = document.createElement("p");
     reason.className = "gc-delivery-reason";
     reason.textContent = recommendation.reason;
-    article.append(reason);
+    panel.append(reason);
   }
-  return article;
+  return panel;
+}
+
+function buildCostTableRows(row, recommendation, index) {
+  const featured = recommendation?.row_index === row.row_index && recommendation?.item_name === row.item_name;
+  const summary = procurementSummary(row);
+  const tr = document.createElement("tr");
+  tr.className = `gc-delivery-table-row${featured ? " featured" : ""}`;
+
+  const itemCell = document.createElement("td");
+  const itemTop = document.createElement("div");
+  itemTop.className = "gc-delivery-table-item";
+  const name = document.createElement("strong");
+  name.textContent = row.item_name || "品名未確認";
+  name.setAttribute("data-gc-delivery-item", "");
+  itemTop.append(name);
+  if (featured) {
+    const badge = document.createElement("span");
+    badge.className = "gc-delivery-recommended";
+    badge.textContent = "おすすめ";
+    itemTop.append(badge);
+  }
+  if (row.class_or_job) {
+    const sub = document.createElement("small");
+    sub.textContent = row.class_or_job;
+    itemCell.append(itemTop, sub);
+  } else itemCell.append(itemTop);
+
+  const quantityCell = document.createElement("td");
+  quantityCell.textContent = quantityText(row);
+  const bonusCell = document.createElement("td");
+  bonusCell.textContent = row.starred ? `★ ${row.bonus_text || "ボーナス"}` : (row.bonus_text || "—");
+  const routeCell = document.createElement("td");
+  routeCell.textContent = summary.label;
+  const gilCell = document.createElement("td");
+  gilCell.innerHTML = `<strong>${summary.gil}</strong>`;
+  const actionCell = document.createElement("td");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "gc-detail-toggle";
+  button.textContent = "詳細";
+  const detailId = `gc-delivery-detail-${index}`;
+  button.setAttribute("aria-controls", detailId);
+  button.setAttribute("aria-expanded", "false");
+  actionCell.append(button);
+  tr.append(itemCell, quantityCell, bonusCell, routeCell, gilCell, actionCell);
+
+  const detailTr = document.createElement("tr");
+  detailTr.className = "gc-delivery-detail-row";
+  detailTr.id = detailId;
+  detailTr.hidden = true;
+  const detailCell = document.createElement("td");
+  detailCell.colSpan = 6;
+  detailCell.append(buildCostDetail(row, recommendation));
+  detailTr.append(detailCell);
+
+  button.addEventListener("click", () => {
+    const open = detailTr.hidden;
+    detailTr.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+    button.textContent = open ? "閉じる" : "詳細";
+  });
+
+  return [tr, detailTr];
 }
 
 function renderDeliveryCosts(data) {
@@ -296,7 +347,7 @@ function renderDeliveryCosts(data) {
   if (!rows.length) return;
 
   const sub = gc.querySelector(".retainer-advice-sub");
-  if (sub) sub.textContent = "今日の納品一覧を全部表示し、マケボ購入と製作コストを比較します。どこまで納品するかは自分で決められます。";
+  if (sub) sub.textContent = "今日の納品一覧を表で確認し、必要な品だけ詳細を開いてマケボ購入と製作コストを比較できます。どこまで納品するかは自分で決めます。";
 
   body.replaceChildren();
   const head = document.createElement("div");
@@ -308,15 +359,25 @@ function renderDeliveryCosts(data) {
   const title = document.createElement("h3");
   title.textContent = `${rows.length}件を比較`;
   const desc = document.createElement("p");
-  desc.textContent = "おすすめは目安です。納品する件数・どこまでやるかは自分で決めます。";
+  desc.textContent = "一覧で選び、価格・製作素材は「詳細」で確認。おすすめは目安です。";
   text.append(kicker, title, desc);
   head.append(text);
   body.append(head);
 
-  const list = document.createElement("div");
-  list.className = "gc-all-list";
-  for (const row of rows) list.append(buildCostDelivery(row, data?.recommendation));
-  body.append(list);
+  const wrap = document.createElement("div");
+  wrap.className = "gc-delivery-table-wrap";
+  const table = document.createElement("table");
+  table.className = "gc-delivery-table";
+  table.innerHTML = `
+    <thead><tr>
+      <th>納品品</th><th>必要 / 所持</th><th>ボーナス</th><th>調達おすすめ</th><th>概算</th><th></th>
+    </tr></thead>
+  `;
+  const tbody = document.createElement("tbody");
+  rows.forEach((row, index) => tbody.append(...buildCostTableRows(row, data?.recommendation, index)));
+  table.append(tbody);
+  wrap.append(table);
+  body.append(wrap);
 
   const note = document.createElement("p");
   note.className = "retainer-market-note";

@@ -2,61 +2,91 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   GC_SEAL_MARKET_CANDIDATES,
+  GC_SEAL_MAX_BATCH_DAYS,
+  GC_SEAL_SELL_BATCH_QUANTITY,
   rankSealExchangeRows,
   scoreSealExchangeCandidate
 } from "../src/gc-seal-market.js";
 
 assert.ok(GC_SEAL_MARKET_CANDIDATES.length >= 8);
 assert.ok(GC_SEAL_MARKET_CANDIDATES.every(row => row.seal_cost > 0 && row.exchange_quantity > 0));
+assert.equal(GC_SEAL_SELL_BATCH_QUANTITY, 300);
+assert.equal(GC_SEAL_MAX_BATCH_DAYS, 3);
 
-const efficient = scoreSealExchangeCandidate({
+const fast = scoreSealExchangeCandidate({
   seal_cost: 200,
   exchange_quantity: 1,
-  average_sale_price: 900,
-  daily_sale_velocity: 15,
-  listed_quantity: 20,
-  listing_rows_sampled: 12
+  average_sale_price: 250,
+  daily_sale_velocity: 300,
+  listed_quantity: 300,
+  listing_rows_sampled: 80
 });
-assert.equal(efficient.estimated_gil_per_1000_seals, 4500);
-assert.equal(efficient.estimated_gross_per_exchange, 900);
-assert.ok(efficient.demand_score > efficient.efficiency_score, "sales velocity must carry more weight than seal efficiency");
-assert.ok(efficient.score > 50);
+assert.equal(fast.estimated_gil_per_1000_seals, 1250);
+assert.equal(fast.estimated_gross_per_exchange, 250);
+assert.equal(fast.sell_batch_quantity, 300);
+assert.equal(fast.estimated_days_to_sell_batch, 1);
+assert.ok(fast.sell_through_score > fast.value_score, "300-item sell-through must dominate value scoring");
+assert.equal(fast.velocity_floor_pass, true);
+assert.equal(fast.efficiency_floor_pass, true);
 
 const ranked = rankSealExchangeRows([
   {
-    item_name: "高いが売れない品",
+    item_name: "高いが300個には遅い品",
     seal_cost: 200,
     exchange_quantity: 1,
     average_sale_price: 30000,
-    daily_sale_velocity: 1,
-    listed_quantity: 1,
-    listing_rows_sampled: 1
+    daily_sale_velocity: 50,
+    listed_quantity: 10,
+    listing_rows_sampled: 10
   },
   {
-    item_name: "かなり売れる品",
+    item_name: "激安だが超高速",
     seal_cost: 200,
     exchange_quantity: 1,
-    average_sale_price: 250,
+    average_sale_price: 50,
+    daily_sale_velocity: 1500,
+    listed_quantity: 100,
+    listing_rows_sampled: 30
+  },
+  {
+    item_name: "最速の実用品",
+    seal_cost: 200,
+    exchange_quantity: 1,
+    average_sale_price: 248,
+    daily_sale_velocity: 852.3,
+    listed_quantity: 4432,
+    listing_rows_sampled: 90
+  },
+  {
+    item_name: "高単価の次点",
+    seal_cost: 200,
+    exchange_quantity: 1,
+    average_sale_price: 900,
     daily_sale_velocity: 300,
     listed_quantity: 300,
-    listing_rows_sampled: 80
+    listing_rows_sampled: 60
   },
   {
-    item_name: "高効率だが中程度",
+    item_name: "ぎりぎり300個向き",
     seal_cost: 200,
     exchange_quantity: 1,
-    average_sale_price: 1500,
-    daily_sale_velocity: 8,
-    listed_quantity: 8,
-    listing_rows_sampled: 8
+    average_sale_price: 400,
+    daily_sale_velocity: 100,
+    listed_quantity: 100,
+    listing_rows_sampled: 20
   }
 ]);
-assert.equal(ranked.length, 2, "items selling fewer than 5/day should be excluded");
-assert.equal(ranked[0].item_name, "かなり売れる品", "very high sales velocity should outrank higher gil efficiency");
+assert.equal(ranked.length, 3, "slow or extremely cheap candidates must be excluded from the 300-item list");
+assert.equal(ranked[0].item_name, "最速の実用品", "qualifying candidates must be ordered primarily by daily sales velocity");
 assert.equal(ranked[0].rank, 1);
-assert.equal(ranked[0].sales_priority, "非常に売れやすい");
+assert.equal(ranked[0].sales_priority, "かなり売れる");
+assert.ok(ranked[0].estimated_days_to_sell_batch < 0.4);
+assert.equal(ranked[1].item_name, "高単価の次点");
+assert.equal(ranked[2].item_name, "ぎりぎり300個向き");
+assert.equal(ranked[2].estimated_days_to_sell_batch, 3);
 
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
+const sealWrapper = readFileSync(new URL("../src/gc-seal-market-wrapper.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
 assert.match(costWrapper, /\/api\/grand-company\/delivery-costs/);
 assert.match(costWrapper, /resolveDynamicCraftTarget/);
@@ -64,8 +94,16 @@ assert.match(costWrapper, /buildDynamicLeveCostAdvice/);
 assert.match(costWrapper, /decision_owner:\s*"user"/);
 assert.match(costWrapper, /listing_quantity_curve/);
 assert.match(entry, /gc-delivery-cost-wrapper\.js/);
+assert.match(sealWrapper, /sell-through-300-v1/);
+assert.match(sealWrapper, /rankSealExchangeRows\(marketRows, 5\)/);
 
 const gcCss = readFileSync(new URL("../public/grand-company-routine.css", import.meta.url), "utf8");
+const gcUi = readFileSync(new URL("../public/gc-seal-market.js", import.meta.url), "utf8");
 assert.match(gcCss, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/, "desktop routine steps must stay on one row");
+assert.match(gcCss, /\.gc-delivery-table\{/);
+assert.match(gcCss, /\.gc-seal-table\{/);
+assert.match(gcUi, /300個出す前提で、売れ筋順に比較/);
+assert.match(gcUi, /data-gc-delivery-item/);
+assert.match(gcUi, /button\.textContent = "詳細"/);
 
-console.log("GC seal market ranking and delivery cost wiring: ok");
+console.log("GC table UI and 300-item seal sell-through ranking: ok");

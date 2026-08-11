@@ -101,39 +101,49 @@ const sealMarket = {
   ok: true,
   world: "Chocobo",
   source: "Universalis",
+  ranking_schema: "sell-through-300-v1",
+  ranking_mode: "daily_sale_velocity_desc_with_value_floor",
+  sell_batch_quantity: 300,
+  target_max_days: 3,
   cached: false,
   cache_age_minutes: 0,
   recommendations: [
     {
       rank: 1,
-      score: 86.4,
+      score: 89,
+      sales_priority: "かなり売れる",
       item_id: 5530,
       item_name: "コークス",
       item_name_en: "Coke",
       seal_cost: 200,
       exchange_quantity: 1,
-      daily_sale_velocity: 28.4,
-      average_sale_price: 820,
-      minimum_listing_price: 790,
-      listed_quantity: 34,
-      estimated_days_supply: 1.2,
-      estimated_gross_per_exchange: 820,
-      estimated_gil_per_1000_seals: 4100,
+      daily_sale_velocity: 852.3,
+      average_sale_price: 248,
+      minimum_listing_price: 249,
+      listed_quantity: 4432,
+      estimated_days_supply: 5.2,
+      sell_batch_quantity: 300,
+      estimated_days_to_sell_batch: 0.35,
+      estimated_gross_per_exchange: 248,
+      estimated_gil_per_1000_seals: 1240,
       market_age_minutes: 4
     },
     {
       rank: 2,
-      score: 74.2,
+      score: 89,
+      sales_priority: "非常に売れやすい",
       item_id: 5268,
       item_name: "樹液塊",
       item_name_en: "Hardened Sap",
       seal_cost: 200,
       exchange_quantity: 1,
-      daily_sale_velocity: 14.1,
+      daily_sale_velocity: 300,
       average_sale_price: 900,
       minimum_listing_price: 850,
-      listed_quantity: 55,
-      estimated_days_supply: 3.9,
+      listed_quantity: 300,
+      estimated_days_supply: 1,
+      sell_batch_quantity: 300,
+      estimated_days_to_sell_batch: 1,
       estimated_gross_per_exchange: 900,
       estimated_gil_per_1000_seals: 4500,
       market_age_minutes: 5
@@ -239,11 +249,13 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
 
   const sealSection = page.locator("[data-gc-seal-market]");
   await expect(sealSection).toBeVisible();
-  await expect(sealSection).toContainText("よく売れる交換品を優先する");
+  await expect(sealSection).toContainText("300個出す前提で、売れ筋順に比較");
+  await expect(sealSection.locator(".gc-seal-table")).toBeVisible();
   await expect(sealSection).toContainText("コークス");
-  await expect(sealSection).toContainText("よく売れるのでこれ");
-  await expect(sealSection).toContainText("4,100ギル");
-  await expect(sealSection).toContainText("28.4個");
+  await expect(sealSection).toContainText("300個向け1位");
+  await expect(sealSection).toContainText("852.3個");
+  await expect(sealSection).toContainText("約0.35日");
+  await expect(sealSection).toContainText("1,240G");
 
   await page.evaluate(() => {
     const file = new File([new Uint8Array([1, 2, 3, 4])], "gc.png", { type: "image/png" });
@@ -260,15 +272,26 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect(page.locator("[data-gc-content]")).toContainText("E2E貼付納品薬");
   await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 1");
 
-  await expect(page.locator("[data-gc-content]")).toContainText("今日の納品一覧");
-  await expect(page.locator("[data-gc-content]")).toContainText("マケボで買う");
-  await expect(page.locator("[data-gc-content]")).toContainText("約2,800G");
-  await expect(page.locator("[data-gc-content]")).toContainText("原材料から作る");
-  await expect(page.locator("[data-gc-content]")).toContainText("約1,200G");
-  await expect(page.locator("[data-gc-content]")).toContainText("製作素材：");
-  await expect(page.locator("[data-gc-content]")).toContainText("薬草 ×4（約800G）");
-  await expect(page.locator("[data-gc-content]")).toContainText("おすすめ");
-  await expect(page.locator("[data-gc-content]")).toContainText("納品する件数・どこまでやるかは自分で決めます");
+  const deliveryTable = page.locator(".gc-delivery-table");
+  await expect(deliveryTable).toBeVisible();
+  await expect(deliveryTable).toContainText("納品品");
+  await expect(deliveryTable).toContainText("調達おすすめ");
+  await expect(deliveryTable).toContainText("原材料から全部作る");
+  await expect(deliveryTable).toContainText("約1,200G");
+  await expect(page.locator(".gc-delivery-detail-row")).toBeHidden();
+  const detailButton = page.locator(".gc-detail-toggle").first();
+  await expect(detailButton).toHaveText("詳細");
+  await detailButton.click();
+  await expect(detailButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".gc-delivery-detail-row")).toBeVisible();
+  await expect(page.locator(".gc-delivery-detail-row")).toContainText("マケボで買う");
+  await expect(page.locator(".gc-delivery-detail-row")).toContainText("約2,800G");
+  await expect(page.locator(".gc-delivery-detail-row")).toContainText("原材料から作る");
+  await expect(page.locator(".gc-delivery-detail-row")).toContainText("製作素材：");
+  await expect(page.locator(".gc-delivery-detail-row")).toContainText("薬草 ×4（約800G）");
+  await detailButton.click();
+  await expect(page.locator(".gc-delivery-detail-row")).toBeHidden();
+  await expect(page.locator("[data-gc-content]")).toContainText("一覧で選び、価格・製作素材は「詳細」で確認");
 
   await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-retainer-content]")).toBeVisible();
