@@ -5,10 +5,32 @@ import {
   sanitizeGrandCompanyAnalysis
 } from "../src/grand-company-deliveries.js";
 import { isGrandCompanyWorkflowContext } from "../src/grand-company-wrapper.js";
+import {
+  genericPayloadForCachedAnalysis,
+  sameJsonValue
+} from "../src/gc-misclassification-cleanup-wrapper.js";
 
 assert.equal(isGrandCompanyWorkflowContext("grand-company"), true);
 assert.equal(isGrandCompanyWorkflowContext(" plan "), false);
 assert.equal(isGrandCompanyWorkflowContext("journal"), false);
+
+const cachedJournal = {
+  page_type: "journal",
+  confidence: 0.82,
+  model: "test-model",
+  journal_entries: [{ title: "誤分類された納品行", confidence: 0.8 }],
+  crafter_stats: null,
+  gatherer_stats: null
+};
+const storedJournal = {
+  gatherer_stats: null,
+  model: "test-model",
+  page_type: "journal",
+  journal_entries: [{ confidence: 0.8, title: "誤分類された納品行" }],
+  crafter_stats: null
+};
+assert.equal(sameJsonValue(genericPayloadForCachedAnalysis(cachedJournal), storedJournal), true);
+assert.equal(sameJsonValue(genericPayloadForCachedAnalysis(cachedJournal), { ...storedJournal, model: "different" }), false);
 
 const analysis = sanitizeGrandCompanyAnalysis({
   recognized: true,
