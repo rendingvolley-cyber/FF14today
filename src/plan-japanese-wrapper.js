@@ -1,8 +1,5 @@
-import app from "./gc-market-fallback-wrapper.js";
-
 const LEVE_LOCALIZATION = Object.freeze({
   "craft:alc90:leve:ginseng-angle-brush": Object.freeze({
-    itemName: "ウコギ・アングルブラシ",
     title: "ギルドリーヴ用「ウコギ・アングルブラシ」をHQで1個作る",
     reason: "トライヨラのLv90錬金術師ギルドリーヴの納品物。1個納品で2,695,430 EXP＋約5,060ギル、HQ納品なら報酬が増えるため、目的のない製作より優先します。",
     condition: "目的：錬金術師の経験値をリーヴ1枚で大きく進める。トライヨラのギルドリーヴ発行NPC（X:13.7 Y:12.7）で受注・納品します。",
@@ -15,7 +12,6 @@ const LEVE_LOCALIZATION = Object.freeze({
     ])
   }),
   "craft:alc90:leve:growth-formula-lambda": Object.freeze({
-    itemName: "グロースフォーミュラ・ラムダ",
     title: "ギルドリーヴ用「グロースフォーミュラ・ラムダ」をHQで3個作る",
     reason: "トライヨラのLv90錬金術師ギルドリーヴの納品物。3個納品で1,440,660 EXP＋約2,530ギル。ウコギ・アングルブラシよりEXP効率は低いものの、材料構成が単純な代替案です。",
     condition: "目的：リーヴ納品で錬金術師経験値を確実に進める。トライヨラのギルドリーヴ発行NPC（X:13.7 Y:12.7）で受注・納品します。",
@@ -75,39 +71,3 @@ export function localizeGuildlevePlan(plan) {
     notice: replaceEnglishLeveText(plan.notice)
   };
 }
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff"
-    }
-  });
-}
-
-async function localizePlanResponse(response) {
-  if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
-  let data;
-  try { data = await response.clone().json(); }
-  catch { return response; }
-  if (data?.plan) data.plan = localizeGuildlevePlan(data.plan);
-  if (data && typeof data === "object" && data.version && !data.plan) {
-    data.guildleve_labels_locale = "ja";
-  }
-  return json(data, response.status);
-}
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const response = await app.fetch(request, env);
-    if ((url.pathname === "/api/plan" && request.method === "POST") ||
-        (url.pathname === "/api/state" && request.method === "GET") ||
-        (url.pathname === "/api/health" && request.method === "GET")) {
-      return localizePlanResponse(response);
-    }
-    return response;
-  }
-};
