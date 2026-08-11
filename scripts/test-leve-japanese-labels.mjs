@@ -1,8 +1,41 @@
 import assert from "node:assert/strict";
 import worker from "../src/leve-cost-wrapper.js";
+import { localizeGuildlevePlan } from "../src/plan-japanese-wrapper.js";
 
 const ITEM_IDS = [41856, 36238, 44019, 44058, 36239, 13, 12, 36165, 36260, 36263, 44014, 10, 44053, 36241, 11, 36257, 36258];
 const japanese = Object.fromEntries(ITEM_IDS.map(id => [id, `日本語アイテム${id}`]));
+
+const localizedPlan = localizeGuildlevePlan({
+  notice: "Big Brush, Big Dreams / Fast-forwarding Flora",
+  methods: [
+    {
+      task_key: "craft:alc90:leve:ginseng-angle-brush",
+      job_name: "錬金術師",
+      job_level: 90,
+      title: "ギルドリーヴ用「Ginseng Angle Brush」をHQで1個作る",
+      reason: "Tuliyollal / Big Brush, Big Dreams",
+      condition: "Malihali",
+      steps: ["Ginseng Angle Brush"]
+    },
+    {
+      task_key: "craft:alc90:leve:growth-formula-lambda",
+      job_name: "錬金術師",
+      job_level: 90,
+      title: "ギルドリーヴ用「Growth Formula Lambda」をHQで3個作る",
+      reason: "Tuliyollal / Fast-forwarding Flora",
+      condition: "Malihali",
+      steps: ["Growth Formula Lambda"]
+    }
+  ]
+});
+const localizedText = JSON.stringify(localizedPlan);
+assert.match(localizedText, /ウコギ・アングルブラシ/);
+assert.match(localizedText, /グロースフォーミュラ・ラムダ/);
+assert.match(localizedText, /トライヨラ/);
+assert.match(localizedText, /ギルドリーヴ発行NPC/);
+for (const forbidden of ["Ginseng Angle Brush", "Growth Formula Lambda", "Big Brush, Big Dreams", "Fast-forwarding Flora", "Tuliyollal", "Malihali"]) {
+  assert.equal(localizedText.includes(forbidden), false, `English guildleve label leaked: ${forbidden}`);
+}
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async input => {
@@ -52,7 +85,7 @@ try {
   assert(labels.every(label => /^日本語アイテム\d+$/.test(label)), `non-Japanese fallback label found: ${labels.join(", ")}`);
   assert(!labels.includes("Ginseng Angle Brush"));
   assert(!labels.includes("Enchanted Manganese Ink"));
-  console.log("leve Japanese item labels: ok");
+  console.log("leve Japanese item and plan labels: ok");
 } finally {
   globalThis.fetch = originalFetch;
 }
