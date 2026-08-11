@@ -1,4 +1,4 @@
-import app from "./category-job-focus-wrapper.js";
+import app from "./retainer-level-band-wrapper.js";
 import {
   rebuildDiscoverTaskBoardPlan,
   rebuildEfficientTaskBoardPlan
@@ -144,7 +144,7 @@ async function rewriteRetainerRecommendations(response) {
   if (!data?.setup_required) return response;
   return json({
     ...data,
-    message: "貼る画面：リテイナーを1人開く → ベンチャー → 調達依頼 → アイテム候補が複数行並ぶ画面。複数リテイナーが並ぶ『リテイナー一覧』画面だけでは派遣アイテムを判定できません。"
+    message: "リテイナー一覧（名前・ジョブ/クラス・Lvが見える画面）を1枚貼ってください。Lv帯から派遣可能品を自動で絞り、市場比較します。調達依頼の候補ページを何枚も貼る必要はありません。"
   }, response.status);
 }
 
@@ -209,7 +209,8 @@ export default {
         ...data,
         task_board_variety_recovery: true,
         daily_roulette_history_suppression: true,
-        retainer_workflow_direct_parser: true
+        retainer_workflow_direct_parser: true,
+        retainer_overview_level_band: true
       }, response.status);
     }
     return response;
