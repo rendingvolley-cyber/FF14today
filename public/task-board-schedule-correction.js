@@ -1,4 +1,5 @@
 const PREP_MINUTES = 7;
+const FOCUS_FLOW_PREFIX = "ff14_today_focus_flow_v1_";
 
 function toMinutes(clock) {
   const match = String(clock || "").match(/^(\d{1,2}):(\d{2})$/);
@@ -15,6 +16,28 @@ function clockFromMinutes(value) {
   const hours = Math.floor(normalized / 60);
   const minutes = normalized % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function japanDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function hasActiveFocusFlow(storage = typeof localStorage !== "undefined" ? localStorage : null, date = new Date()) {
+  if (!storage) return false;
+  try {
+    const raw = storage.getItem(`${FOCUS_FLOW_PREFIX}${japanDateKey(date)}`);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Boolean(parsed?.active?.title && Number(parsed?.active?.startedAt) > 0);
+  } catch {
+    return false;
+  }
 }
 
 export function correctedPreparationRange(timedRange, prepMinutes = PREP_MINUTES) {
@@ -49,6 +72,12 @@ export function correctPreparationRows(root = typeof document !== "undefined" ? 
   return corrected;
 }
 
+export function activateNowLayout(root = typeof document !== "undefined" ? document : null) {
+  if (!root?.body) return false;
+  root.body.classList.add("task-board-now-active");
+  return true;
+}
+
 function promoteTaskBoard(root = document) {
   if (!root?.body || root.getElementById("taskBoardPrimaryStyles")) return;
   const style = root.createElement("style");
@@ -58,9 +87,13 @@ function promoteTaskBoard(root = document) {
     body.task-board-primary .mode-picker,
     body.task-board-primary #planButton { display: none !important; }
     body.task-board-primary #planner { padding-bottom: 10px; }
+    body.task-board-primary:not(.task-board-now-active) #nowPanel { display: none !important; }
+    body.task-board-primary.task-board-now-active #nowPanel .method-alternative,
+    body.task-board-primary.task-board-now-active #nowPanel .methods-help { display: none !important; }
   `;
   root.head.append(style);
   root.body.classList.add("task-board-primary");
+  if (hasActiveFocusFlow()) activateNowLayout(root);
 }
 
 let queued = false;
@@ -70,16 +103,19 @@ function queueCorrection() {
   requestAnimationFrame(() => {
     queued = false;
     correctPreparationRows();
+    if (hasActiveFocusFlow()) activateNowLayout(document);
   });
 }
 
 if (typeof document !== "undefined") {
   promoteTaskBoard(document);
-  for (const eventName of ["click", "change"]) {
-    document.addEventListener(eventName, event => {
-      if (event.target?.closest?.("#taskBoard")) queueCorrection();
-    });
-  }
+  document.addEventListener("click", event => {
+    if (event.target?.closest?.(".task-now-button")) activateNowLayout(document);
+    if (event.target?.closest?.("#taskBoard")) queueCorrection();
+  }, true);
+  document.addEventListener("change", event => {
+    if (event.target?.closest?.("#taskBoard")) queueCorrection();
+  });
   for (const delay of [100, 500, 1500]) setTimeout(queueCorrection, delay);
   setInterval(queueCorrection, 30000);
 }
