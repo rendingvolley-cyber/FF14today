@@ -1,4 +1,5 @@
 import app from "./gc-supply-duty-entry.js";
+import { retainerJobCode } from "./retainer-level-band.js";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -32,6 +33,12 @@ function clampConfidence(value) {
 function nullableInt(value) {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 && n <= 100 ? n : null;
+}
+
+function hasUsableOverview(analysis) {
+  const rows = analysis?.retainer_overview?.retainers;
+  if (analysis?.page_type !== "retainer_overview" || !Array.isArray(rows) || !rows.length) return false;
+  return rows.every(row => retainerJobCode(row?.job_name) && nullableInt(row?.level) !== null);
 }
 
 async function sha256Hex(value) {
@@ -200,7 +207,7 @@ export default {
     if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
     let data;
     try { data = await response.clone().json(); } catch { return response; }
-    if (data?.analysis?.page_type === "retainer_overview" && data?.analysis?.retainer_overview?.retainers?.length) return response;
+    if (hasUsableOverview(data?.analysis)) return response;
 
     const analysis = await analyzeIconOverview(env, input.file, input.bytes);
     if (!analysis) return response;
