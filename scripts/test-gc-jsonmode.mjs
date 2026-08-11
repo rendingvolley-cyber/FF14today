@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mergeGcPagePayloads, nextGcPageKind, normalizeGcPageKind } from "../src/gc-two-page.js";
+import {
+  gcAnalysisBudgetToken,
+  mergeGcPagePayloads,
+  nextGcPageKind,
+  normalizeGcPageKind
+} from "../src/gc-two-page.js";
 
 const source = readFileSync(new URL("../src/gc-jsonmode-core-wrapper.js", import.meta.url), "utf8");
 const pageWrapper = readFileSync(new URL("../src/gc-jsonmode-wrapper.js", import.meta.url), "utf8");
@@ -23,6 +28,13 @@ assert.match(pageWrapper, /grand_company_delivery_pages/);
 assert.match(pageWrapper, /PRIMARY KEY \(profile_hash, delivery_date, page_kind\)/);
 assert.match(pageWrapper, /crafting_deliveries/);
 assert.match(pageWrapper, /gathering_deliveries/);
+assert.match(pageWrapper, /requestWithGcBudgetToken/);
+assert.match(pageWrapper, /gcAnalysisBudgetToken/);
+assert.doesNotMatch(
+  pageWrapper,
+  /if \(!pages\.crafting && !pages\.gathering\) return app\.fetch/,
+  "empty two-page state must not fall back to stale legacy one-page deliveries"
+);
 assert.match(contextWrapper, /gc_page_kind/);
 assert.match(twoPageUi, /製作一覧（軍需品調達）/);
 assert.match(twoPageUi, /採集一覧（補給品調達）/);
@@ -34,6 +46,17 @@ assert.equal(normalizeGcPageKind("other"), null);
 assert.equal(nextGcPageKind({}, null), "crafting");
 assert.equal(nextGcPageKind({ crafting: true, gathering: false }, null), "gathering");
 assert.equal(nextGcPageKind({ crafting: true, gathering: true }, "gathering"), "gathering");
+
+const profileToken = "A".repeat(43);
+const craftingBudgetToken = gcAnalysisBudgetToken(profileToken, "crafting");
+const gatheringBudgetToken = gcAnalysisBudgetToken(profileToken, "gathering");
+assert.match(craftingBudgetToken, /^[A-Za-z0-9_-]{43,128}$/);
+assert.match(gatheringBudgetToken, /^[A-Za-z0-9_-]{43,128}$/);
+assert.notEqual(craftingBudgetToken, profileToken, "GC analysis must not consume the generic profile budget namespace");
+assert.notEqual(gatheringBudgetToken, profileToken, "GC analysis must not consume the generic profile budget namespace");
+assert.notEqual(craftingBudgetToken, gatheringBudgetToken, "crafting and gathering must have separate retry budgets");
+assert.equal(gcAnalysisBudgetToken("short", "crafting"), null);
+assert.equal(gcAnalysisBudgetToken(profileToken, "other"), null);
 
 const merged = mergeGcPagePayloads({
   crafting: { deliveries: [{ row_index: 0, item_name: "製作品A" }, { row_index: 1, item_name: "製作品B" }] },

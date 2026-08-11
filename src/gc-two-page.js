@@ -5,6 +5,14 @@ export function normalizeGcPageKind(value) {
   return GC_PAGE_KINDS.includes(kind) ? kind : null;
 }
 
+export function gcAnalysisBudgetToken(token, kind) {
+  const base = String(token || "").trim();
+  const pageKind = normalizeGcPageKind(kind);
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(base) || !pageKind) return null;
+  const suffix = pageKind === "crafting" ? "_gc_crafting" : "_gc_gathering";
+  return `${base.slice(0, 128 - suffix.length)}${suffix}`;
+}
+
 export function nextGcPageKind(status = {}, explicit = null) {
   const requested = normalizeGcPageKind(explicit);
   if (requested) return requested;

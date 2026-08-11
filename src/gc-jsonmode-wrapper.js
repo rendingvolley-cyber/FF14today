@@ -1,6 +1,11 @@
 import app from "./gc-jsonmode-core-wrapper.js";
 import { chooseGrandCompanyDelivery, decorateGrandCompanyDelivery } from "./grand-company-deliveries.js";
-import { mergeGcPagePayloads, nextGcPageKind, normalizeGcPageKind } from "./gc-two-page.js";
+import {
+  gcAnalysisBudgetToken,
+  mergeGcPagePayloads,
+  nextGcPageKind,
+  normalizeGcPageKind
+} from "./gc-two-page.js";
 
 let schemaReady = null;
 
@@ -112,6 +117,14 @@ async function pageKindForUpload(request, env, hash) {
   return nextGcPageKind(statusFromPages(pages), explicit);
 }
 
+function requestWithGcBudgetToken(request, kind) {
+  const token = gcAnalysisBudgetToken(request.headers.get("x-profile-token"), kind);
+  if (!token) return request;
+  const headers = new Headers(request.headers);
+  headers.set("x-profile-token", token);
+  return new Request(request, { headers });
+}
+
 async function storePage(env, hash, kind, payload, confidence) {
   await ensureSchema(env);
   const observedAt = new Date().toISOString();
@@ -181,7 +194,6 @@ async function handleGetDeliveries(request, env) {
   const hash = await profileHash(request);
   if (!hash) return app.fetch(request, env);
   const pages = await readPages(env, hash);
-  if (!pages.crafting && !pages.gathering) return app.fetch(request, env);
   return json(deliveryResponse(pages));
 }
 
@@ -189,7 +201,7 @@ async function handleGcImage(request, env) {
   const hash = await profileHash(request);
   if (!hash) return app.fetch(request, env);
   const kind = await pageKindForUpload(request, env, hash);
-  const response = await app.fetch(request, env);
+  const response = await app.fetch(requestWithGcBudgetToken(request, kind), env);
   if (!response.ok) return response;
   let data;
   try { data = await response.clone().json(); }
