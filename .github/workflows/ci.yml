@@ -52,6 +52,8 @@ jobs:
           node --check src/gc-misclassification-cleanup-wrapper.js
           node --check src/gc-seal-market.js
           node --check src/gc-seal-market-wrapper.js
+          node --check src/gc-supply-duty-recognition-wrapper.js
+          node --check src/gc-supply-duty-entry.js
           node --check public/app.js
           node --check public/choice-reasons.js
           node --check public/task-board.js

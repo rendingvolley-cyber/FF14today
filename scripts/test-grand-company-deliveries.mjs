@@ -9,10 +9,38 @@ import {
   genericPayloadForCachedAnalysis,
   sameJsonValue
 } from "../src/gc-misclassification-cleanup-wrapper.js";
+import {
+  GC_SUPPLY_DUTY_PARSER_VERSION,
+  buildSupplyDutyPrompt,
+  shouldReuseSupplyDutyCache
+} from "../src/gc-supply-duty-recognition-wrapper.js";
 
 assert.equal(isGrandCompanyWorkflowContext("grand-company"), true);
 assert.equal(isGrandCompanyWorkflowContext(" plan "), false);
 assert.equal(isGrandCompanyWorkflowContext("journal"), false);
+
+const supplyDutyPrompt = buildSupplyDutyPrompt();
+assert.match(supplyDutyPrompt, /SUPPLY DUTY/);
+assert.match(supplyDutyPrompt, /調達任務/);
+assert.match(supplyDutyPrompt, /軍需品調達/);
+assert.match(supplyDutyPrompt, /補給品調達/);
+assert.match(supplyDutyPrompt, /希少品調達/);
+assert.match(supplyDutyPrompt, /調達依頼品/);
+assert.match(supplyDutyPrompt, /調達単位/);
+assert.match(supplyDutyPrompt, /報酬軍票/);
+assert.match(supplyDutyPrompt, /所持数/);
+assert.match(supplyDutyPrompt, /会社名が見えないことを理由に recognized=false にしない/);
+assert.match(supplyDutyPrompt, /アイコンだけからジョブ名を推測してはいけません/);
+
+assert.equal(shouldReuseSupplyDutyCache(null), false);
+assert.equal(shouldReuseSupplyDutyCache({ page_type: "unknown" }), false, "old failed cache must be reparsed after parser upgrade");
+assert.equal(shouldReuseSupplyDutyCache({
+  page_type: "unknown",
+  parser_version: GC_SUPPLY_DUTY_PARSER_VERSION
+}), true, "current parser failures may be reused without burning the image budget repeatedly");
+assert.equal(shouldReuseSupplyDutyCache({
+  page_type: "grand_company_deliveries"
+}), true, "already-recognized GC evidence must remain reusable across parser upgrades");
 
 const cachedJournal = {
   page_type: "journal",
