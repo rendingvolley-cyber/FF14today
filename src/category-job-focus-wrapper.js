@@ -53,17 +53,6 @@ async function rewritePlanResponse(response, env, options) {
   return json(data, response.status);
 }
 
-function rewriteHtml(response) {
-  if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
-  return new HTMLRewriter()
-    .on("head", {
-      element(element) {
-        element.append('<script src="/category-job-switcher.js"></script>', { html: true });
-      }
-    })
-    .transform(response);
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -93,9 +82,6 @@ export default {
       try { data = await response.clone().json(); }
       catch { return response; }
       return json({ ...data, category_job_focus: true, category_job_focus_version: "v1" }, response.status);
-    }
-    if (request.method === "GET" && (response.headers.get("content-type") || "").includes("text/html")) {
-      return rewriteHtml(response);
     }
     return response;
   }
