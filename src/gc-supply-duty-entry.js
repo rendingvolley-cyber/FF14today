@@ -1,3 +1,3 @@
-import app from "./gc-jsonmode-wrapper.js";
+import app from "./gc-delivery-cost-wrapper.js";
 
 export default app;
