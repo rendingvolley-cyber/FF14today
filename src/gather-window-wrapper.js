@@ -69,6 +69,83 @@ function rewardText(level) {
     : `収集価値1000で EXP 1,110,780＋紫貨22（Lv${level}→次Lv必要EXPの約${pct}%）`;
 }
 
+function minerFromCharacter(character) {
+  return (character?.jobs || []).find(job => job?.code === "MIN" && Number(job?.level) >= 81) || null;
+}
+
+function recoveredMinerMethods(job) {
+  const level = Number(job.level);
+  const name = job.name_ja || "採掘師";
+  const common = {
+    daily_key: null,
+    job_code: "MIN",
+    job_name: name,
+    job_level: level,
+    job_role: job.role || "gatherer",
+    repeat_count: 0
+  };
+  return [
+    {
+      ...common,
+      rank: 1,
+      task_key: AMETRINE_KEY,
+      badge: "時間限定・次窓あり",
+      title: "ラヴィリンソスで「収集用のアメトリン原石」を1回採って納品する",
+      minutes: 20,
+      reason: "Lv81から扱える時間限定の採掘収集品。時間窓に入る場合は、経験値とギャザラースクリップ紫貨を同時に進められます。",
+      condition: "目的：時間限定ノードを逃さず、採掘師の経験値と紫貨を同時に得る。",
+      steps: [
+        `${name}（Lv${level}）へジョブチェンジ`,
+        "ラヴィリンソス「アルケイオン保管院」方面へ移動",
+        "プシケ送風塔（X:32.5 Y:21.2付近）へ移動",
+        "ET 00:00-02:00 または 12:00-14:00 に「収集用のアメトリン原石」を採集",
+        "収集品取引窓口へ納品して「✓ 完了！」"
+      ]
+    },
+    {
+      ...common,
+      rank: 2,
+      task_key: DURIUM_KEY,
+      badge: "いつでも採れる収集品",
+      title: "サベネア島で「収集用の輝翠銀鉱」を1回採って納品する",
+      minutes: 15,
+      reason: "Lv81から扱える常設の採掘収集品。時間窓待ちが不要で、今すぐ採掘師の経験値とギャザラースクリップ紫貨を進められます。",
+      condition: "目的：待ち時間なしで採掘師の経験値と紫貨を確実に積む。",
+      steps: [
+        `${name}（Lv${level}）へジョブチェンジ`,
+        "サベネア島「グレートワーク」へテレポ",
+        "Lv85採掘ポイント（X:17.2 Y:19.2付近）へ移動",
+        "「収集用の輝翠銀鉱」を収集品として1回採集",
+        "収集品取引窓口へ納品して「✓ 完了！」"
+      ]
+    }
+  ];
+}
+
+export function recoverGatherPlan(plan, character) {
+  if (!plan || plan.selected_mode !== "gather") return plan;
+  if (!plan.session_complete || (Array.isArray(plan.methods) && plan.methods.length)) return plan;
+  const miner = minerFromCharacter(character);
+  if (!miner) return plan;
+  const methods = recoveredMinerMethods(miner);
+  return {
+    ...plan,
+    planner_kind: "gather-recovered-v1.5.2",
+    session_complete: false,
+    notice: "採集候補が空になっていたため、解放済みの採掘師から確定済みの収集品候補を復元しました。",
+    focus_job: {
+      code: "MIN",
+      name: miner.name_ja || "採掘師",
+      level: Number(miner.level),
+      role: miner.role || "gatherer"
+    },
+    methods,
+    now: { ...methods[0] },
+    next: { title: methods[1].title, minutes: methods[1].minutes, reason: methods[1].reason },
+    deferred_task: null
+  };
+}
+
 function localizeRegularMethod(method) {
   if (method?.task_key !== DURIUM_KEY) return method;
   return {
@@ -189,7 +266,7 @@ async function rewritePlanResponse(response, nowMs = Date.now()) {
   let data;
   try { data = await response.clone().json(); }
   catch { return response; }
-  if (data?.plan) data.plan = updatePlan(data.plan, nowMs);
+  if (data?.plan) data.plan = updatePlan(recoverGatherPlan(data.plan, data.character), nowMs);
   return json(data, response.status);
 }
 
@@ -205,7 +282,7 @@ export default {
       let data;
       try { data = await response.clone().json(); }
       catch { return response; }
-      return json({ ...data, version: "1.5.1", gather_checklist_planner: true }, response.status);
+      return json({ ...data, version: "1.5.2", gather_checklist_planner: true, gather_empty_recovery: true }, response.status);
     }
     return response;
   }
