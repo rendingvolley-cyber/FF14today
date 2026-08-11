@@ -80,15 +80,20 @@ const workflowSource = readFileSync(new URL("../src/retainer-workflow-image.js",
 const wrapperSource = readFileSync(new URL("../src/retainer-level-band-wrapper.js", import.meta.url), "utf8");
 const recoverySource = readFileSync(new URL("../src/task-board-recovery-wrapper.js", import.meta.url), "utf8");
 const inboxSource = readFileSync(new URL("../public/context-inbox-core.js", import.meta.url), "utf8");
+const inboxEntrySource = readFileSync(new URL("../public/context-inbox.js", import.meta.url), "utf8");
 const dailySource = readFileSync(new URL("../public/task-board-daily-checks.js", import.meta.url), "utf8");
+const appSource = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
 assert.doesNotMatch(workflowSource, /responseJsonSchema/, "retainer overview must stay JSON-mode only");
 assert.match(workflowSource, /この一覧だけで十分/);
 assert.match(wrapperSource, /fetchRetainerLevelBandCandidates/);
 assert.match(wrapperSource, /retainer_level_band/);
 assert.match(recoverySource, /retainer-level-band-wrapper\.js/);
 assert.match(inboxSource, /リテイナー一覧（名前・ジョブ\/クラス・Lvが見える画面）/);
-assert.match(dailySource, /dailyLeveling/);
-assert.match(dailySource, /dailyAlliance/);
+assert.match(inboxEntrySource, /task-board-daily-checks\.js/);
+assert.match(appSource, /dailyLeveling/);
+assert.match(appSource, /dailyAlliance/);
+assert.match(dailySource, /dailyChecklist/);
+assert.match(dailySource, /今日の戦闘日課/);
 assert.doesNotMatch(dailySource, /MutationObserver/);
 
 console.log("retainer overview level-band and task-board daily checks: ok");
