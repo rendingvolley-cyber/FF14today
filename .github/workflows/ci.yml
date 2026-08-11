@@ -37,6 +37,11 @@ jobs:
           node --check src/grounded-discovery-wrapper.js
           node --check src/retainer-market-wrapper.js
           node --check src/retainer-first-wrapper.js
+          node --check src/retainer-workflow-image.js
+          node --check src/retainer-level-band.js
+          node --check src/retainer-level-band-wrapper.js
+          node --check src/task-board-recovery.js
+          node --check src/task-board-recovery-wrapper.js
           node --check src/grand-company-deliveries.js
           node --check src/grand-company-wrapper.js
           node --check src/inventory-context.js
@@ -62,9 +67,12 @@ jobs:
           node --check public/task-board.js
           node --check public/task-board-v2.js
           node --check public/task-board-schedule-correction.js
+          node --check public/task-board-daily-checks.js
           node --check public/context-inbox.js
+          node --check public/context-inbox-core.js
           node --check public/gather-checklist.js
           node --check public/retainer-advice.js
+          node --check public/retainer-level-band-ui.js
           node --check public/grand-company-routine.js
           node --check public/gc-seal-market.js
           node --check public/combat-job-switcher.js
@@ -80,12 +88,14 @@ jobs:
           node --check scripts/test-leve-japanese-labels.mjs
           node --check scripts/test-task-board-schedule.mjs
           node --check scripts/test-category-job-focus.mjs
+          node --check scripts/test-retainer-level-band.mjs
           node --check scripts/playwright.config.mjs
           node --check scripts/e2e/focus-flow-boot.spec.mjs
           node --check scripts/e2e/dynamic-leve-cost.spec.mjs
           node --check scripts/e2e/task-board-schedule.spec.mjs
           node --check scripts/e2e/routine-tribe-and-timed-zero.spec.mjs
           node --check scripts/e2e/category-job-switcher.spec.mjs
+          node --check scripts/e2e/task-board-variety-and-retainer-guidance.spec.mjs
       - name: Context planning rules
         run: node scripts/test-context-opportunities.mjs
       - name: Measurable motive rules
@@ -98,6 +108,8 @@ jobs:
         run: node scripts/test-combat-job-focus.mjs
       - name: Category job focus rules
         run: node scripts/test-category-job-focus.mjs
+      - name: Retainer level-band rules
+        run: node scripts/test-retainer-level-band.mjs
       - name: Tribe leveling guide rules
         run: node scripts/test-tribe-leveling-guide.mjs
       - name: Focus flow rules
