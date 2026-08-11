@@ -57,21 +57,28 @@ test("discover catalog restores normal fishing and other choices", () => {
   expect(plan.methods.some(row => row.task_key === "discover:gold-saucer-gate")).toBeTruthy();
 });
 
-test("retainer overview is guidance, not a hard error", () => {
+test("retainer overview supplies job and level rows for level-band lookup", () => {
   const overview = sanitizeRetainerWorkflowAnalysis({
     screen_type: "retainer_overview",
     confidence: 0.96,
+    retainers: [
+      { retainer_name: "Retainer A", job_name: "戦士", level: 92, confidence: 0.96 },
+      { retainer_name: "Retainer B", job_name: "採掘師", level: 87, confidence: 0.94 }
+    ],
     retainer_name: null,
     job_name: null,
     level: null,
     ventures: []
   });
   expect(overview.page_type).toBe("retainer_overview");
+  expect(overview.retainer_overview.retainers).toHaveLength(2);
+  expect(overview.retainer_overview.retainers[0]).toMatchObject({ job_name: "戦士", level: 92 });
   expect(overview.retainer_ventures).toBeNull();
 
   const ventureList = sanitizeRetainerWorkflowAnalysis({
     screen_type: "venture_item_list",
     confidence: 0.94,
+    retainers: [],
     retainer_name: "Retainer A",
     job_name: "採掘師",
     level: 100,

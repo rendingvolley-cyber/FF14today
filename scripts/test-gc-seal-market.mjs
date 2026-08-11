@@ -30,51 +30,11 @@ assert.equal(fast.velocity_floor_pass, true);
 assert.equal(fast.efficiency_floor_pass, true);
 
 const ranked = rankSealExchangeRows([
-  {
-    item_name: "高いが300個には遅い品",
-    seal_cost: 200,
-    exchange_quantity: 1,
-    average_sale_price: 30000,
-    daily_sale_velocity: 50,
-    listed_quantity: 10,
-    listing_rows_sampled: 10
-  },
-  {
-    item_name: "激安だが超高速",
-    seal_cost: 200,
-    exchange_quantity: 1,
-    average_sale_price: 50,
-    daily_sale_velocity: 1500,
-    listed_quantity: 100,
-    listing_rows_sampled: 30
-  },
-  {
-    item_name: "最速の実用品",
-    seal_cost: 200,
-    exchange_quantity: 1,
-    average_sale_price: 248,
-    daily_sale_velocity: 852.3,
-    listed_quantity: 4432,
-    listing_rows_sampled: 90
-  },
-  {
-    item_name: "高単価の次点",
-    seal_cost: 200,
-    exchange_quantity: 1,
-    average_sale_price: 900,
-    daily_sale_velocity: 300,
-    listed_quantity: 300,
-    listing_rows_sampled: 60
-  },
-  {
-    item_name: "ぎりぎり300個向き",
-    seal_cost: 200,
-    exchange_quantity: 1,
-    average_sale_price: 400,
-    daily_sale_velocity: 100,
-    listed_quantity: 100,
-    listing_rows_sampled: 20
-  }
+  { item_name: "高いが300個には遅い品", seal_cost: 200, exchange_quantity: 1, average_sale_price: 30000, daily_sale_velocity: 50, listed_quantity: 10, listing_rows_sampled: 10 },
+  { item_name: "激安だが超高速", seal_cost: 200, exchange_quantity: 1, average_sale_price: 50, daily_sale_velocity: 1500, listed_quantity: 100, listing_rows_sampled: 30 },
+  { item_name: "最速の実用品", seal_cost: 200, exchange_quantity: 1, average_sale_price: 248, daily_sale_velocity: 852.3, listed_quantity: 4432, listing_rows_sampled: 90 },
+  { item_name: "高単価の次点", seal_cost: 200, exchange_quantity: 1, average_sale_price: 900, daily_sale_velocity: 300, listed_quantity: 300, listing_rows_sampled: 60 },
+  { item_name: "ぎりぎり300個向き", seal_cost: 200, exchange_quantity: 1, average_sale_price: 400, daily_sale_velocity: 100, listed_quantity: 100, listing_rows_sampled: 20 }
 ]);
 assert.equal(ranked.length, 3, "slow or extremely cheap candidates must be excluded from the 300-item list");
 assert.equal(ranked[0].item_name, "最速の実用品", "qualifying candidates must be ordered primarily by daily sales velocity");
@@ -88,6 +48,7 @@ assert.equal(ranked[2].estimated_days_to_sell_batch, 3);
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
 const fallbackWrapper = readFileSync(new URL("../src/gc-market-fallback-wrapper.js", import.meta.url), "utf8");
 const categoryJobWrapper = readFileSync(new URL("../src/category-job-focus-wrapper.js", import.meta.url), "utf8");
+const retainerBandWrapper = readFileSync(new URL("../src/retainer-level-band-wrapper.js", import.meta.url), "utf8");
 const recoveryWrapper = readFileSync(new URL("../src/task-board-recovery-wrapper.js", import.meta.url), "utf8");
 const sealWrapper = readFileSync(new URL("../src/gc-seal-market-wrapper.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
@@ -97,7 +58,8 @@ assert.match(costWrapper, /buildDynamicLeveCostAdvice/);
 assert.match(costWrapper, /decision_owner:\s*"user"/);
 assert.match(costWrapper, /listing_quantity_curve/);
 assert.match(entry, /task-board-recovery-wrapper\.js/);
-assert.match(recoveryWrapper, /category-job-focus-wrapper\.js/);
+assert.match(recoveryWrapper, /retainer-level-band-wrapper\.js/);
+assert.match(retainerBandWrapper, /category-job-focus-wrapper\.js/);
 assert.match(categoryJobWrapper, /gc-market-fallback-wrapper\.js/);
 assert.match(fallbackWrapper, /gc-delivery-cost-wrapper\.js/);
 assert.match(fallbackWrapper, /marketCostFromListings/);
@@ -113,4 +75,4 @@ assert.match(gcUi, /300個出す前提で、売れ筋順に比較/);
 assert.match(gcUi, /data-gc-delivery-item/);
 assert.match(gcUi, /button\.textContent = "詳細"/);
 
-console.log("GC table UI, task board recovery chain, market fallback chain, and 300-item seal sell-through ranking: ok");
+console.log("GC table UI, task board recovery, retainer-level-band, market fallback, and 300-item seal sell-through ranking: ok");

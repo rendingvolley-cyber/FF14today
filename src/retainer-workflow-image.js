@@ -19,6 +19,10 @@ function normalizeText(value, max = 240) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+function normalizeKey(value) {
+  return normalizeText(value, 300).normalize("NFKC").toLocaleLowerCase("ja-JP");
+}
+
 function nullableInt(value) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
@@ -28,10 +32,6 @@ function nullableInt(value) {
 function clampConfidence(value) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
-}
-
-function normalizeKey(value) {
-  return normalizeText(value, 300).normalize("NFKC").toLocaleLowerCase("ja-JP");
 }
 
 function arrayBufferToBase64(buffer) {
@@ -145,42 +145,20 @@ async function reserveBudget(env, profileHash) {
   ]);
 }
 
-function schema() {
-  return {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      screen_type: { type: "string", enum: ["venture_item_list", "retainer_overview", "other"] },
-      confidence: { type: "number", minimum: 0, maximum: 1 },
-      retainer_name: { type: ["string", "null"] },
-      job_name: { type: ["string", "null"] },
-      level: { type: ["integer", "null"] },
-      ventures: {
-        type: "array",
-        maxItems: 30,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            item_name: { type: "string" },
-            quantity: { type: ["integer", "null"] },
-            venture_level: { type: ["integer", "null"] },
-            duration_minutes: { type: ["integer", "null"] },
-            confidence: { type: "number", minimum: 0, maximum: 1 }
-          },
-          required: ["item_name", "quantity", "venture_level", "duration_minutes", "confidence"]
-        }
-      }
-    },
-    required: ["screen_type", "confidence", "retainer_name", "job_name", "level", "ventures"]
-  };
+function sanitizeOverviewRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .slice(0, 20)
+    .map(row => ({
+      retainer_name: normalizeText(row?.retainer_name, 100),
+      job_name: normalizeText(row?.job_name, 80),
+      level: nullableInt(row?.level),
+      confidence: clampConfidence(row?.confidence)
+    }))
+    .filter(row => row.job_name && row.level !== null && row.confidence >= 0.6);
 }
 
-export function sanitizeRetainerWorkflowAnalysis(parsed, model = "test") {
-  const screenType = ["venture_item_list", "retainer_overview", "other"].includes(parsed?.screen_type)
-    ? parsed.screen_type
-    : "other";
-  const ventures = (Array.isArray(parsed?.ventures) ? parsed.ventures : [])
+function sanitizeVentures(rows) {
+  return (Array.isArray(rows) ? rows : [])
     .slice(0, 30)
     .map(entry => ({
       item_name: normalizeText(entry?.item_name, 160),
@@ -190,11 +168,34 @@ export function sanitizeRetainerWorkflowAnalysis(parsed, model = "test") {
       confidence: clampConfidence(entry?.confidence)
     }))
     .filter(entry => entry.item_name && entry.confidence >= 0.65);
+}
+
+export function sanitizeRetainerWorkflowAnalysis(parsed, model = "test") {
+  const screenType = ["venture_item_list", "retainer_overview", "other"].includes(parsed?.screen_type)
+    ? parsed.screen_type
+    : "other";
+  const overview = sanitizeOverviewRows(parsed?.retainers);
+  const ventures = sanitizeVentures(parsed?.ventures);
+
+  if (screenType === "retainer_overview" && overview.length) {
+    return {
+      page_type: "retainer_overview",
+      confidence: clampConfidence(parsed?.confidence),
+      model,
+      retainer_overview: { retainers: overview },
+      retainer_ventures: null,
+      journal_entries: [],
+      crafter_stats: null,
+      gatherer_stats: null
+    };
+  }
+
   if (screenType === "venture_item_list" && ventures.length) {
     return {
       page_type: "retainer_ventures",
       confidence: clampConfidence(parsed?.confidence),
       model,
+      retainer_overview: null,
       retainer_ventures: {
         retainer_name: parsed?.retainer_name == null ? null : normalizeText(parsed.retainer_name, 100),
         job_name: parsed?.job_name == null ? null : normalizeText(parsed.job_name, 80),
@@ -206,21 +207,12 @@ export function sanitizeRetainerWorkflowAnalysis(parsed, model = "test") {
       gatherer_stats: null
     };
   }
-  if (screenType === "retainer_overview") {
-    return {
-      page_type: "retainer_overview",
-      confidence: clampConfidence(parsed?.confidence),
-      model,
-      retainer_ventures: null,
-      journal_entries: [],
-      crafter_stats: null,
-      gatherer_stats: null
-    };
-  }
+
   return {
     page_type: "unknown",
     confidence: clampConfidence(parsed?.confidence),
     model,
+    retainer_overview: null,
     retainer_ventures: null,
     journal_entries: [],
     crafter_stats: null,
@@ -236,16 +228,17 @@ async function analyze(file, bytes, env) {
   }
   const model = env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const prompt = [
-    "FINAL FANTASY XIV日本語クライアントのリテイナー画面を分類してください。",
-    "screen_type は venture_item_list / retainer_overview / other のどれかです。",
-    "venture_item_list は、1人のリテイナーを開き、ベンチャー → 調達依頼へ進んだ後に、派遣可能なアイテム名が複数行並んでいる候補一覧画面です。",
-    "retainer_overview は、複数のリテイナー名・クラス/ジョブ・レベル・現在の依頼状況などが並ぶリテイナー一覧/選択画面です。この画面だけでは派遣アイテム候補は分かりません。",
-    "other は上記以外です。",
-    "画面に見えている事実だけを抽出し、ゲーム知識で補完しないでください。",
-    "venture_item_list の場合だけ ventures に表示中の調達可能アイテムを上から入れてください。item_nameは日本語表示名そのまま。",
-    "quantity、venture_level、duration_minutesはその行に明示されている時だけ数字を入れ、見えなければnull。",
-    "retainer_overview や other の場合 ventures=[]。推測禁止です。"
+    "FINAL FANTASY XIV日本語クライアントのリテイナー画面を分類し、JSONだけ返してください。",
+    "最優先で読みたいのは retainer_overview: 複数リテイナーが並び、それぞれの名前・クラス/ジョブ・Lvが見える一覧/選択画面です。",
+    "この一覧だけで十分です。アイテム候補ページを何枚も読む必要はありません。",
+    "screen_type は retainer_overview / venture_item_list / other のどれか。",
+    "retainer_overview の場合 retainers に画面で読める各行を入れる。retainer_name, job_name, level, confidence。見えない値は推測しない。",
+    "venture_item_list は互換用。1人の調達依頼アイテム一覧なら ventures に表示中の行だけ入れる。",
+    "other は上記以外。",
+    "返却形: {\"screen_type\":\"retainer_overview\",\"confidence\":0.0,\"retainers\":[{\"retainer_name\":\"\",\"job_name\":\"\",\"level\":0,\"confidence\":0.0}],\"retainer_name\":null,\"job_name\":null,\"level\":null,\"ventures\":[]}",
+    "ゲーム知識でジョブ名やLvを補完しない。画面に見える事実だけ。"
   ].join("\n");
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -264,8 +257,7 @@ async function analyze(file, bytes, env) {
         }],
         generationConfig: {
           temperature: 0.05,
-          responseMimeType: "application/json",
-          responseJsonSchema: schema()
+          responseMimeType: "application/json"
         }
       })
     }
@@ -287,16 +279,45 @@ async function analyze(file, bytes, env) {
   return sanitizeRetainerWorkflowAnalysis(parsed, model);
 }
 
-function subjectKey(retainer) {
+function subjectKey(retainer, index = 0) {
   const name = normalizeKey(retainer?.retainer_name);
   if (name) return `name:${name}`;
-  return `job:${normalizeKey(retainer?.job_name) || "unknown"}:lv:${nullableInt(retainer?.level) ?? "unknown"}`;
+  return `overview:${index}:job:${normalizeKey(retainer?.job_name) || "unknown"}:lv:${nullableInt(retainer?.level) ?? "unknown"}`;
 }
 
-async function store(env, profileHash, analysis) {
+async function storeOverview(env, profileHash, analysis) {
+  const rows = analysis?.retainer_overview?.retainers || [];
+  if (analysis?.page_type !== "retainer_overview" || !rows.length || analysis.confidence < 0.5) return false;
+  const now = new Date().toISOString();
+  await env.DB.prepare(`DELETE FROM retainer_venture_context WHERE profile_hash=? AND source='retainer_overview'`).bind(profileHash).run();
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const payload = {
+      retainer_name: row.retainer_name || null,
+      job_name: row.job_name || null,
+      level: row.level,
+      ventures: [],
+      model: analysis.model,
+      candidate_source: "level_band"
+    };
+    await env.DB.prepare(`
+      INSERT INTO retainer_venture_context (
+        profile_hash, subject_key, payload_json, confidence, observed_at, source
+      ) VALUES (?, ?, ?, ?, ?, 'retainer_overview')
+      ON CONFLICT(profile_hash, subject_key) DO UPDATE SET
+        payload_json=excluded.payload_json,
+        confidence=excluded.confidence,
+        observed_at=excluded.observed_at,
+        source=excluded.source
+    `).bind(profileHash, subjectKey(row, index), JSON.stringify(payload), row.confidence, now).run();
+  }
+  return true;
+}
+
+async function storeVentureList(env, profileHash, analysis) {
   if (analysis?.page_type !== "retainer_ventures" || analysis.confidence < 0.6) return false;
   const incoming = analysis.retainer_ventures;
-  const key = subjectKey(incoming);
+  const key = subjectKey(incoming, 0);
   const row = await env.DB.prepare(`
     SELECT payload_json FROM retainer_venture_context
     WHERE profile_hash=? AND subject_key=? LIMIT 1
@@ -314,7 +335,8 @@ async function store(env, profileHash, analysis) {
     job_name: incoming.job_name || previous?.job_name || null,
     level: incoming.level ?? previous?.level ?? null,
     ventures: [...map.values()].slice(0, 100),
-    model: analysis.model
+    model: analysis.model,
+    candidate_source: "visible_rows"
   };
   await env.DB.prepare(`
     INSERT INTO retainer_venture_context (
@@ -368,14 +390,18 @@ export async function handleRetainerWorkflowImage(request, env) {
   const bytes = await file.arrayBuffer();
   const imageSha = await sha256Hex(bytes);
   let analysis = await cached(env, profileHash, imageSha);
-  let duplicate = Boolean(analysis);
+  const duplicate = Boolean(analysis);
   if (!analysis) {
     await reserveBudget(env, profileHash);
     analysis = await analyze(file, bytes, env);
     await cache(env, profileHash, imageSha, analysis);
   }
-  const saved = await store(env, profileHash, analysis);
-  const expectedScreen = "リテイナーを1人開く → ベンチャー → 調達依頼 → アイテム候補が複数行並ぶ画面";
+
+  const saved = analysis.page_type === "retainer_overview"
+    ? await storeOverview(env, profileHash, analysis)
+    : await storeVentureList(env, profileHash, analysis);
+  const expectedScreen = "リテイナー一覧（複数リテイナーの名前・ジョブ/クラス・Lvが見える画面）";
+  const count = analysis?.retainer_overview?.retainers?.length || 0;
   return json({
     ok: true,
     duplicate,
@@ -385,9 +411,9 @@ export async function handleRetainerWorkflowImage(request, env) {
     image_saved: false,
     expected_screen: expectedScreen,
     message: analysis.page_type === "retainer_overview"
-      ? `リテイナー一覧は確認できました。ただし派遣先比較にはアイテム候補が必要です。${expectedScreen}を貼ってください。`
+      ? `リテイナー一覧から${count}人のジョブ/クラスとLvを保存しました。各Lv帯で派遣可能な調達品をXIVAPIから絞り、市場比較を更新します。`
       : analysis.page_type === "retainer_ventures"
-        ? "調達依頼のアイテム候補を保存しました。市場比較を更新します。"
-        : `この画像から調達依頼の候補一覧を確認できませんでした。${expectedScreen}を貼ってください。`
+        ? "表示中の調達依頼も保存しました。次回からはリテイナー一覧1枚だけでLv帯から候補を作れます。"
+        : `この画像ではリテイナーのジョブ/クラスとLvを確認できませんでした。${expectedScreen}を貼ってください。`
   });
 }

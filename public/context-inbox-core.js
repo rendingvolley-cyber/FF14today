@@ -25,7 +25,7 @@ function activeWorkflowContext() {
 }
 
 function retainerExpectedScreen() {
-  return "リテイナーを1人開く → ベンチャー → 調達依頼 → アイテム候補が複数行並ぶ画面";
+  return "リテイナー一覧（名前・ジョブ/クラス・Lvが見える画面）";
 }
 
 function statSummary(analysis, workflowContext = "plan") {
@@ -34,12 +34,13 @@ function statSummary(analysis, workflowContext = "plan") {
     const first = entries[0]?.item_name ? `「${entries[0].item_name}」など` : "";
     return `今日の双蛇党納品を ${entries.length}件 ${first}読み取りました。必要数と所持数から最初の1件を決めます。`;
   }
+  if (analysis.page_type === "retainer_overview") {
+    const count = analysis?.retainer_overview?.retainers?.length || 0;
+    return `リテイナー一覧から${count}人のジョブ/クラスとLvを保存しました。Lv帯で派遣可能品を絞って市場比較します。`;
+  }
   if (analysis.page_type === "retainer_ventures" && analysis.retainer_ventures) {
     const entries = analysis.retainer_ventures.ventures || [];
-    return `リテイナー調達候補を ${entries.length}件読み取りました。市場を比較して派遣先を更新します。`;
-  }
-  if (analysis.page_type === "retainer_overview") {
-    return `リテイナー一覧は確認できました。ただし派遣アイテム候補はこの画面には出ていません。${retainerExpectedScreen()}を貼ってください。`;
+    return `表示中の調達依頼を ${entries.length}件保存しました。次回からはリテイナー一覧1枚だけでLv帯から候補を作れます。`;
   }
   if (analysis.page_type === "inventory_items" && analysis.inventory_items) {
     const relevant = analysis.inventory_items.relevant_items || [];
@@ -73,7 +74,7 @@ function statSummary(analysis, workflowContext = "plan") {
     return "双蛇党の納品一覧として認識できませんでした。納品行・必要数・所持数が見える状態で貼り直してください。";
   }
   if (workflowContext === "retainer") {
-    return `リテイナーの調達依頼候補として認識できませんでした。${retainerExpectedScreen()}を貼ってください。複数リテイナーが並ぶ一覧画面だけでは判定できません。`;
+    return `${retainerExpectedScreen()}として認識できませんでした。各リテイナーのジョブ/クラスとLvが読める状態で貼ってください。`;
   }
   return "この画像は双蛇党納品/リテイナー調達/手持ち素材/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
@@ -153,7 +154,7 @@ async function uploadImage(file) {
   const workingMessage = workflowContext === "grand-company"
     ? "画像を解析中… 双蛇党の納品一覧として読み取っています。"
     : workflowContext === "retainer"
-      ? `画像を解析中… ${retainerExpectedScreen()}か確認しています。`
+      ? `画像を解析中… ${retainerExpectedScreen()}からジョブ/クラスとLvを読み取っています。`
       : "画像を解析中… 双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績進捗・装備ステータスを自動判定しています。";
   setInboxState(workingMessage, "working");
   const box = $("contextInbox");
@@ -170,8 +171,7 @@ async function uploadImage(file) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
     const analysis = data.analysis || {};
-    const warning = analysis.page_type === "unknown" || analysis.page_type === "retainer_overview";
-    setInboxState(statSummary(analysis, workflowContext), warning ? "warning" : "success");
+    setInboxState(statSummary(analysis, workflowContext), analysis.page_type === "unknown" ? "warning" : "success");
     announceContextSaved(analysis, data);
     await loadSavedContext();
     if (data.context_saved) await refreshPlanWithoutResettingSession();
@@ -208,7 +208,7 @@ window.addEventListener("ff14today:workflow-context-changed", () => {
 $("contextInbox")?.addEventListener("click", () => {
   $("contextInbox")?.focus();
   if (activeWorkflowContext() === "retainer") {
-    setInboxState(`貼る画面：${retainerExpectedScreen()}。リテイナー一覧画面ではなく、1人を開いた後の調達依頼候補一覧です。`, "idle");
+    setInboxState(`貼る画面：${retainerExpectedScreen()}。この1枚からLv帯で派遣可能品を自動判定します。`, "idle");
     return;
   }
   setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績・装備情報を自動判定します。", "idle");
