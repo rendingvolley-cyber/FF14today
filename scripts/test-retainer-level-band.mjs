@@ -13,6 +13,7 @@ assert.equal(retainerJobCode("園芸師"), "BTN");
 assert.equal(retainerJobCode("漁師"), "FSH");
 assert.equal(retainerJobCode("RDM"), "RDM");
 assert.equal(retainerJobCode("不明"), null);
+assert.equal(retainerJobCode("feather icon"), null, "generic icon labels are not usable job identities");
 
 const url = new URL(buildRetainerTaskSearchUrl("WAR", 92));
 assert.equal(url.hostname, "v2.xivapi.com");
@@ -78,6 +79,7 @@ assert.equal(overview.retainer_overview.retainers[1].level, 87);
 
 const workflowSource = readFileSync(new URL("../src/retainer-workflow-image.js", import.meta.url), "utf8");
 const wrapperSource = readFileSync(new URL("../src/retainer-level-band-wrapper.js", import.meta.url), "utf8");
+const iconWrapperSource = readFileSync(new URL("../src/retainer-icon-hotfix-wrapper.js", import.meta.url), "utf8");
 const recoverySource = readFileSync(new URL("../src/task-board-recovery-wrapper.js", import.meta.url), "utf8");
 const inboxSource = readFileSync(new URL("../public/context-inbox-core.js", import.meta.url), "utf8");
 const inboxEntrySource = readFileSync(new URL("../public/context-inbox.js", import.meta.url), "utf8");
@@ -87,6 +89,12 @@ assert.doesNotMatch(workflowSource, /responseJsonSchema/, "retainer overview mus
 assert.match(workflowSource, /この一覧だけで十分/);
 assert.match(wrapperSource, /fetchRetainerLevelBandCandidates/);
 assert.match(wrapperSource, /retainer_level_band/);
+assert.match(wrapperSource, /market_attempted/);
+assert.match(wrapperSource, /market_checked/);
+assert.match(wrapperSource, /MAX_RECOMMENDATIONS = 2/);
+assert.match(wrapperSource, /市場比較は実行していません/);
+assert.match(iconWrapperSource, /hasUsableOverview/);
+assert.match(iconWrapperSource, /retainerJobCode\(row\?\.job_name\)/);
 assert.match(recoverySource, /retainer-level-band-wrapper\.js/);
 assert.match(inboxSource, /リテイナー一覧（名前・ジョブ\/クラス・Lvが見える画面）/);
 assert.match(inboxEntrySource, /task-board-daily-checks\.js/);
