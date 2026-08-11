@@ -81,6 +81,13 @@ function currentRoutineStep() {
   return "plan";
 }
 
+function setWorkflowContext(inbox, step) {
+  const previous = inbox.dataset.workflowContext || "";
+  inbox.dataset.workflowContext = step;
+  if (previous === step) return;
+  window.dispatchEvent(new CustomEvent("ff14today:workflow-context-changed", { detail: { step } }));
+}
+
 function placeInbox(step = currentRoutineStep()) {
   const nodes = inboxNodes();
   if (!nodes) return false;
@@ -88,7 +95,7 @@ function placeInbox(step = currentRoutineStep()) {
 
   if (step === "tribe") {
     inbox.hidden = true;
-    inbox.dataset.workflowContext = "tribe";
+    setWorkflowContext(inbox, "tribe");
     return true;
   }
 
@@ -117,7 +124,7 @@ function placeInbox(step = currentRoutineStep()) {
   if (title) title.textContent = text.title;
   if (copy) copy.textContent = text.copy;
   if (status && (!status.dataset.kind || status.dataset.kind === "idle")) status.textContent = text.idle;
-  inbox.dataset.workflowContext = step;
+  setWorkflowContext(inbox, step);
   return true;
 }
 
