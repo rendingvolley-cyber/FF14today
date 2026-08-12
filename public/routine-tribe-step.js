@@ -134,14 +134,14 @@ function ensureStep() {
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", "false");
     tab.setAttribute("aria-controls", "tribeRoutineContent");
-    tab.innerHTML = '<span class="retainer-flow-step">3</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
+    tab.innerHTML = '<span class="retainer-flow-step">2</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
     tabs.insertBefore(tab, planTab);
   }
 
   const retainerStep = retainerTab.querySelector(".retainer-flow-step");
   const planStep = planTab.querySelector(".retainer-flow-step");
   if (retainerStep) retainerStep.textContent = "2";
-  if (planStep) planStep.textContent = "4";
+  if (planStep) planStep.textContent = "3";
 
   let content = panel.querySelector("[data-tribe-content]");
   if (!content) {
