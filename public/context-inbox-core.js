@@ -24,23 +24,11 @@ function activeWorkflowContext() {
   return $("contextInbox")?.dataset.workflowContext || "plan";
 }
 
-function retainerExpectedScreen() {
-  return "リテイナー一覧（名前・ジョブ/クラス・Lvが見える画面）";
-}
-
 function statSummary(analysis, workflowContext = "plan") {
   if (analysis.page_type === "grand_company_deliveries" && analysis.grand_company_deliveries) {
     const entries = analysis.grand_company_deliveries.deliveries || [];
     const first = entries[0]?.item_name ? `「${entries[0].item_name}」など` : "";
     return `今日の双蛇党納品を ${entries.length}件 ${first}読み取りました。必要数と所持数から最初の1件を決めます。`;
-  }
-  if (analysis.page_type === "retainer_overview") {
-    const count = analysis?.retainer_overview?.retainers?.length || 0;
-    return `リテイナー一覧から${count}人のジョブ/クラスとLvを保存しました。Lv帯で派遣可能品を絞って市場比較します。`;
-  }
-  if (analysis.page_type === "retainer_ventures" && analysis.retainer_ventures) {
-    const entries = analysis.retainer_ventures.ventures || [];
-    return `表示中の調達依頼を ${entries.length}件保存しました。次回からはリテイナー一覧1枚だけでLv帯から候補を作れます。`;
   }
   if (analysis.page_type === "inventory_items" && analysis.inventory_items) {
     const relevant = analysis.inventory_items.relevant_items || [];
@@ -73,10 +61,7 @@ function statSummary(analysis, workflowContext = "plan") {
   if (workflowContext === "grand-company") {
     return "双蛇党の納品一覧として認識できませんでした。納品行・必要数・所持数が見える状態で貼り直してください。";
   }
-  if (workflowContext === "retainer") {
-    return `${retainerExpectedScreen()}として認識できませんでした。各リテイナーのジョブ/クラスとLvが読める状態で貼ってください。`;
-  }
-  return "この画像は双蛇党納品/リテイナー調達/手持ち素材/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
+  return "この画像は双蛇党納品/手持ち素材/ジャーナル/アチーブメント進捗/製作ステータス/採集ステータスとして確定できませんでした。";
 }
 
 function renderSavedContext(context = lastSavedContext) {
@@ -138,8 +123,7 @@ function announceContextSaved(analysis, data) {
       pageType: analysis?.page_type || "unknown",
       analysis,
       inventorySavedCount: Number(data?.inventory_context_saved || 0),
-      grandCompanySaved: Boolean(data?.grand_company_context_saved),
-      retainerSaved: Boolean(data?.retainer_context_saved)
+      grandCompanySaved: Boolean(data?.grand_company_context_saved)
     }
   }));
 }
@@ -153,9 +137,7 @@ async function uploadImage(file) {
   const workflowContext = activeWorkflowContext();
   const workingMessage = workflowContext === "grand-company"
     ? "画像を解析中… 双蛇党の納品一覧として読み取っています。"
-    : workflowContext === "retainer"
-      ? `画像を解析中… ${retainerExpectedScreen()}からジョブ/クラスとLvを読み取っています。`
-      : "画像を解析中… 双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績進捗・装備ステータスを自動判定しています。";
+    : "画像を解析中… 双蛇党納品・手持ち素材・ジャーナル・実績進捗・装備ステータスを自動判定しています。";
   setInboxState(workingMessage, "working");
   const box = $("contextInbox");
   box?.classList.add("working");
@@ -197,7 +179,7 @@ document.addEventListener("paste", event => {
 });
 
 document.addEventListener("click", event => {
-  if (!event.target?.closest?.("[data-gc-open],[data-retainer-open],[data-tribe-open],[data-plan-open]")) return;
+  if (!event.target?.closest?.("[data-gc-open],[data-tribe-open],[data-plan-open]")) return;
   setTimeout(() => renderSavedContext(lastSavedContext), 20);
 });
 
@@ -207,11 +189,7 @@ window.addEventListener("ff14today:workflow-context-changed", () => {
 
 $("contextInbox")?.addEventListener("click", () => {
   $("contextInbox")?.focus();
-  if (activeWorkflowContext() === "retainer") {
-    setInboxState(`貼る画面：${retainerExpectedScreen()}。この1枚からLv帯で派遣可能品を自動判定します。`, "idle");
-    return;
-  }
-  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・リテイナー調達・手持ち素材・ジャーナル・実績・装備情報を自動判定します。", "idle");
+  setInboxState("FF14のスクショをコピーして、ここで Ctrl+V。双蛇党納品・手持ち素材・ジャーナル・実績・装備情報を自動判定します。", "idle");
 });
 
 void loadSavedContext();

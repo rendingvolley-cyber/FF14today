@@ -4,7 +4,6 @@ import {
   rebuildDiscoverTaskBoardPlan,
   rebuildEfficientTaskBoardPlan
 } from "../../src/task-board-recovery.js";
-import { sanitizeRetainerWorkflowAnalysis } from "../../src/retainer-workflow-image.js";
 
 const character = {
   jobs: [
@@ -55,38 +54,4 @@ test("discover catalog restores normal fishing and other choices", () => {
   expect(plan.task_board_catalog).toBeTruthy();
   expect(plan.methods.some(row => row.task_key === "discover:ocean-fishing")).toBeTruthy();
   expect(plan.methods.some(row => row.task_key === "discover:gold-saucer-gate")).toBeTruthy();
-});
-
-test("retainer overview supplies job and level rows for level-band lookup", () => {
-  const overview = sanitizeRetainerWorkflowAnalysis({
-    screen_type: "retainer_overview",
-    confidence: 0.96,
-    retainers: [
-      { retainer_name: "Retainer A", job_name: "戦士", level: 92, confidence: 0.96 },
-      { retainer_name: "Retainer B", job_name: "採掘師", level: 87, confidence: 0.94 }
-    ],
-    retainer_name: null,
-    job_name: null,
-    level: null,
-    ventures: []
-  });
-  expect(overview.page_type).toBe("retainer_overview");
-  expect(overview.retainer_overview.retainers).toHaveLength(2);
-  expect(overview.retainer_overview.retainers[0]).toMatchObject({ job_name: "戦士", level: 92 });
-  expect(overview.retainer_ventures).toBeNull();
-
-  const ventureList = sanitizeRetainerWorkflowAnalysis({
-    screen_type: "venture_item_list",
-    confidence: 0.94,
-    retainers: [],
-    retainer_name: "Retainer A",
-    job_name: "採掘師",
-    level: 100,
-    ventures: [
-      { item_name: "コンドライト", quantity: 30, venture_level: 88, duration_minutes: 60, confidence: 0.95 }
-    ]
-  });
-  expect(ventureList.page_type).toBe("retainer_ventures");
-  expect(ventureList.retainer_ventures.ventures).toHaveLength(1);
-  expect(ventureList.retainer_ventures.ventures[0].item_name).toBe("コンドライト");
 });

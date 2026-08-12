@@ -37,10 +37,6 @@ function gcDone() {
   return localStorage.getItem(`ff14_today_grand_company_done_${japanDateKey()}`) === "1";
 }
 
-function retainerDone() {
-  return localStorage.getItem(`ff14_today_retainer_done_${japanDateKey()}`) === "1";
-}
-
 function root() {
   return document.getElementById("retainerAdvice");
 }
@@ -70,7 +66,6 @@ function setVisualStep(name) {
   if (!panel) return;
   const contents = {
     "grand-company": panel.querySelector("[data-gc-content]"),
-    retainer: panel.querySelector("[data-retainer-content]"),
     tribe: panel.querySelector("[data-tribe-content]")
   };
   for (const [keyName, node] of Object.entries(contents)) {
@@ -79,7 +74,6 @@ function setVisualStep(name) {
 
   const tabs = {
     "grand-company": panel.querySelector("[data-gc-open]"),
-    retainer: panel.querySelector("[data-retainer-open]"),
     tribe: panel.querySelector("[data-tribe-open]"),
     plan: panel.querySelector("[data-plan-open]")
   };
@@ -120,10 +114,8 @@ function ensureStep() {
   injectStyles();
 
   const tabs = panel.querySelector(".retainer-flow-tabs");
-  const retainerTab = panel.querySelector("[data-retainer-open]");
   const planTab = panel.querySelector("[data-plan-open]");
-  const retainerContent = panel.querySelector("[data-retainer-content]");
-  if (!tabs || !retainerTab || !planTab || !retainerContent) return false;
+  if (!tabs || !planTab) return false;
 
   let tab = tribeTab();
   if (!tab) {
@@ -134,14 +126,12 @@ function ensureStep() {
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", "false");
     tab.setAttribute("aria-controls", "tribeRoutineContent");
-    tab.innerHTML = '<span class="retainer-flow-step">3</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
+    tab.innerHTML = '<span class="retainer-flow-step">2</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
     tabs.insertBefore(tab, planTab);
   }
 
-  const retainerStep = retainerTab.querySelector(".retainer-flow-step");
   const planStep = planTab.querySelector(".retainer-flow-step");
-  if (retainerStep) retainerStep.textContent = "2";
-  if (planStep) planStep.textContent = "4";
+  if (planStep) planStep.textContent = "3";
 
   let content = panel.querySelector("[data-tribe-content]");
   if (!content) {
@@ -153,7 +143,7 @@ function ensureStep() {
     content.innerHTML = `
       <div class="retainer-advice-head">
         <div>
-          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>リテイナーの次に友好部族（生産・採集）</span></div>
+          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>双蛇党納品の次に友好部族（生産・採集）</span></div>
           <p class="retainer-advice-sub">戦闘系はここに混ぜず、生産系と採集系の日課だけ片付けます。</p>
         </div>
       </div>
@@ -169,7 +159,9 @@ function ensureStep() {
       </div>
       <p class="tribe-routine-progress" data-tribe-progress></p>
     `;
-    retainerContent.insertAdjacentElement("afterend", content);
+    const gcContent = panel.querySelector("[data-gc-content]");
+    if (gcContent) gcContent.insertAdjacentElement("afterend", content);
+    else tabs.insertAdjacentElement("afterend", content);
   }
 
   if (panel.dataset.tribeRoutineBound !== "1") {
@@ -182,7 +174,7 @@ function ensureStep() {
         setTimeout(() => setVisualStep("tribe"), 0);
         return;
       }
-      if (button.matches("[data-gc-open],[data-retainer-open],[data-plan-open]")) {
+      if (button.matches("[data-gc-open],[data-plan-open]")) {
         setTimeout(() => {
           const tribeContent = panel.querySelector("[data-tribe-content]");
           if (tribeContent) tribeContent.hidden = true;
@@ -192,18 +184,16 @@ function ensureStep() {
       if (button.matches("[data-tribe-craft-toggle]")) {
         setDone(TRIBE_CRAFT_DONE_PREFIX, !isCraftDone());
         updateUi();
-        if (tribeDone()) setVisualStep("plan");
-        else setVisualStep("tribe");
+        setVisualStep(tribeDone() ? "plan" : "tribe");
         return;
       }
       if (button.matches("[data-tribe-gather-toggle]")) {
         setDone(TRIBE_GATHER_DONE_PREFIX, !isGatherDone());
         updateUi();
-        if (tribeDone()) setVisualStep("plan");
-        else setVisualStep("tribe");
+        setVisualStep(tribeDone() ? "plan" : "tribe");
         return;
       }
-      if (button.matches("[data-gc-done],[data-retainer-done]")) {
+      if (button.matches("[data-gc-done]")) {
         setTimeout(enforceAutomaticStep, 20);
       }
     });
@@ -217,10 +207,6 @@ function enforceAutomaticStep() {
   if (!ensureStep()) return false;
   if (!gcDone()) {
     setVisualStep("grand-company");
-    return true;
-  }
-  if (!retainerDone()) {
-    setVisualStep("retainer");
     return true;
   }
   if (!tribeDone()) {
