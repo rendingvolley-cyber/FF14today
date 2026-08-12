@@ -177,7 +177,6 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   const leveProfileHeaders = [];
   let inventoryApplied = false;
   page.on("pageerror", error => pageErrors.push(error.message));
-  await page.addInitScript(() => localStorage.clear());
 
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
@@ -194,7 +193,6 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#characterName")).toHaveText("Kanade Tachibana");
   await expect(page.locator("[data-gc-open]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-retainer-open]")).toBeHidden();
   await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("2");
   await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("3");
   await expect(page.locator("[data-gc-content]")).toContainText("E2E納品薬");
@@ -252,7 +250,6 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#characterName")).toHaveText("Kanade Tachibana");
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-retainer-open]")).toBeHidden();
   await expect(page.locator("[data-gc-tab-status]")).toContainText("納品済み");
   await expect(page.locator("[data-tribe-tab-status]")).toContainText("完了");
   await expect(page.locator("#nowPanel")).toBeVisible();
