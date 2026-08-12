@@ -55,13 +55,6 @@ function copyFor(step) {
       idle: "双蛇党の納品一覧スクショをコピーして、このカードで Ctrl+V。"
     };
   }
-  if (step === "retainer") {
-    return {
-      title: "リテイナーの調達依頼スクショを追加",
-      copy: "いま開いているリテイナーの調達依頼画面を、このカードのまま Ctrl+V。名前・ジョブ・Lvと見えている候補を読み取ります。",
-      idle: "リテイナーの調達依頼画面をコピーして、このカードで Ctrl+V。"
-    };
-  }
   return {
     title: "スクショを判断材料に追加",
     copy: "ジャーナル、製作・採集ステータス、所持素材など、今日のプラン判断に使う画面をそのまま貼り付けられます。",
@@ -74,10 +67,8 @@ function currentRoutineStep() {
   if (!root) return "plan";
   const gc = root.querySelector("[data-gc-content]");
   const tribe = root.querySelector("[data-tribe-content]");
-  const retainer = root.querySelector("[data-retainer-content]");
   if (gc && !gc.hidden) return "grand-company";
   if (tribe && !tribe.hidden) return "tribe";
-  if (retainer && !retainer.hidden) return "retainer";
   return "plan";
 }
 
@@ -106,9 +97,6 @@ function placeInbox(step = currentRoutineStep()) {
 
   if (step === "grand-company") {
     target = document.querySelector("[data-gc-content]");
-    anchor = target?.querySelector(".retainer-advice-head");
-  } else if (step === "retainer") {
-    target = document.querySelector("[data-retainer-content]");
     anchor = target?.querySelector(".retainer-advice-head");
   } else {
     target = document.getElementById("planner");
@@ -142,7 +130,7 @@ function boot() {
   reconcilePlacement();
   for (const delay of [80, 250, 800, 1800]) setTimeout(reconcilePlacement, delay);
   document.addEventListener("click", event => {
-    if (event.target?.closest?.("[data-gc-open],[data-tribe-open],[data-retainer-open],[data-plan-open],[data-tribe-craft-toggle],[data-tribe-gather-toggle]")) queueReconcile();
+    if (event.target?.closest?.("[data-gc-open],[data-tribe-open],[data-plan-open],[data-tribe-craft-toggle],[data-tribe-gather-toggle]")) queueReconcile();
   });
 }
 
