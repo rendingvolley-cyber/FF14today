@@ -170,7 +170,6 @@ function payload(pathname, gcUploaded = false) {
     return { achievements: { total_achievements: 0, achievement_points: 0, page_total: 0, history: [] } };
   }
   if (pathname === "/api/activity/today") return { count: 0 };
-  if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [], message: "調達依頼画面を貼ってください。" };
   if (pathname === "/api/grand-company/seal-exchange-recommendations") return sealMarket;
   if (pathname === "/api/grand-company/delivery-costs") {
     return gcUploaded ? deliveryCosts : { ok: true, setup_required: true, deliveries: [], recommendation: null, cost_advice: false };
@@ -192,7 +191,7 @@ function payload(pathname, gcUploaded = false) {
   return {};
 }
 
-test("GC screenshot stays in the GC card and routine flows GC -> retainer -> craft/gather tribes -> plan", async ({ page }) => {
+test("GC screenshot stays in the GC card and routine flows GC -> craft/gather tribes -> plan", async ({ page }) => {
   const pageErrors = [];
   let gcUploaded = false;
   let contextPasteBody = "";
@@ -234,10 +233,10 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-gc-open] .retainer-flow-step")).toHaveText("1");
-  await expect(page.locator("[data-retainer-open] .retainer-flow-step")).toHaveText("2");
-  await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("3");
-  await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("4");
-  const routineY = await page.evaluate(() => ["[data-gc-open]", "[data-retainer-open]", "[data-tribe-open]", "[data-plan-open]"]
+  await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("2");
+  await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("3");
+  await expect(page.locator("[data-retainer-open]")).toBeHidden();
+  const routineY = await page.evaluate(() => ["[data-gc-open]", "[data-tribe-open]", "[data-plan-open]"]
     .map(selector => document.querySelector(selector)?.getBoundingClientRect().top ?? null));
   expect(routineY.every(value => Number.isFinite(value))).toBe(true);
   expect(Math.max(...routineY) - Math.min(...routineY)).toBeLessThan(2);
@@ -294,14 +293,8 @@ test("GC screenshot stays in the GC card and routine flows GC -> retainer -> cra
   await expect(page.locator("[data-gc-content]")).toContainText("一覧で選び、価格・製作素材は「詳細」で確認");
 
   await page.locator("button[data-gc-done]").click();
-  await expect(page.locator("[data-retainer-content]")).toBeVisible();
-  await expect(page.locator("[data-retainer-open]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#retainerRoutineContent #contextInbox")).toHaveCount(1);
-  await expect(page.locator("#retainerRoutineContent #contextInboxSaved")).not.toContainText("ジャーナル 3件");
-
-  await page.locator("button[data-retainer-done]").click();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
-  await expect(page.locator("[data-tribe-content]")).toContainText("リテイナーの次に友好部族（生産・採集）");
+  await expect(page.locator("[data-tribe-content]")).toContainText("双蛇党納品の次に友好部族（生産・採集）");
   await expect(page.locator("#contextInbox")).toBeHidden();
 
   await page.locator("[data-tribe-craft-toggle]").click();
