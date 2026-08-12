@@ -26,15 +26,15 @@ function payload(pathname) {
     return { achievements: { total_achievements: 0, achievement_points: 0, page_total: 0, history: [] } };
   }
   if (pathname === "/api/activity/today") return { count: 0 };
-  if (pathname === "/api/retainer/recommendations") return { setup_required: true, recommendations: [], message: "調達依頼画面を貼ってください。" };
   if (pathname === "/api/grand-company/deliveries") return { setup_required: true, deliveries: [], recommended: null, message: "双蛇党の納品一覧スクショをCtrl+Vしてください。" };
   if (pathname === "/api/context") return { context: {} };
   return {};
 }
 
-test("character identity stays at top and screenshot input follows the active routine step", async ({ page }) => {
+test("character identity stays at top and screenshot input follows GC -> tribes -> plan", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
+  await page.addInitScript(() => localStorage.clear());
 
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
@@ -46,6 +46,10 @@ test("character identity stays at top and screenshot input follows the active ro
   await expect(page.locator("#identity")).toBeVisible();
   await expect(page.locator("#identity #characterName")).toHaveText("Kanade Tachibana");
   await expect(page.locator("#retainerAdvice")).toBeVisible();
+  await expect(page.locator("[data-retainer-open]")).toBeHidden();
+  await expect(page.locator("[data-gc-open] .retainer-flow-step")).toHaveText("1");
+  await expect(page.locator("[data-tribe-open] .retainer-flow-step")).toHaveText("2");
+  await expect(page.locator("[data-plan-open] .retainer-flow-step")).toHaveText("3");
 
   await expect.poll(async () => page.evaluate(() => {
     const topbar = document.querySelector(".topbar");
@@ -59,9 +63,10 @@ test("character identity stays at top and screenshot input follows the active ro
   await expect(page.locator("#grandCompanyRoutineContent #contextInbox")).toContainText("双蛇党の納品一覧スクショを追加");
   await expect(page.locator("#planner #contextInbox")).toHaveCount(0);
 
-  await page.locator("[data-retainer-open]").click();
-  await expect(page.locator("#retainerRoutineContent #contextInbox")).toHaveCount(1);
-  await expect(page.locator("#retainerRoutineContent #contextInbox")).toContainText("リテイナーの調達依頼スクショを追加");
+  await page.locator("button[data-gc-done]").click();
+  await expect(page.locator("[data-tribe-open]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-tribe-content]")).toBeVisible();
+  await expect(page.locator("#contextInbox")).toBeHidden();
 
   await page.locator("[data-plan-open]").click();
   await expect(page.locator("#planner #contextInbox")).toHaveCount(1);
