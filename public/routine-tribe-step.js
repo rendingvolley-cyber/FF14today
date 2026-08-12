@@ -153,7 +153,7 @@ function ensureStep() {
     content.innerHTML = `
       <div class="retainer-advice-head">
         <div>
-          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>リテイナーの次に友好部族（生産・採集）</span></div>
+          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>双蛇党納品の次に友好部族（生産・採集）</span></div>
           <p class="retainer-advice-sub">戦闘系はここに混ぜず、生産系と採集系の日課だけ片付けます。</p>
         </div>
       </div>
