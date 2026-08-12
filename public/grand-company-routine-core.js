@@ -1,6 +1,5 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const GC_DONE_PREFIX = "ff14_today_grand_company_done_";
-const RETAINER_DONE_PREFIX = "ff14_today_retainer_done_";
 let loading = false;
 let lastGcStatus = "要スクショ";
 
@@ -30,16 +29,8 @@ function gcDoneKey() {
   return `${GC_DONE_PREFIX}${japanDateKey()}`;
 }
 
-function retainerDoneKey() {
-  return `${RETAINER_DONE_PREFIX}${japanDateKey()}`;
-}
-
 function isGcDone() {
   return localStorage.getItem(gcDoneKey()) === "1";
-}
-
-function isRetainerDone() {
-  return localStorage.getItem(retainerDoneKey()) === "1";
 }
 
 function setGcDone(done) {
@@ -55,7 +46,7 @@ function tabFor(name) {
   const root = rootPanel();
   if (!root) return null;
   if (name === "grand-company") return root.querySelector("[data-gc-open]");
-  if (name === "retainer") return root.querySelector("[data-retainer-open]");
+  if (name === "tribe") return root.querySelector("[data-tribe-open]");
   return root.querySelector("[data-plan-open]");
 }
 
@@ -63,11 +54,11 @@ function setStep(name, { scroll = false } = {}) {
   const root = rootPanel();
   if (!root) return;
   const gcContent = root.querySelector("[data-gc-content]");
-  const retainerContent = root.querySelector("[data-retainer-content]");
+  const tribeContent = root.querySelector("[data-tribe-content]");
   if (gcContent) gcContent.hidden = name !== "grand-company";
-  if (retainerContent) retainerContent.hidden = name !== "retainer";
+  if (tribeContent) tribeContent.hidden = name !== "tribe";
 
-  for (const step of ["grand-company", "retainer", "plan"]) {
+  for (const step of ["grand-company", "tribe", "plan"]) {
     const tab = tabFor(step);
     const active = step === name;
     tab?.classList.toggle("active", active);
@@ -94,31 +85,20 @@ function syncRoutineStep({ scrollPlan = false } = {}) {
   if (doneButton) doneButton.textContent = gcDone ? "未完了に戻す" : "✓ 今日の双蛇党納品を終えた";
   setGcTabStatus(gcDone ? "✓ 納品済み" : lastGcStatus);
 
-  const retainerStatus = root.querySelector("[data-retainer-tab-status]");
-  if (!gcDone && retainerStatus && retainerStatus.textContent === "まずこれ") {
-    retainerStatus.textContent = "次にやる";
-  }
-
   if (!gcDone) setStep("grand-company");
-  else if (!isRetainerDone()) setStep("retainer");
+  else if (root.querySelector("[data-tribe-open]")) setStep("tribe");
   else setStep("plan", { scroll: scrollPlan });
 }
 
-function decorateRetainerCopy(root) {
-  const retainerStep = root.querySelector("[data-retainer-open] .retainer-flow-step");
+function decorateRoutineCopy(root) {
   const planStep = root.querySelector("[data-plan-open] .retainer-flow-step");
-  if (retainerStep) retainerStep.textContent = "2";
   if (planStep) planStep.textContent = "3";
-  const title = root.querySelector("[data-retainer-content] .retainer-advice-title span:last-child");
-  if (title) title.textContent = "次にリテイナーを派遣";
-  const sub = root.querySelector("[data-retainer-content] .retainer-advice-sub");
-  if (sub) sub.textContent = "双蛇党納品の次に、需要と在庫を見て派遣先を1つ決めます。";
 }
 
 function createGrandCompanyContent(root) {
   const tabs = root.querySelector(".retainer-flow-tabs");
-  const retainerTab = root.querySelector("[data-retainer-open]");
-  if (!tabs || !retainerTab || root.querySelector("[data-gc-open]")) return;
+  const planTab = root.querySelector("[data-plan-open]");
+  if (!tabs || !planTab || root.querySelector("[data-gc-open]")) return;
 
   const gcTab = document.createElement("button");
   gcTab.type = "button";
@@ -128,7 +108,7 @@ function createGrandCompanyContent(root) {
   gcTab.setAttribute("aria-selected", "true");
   gcTab.setAttribute("aria-controls", "grandCompanyRoutineContent");
   gcTab.innerHTML = '<span class="retainer-flow-step">1</span><span>双蛇党納品</span><small data-gc-tab-status>要スクショ</small>';
-  tabs.insertBefore(gcTab, retainerTab);
+  tabs.insertBefore(gcTab, planTab);
 
   const content = document.createElement("div");
   content.id = "grandCompanyRoutineContent";
@@ -147,11 +127,9 @@ function createGrandCompanyContent(root) {
       <button type="button" class="retainer-done" data-gc-done>✓ 今日の双蛇党納品を終えた</button>
     </div>
   `;
-  const retainerContent = root.querySelector("[data-retainer-content]");
-  root.insertBefore(content, retainerContent || null);
+  tabs.insertAdjacentElement("afterend", content);
 
   gcTab.addEventListener("click", () => setStep("grand-company"));
-  root.querySelector("[data-retainer-open]")?.addEventListener("click", () => setStep("retainer"));
   root.querySelector("[data-plan-open]")?.addEventListener("click", () => setStep("plan", { scroll: true }));
   root.querySelector("[data-gc-refresh]")?.addEventListener("click", () => void loadDeliveries());
   root.querySelector("[data-gc-done]")?.addEventListener("click", () => {
@@ -159,16 +137,13 @@ function createGrandCompanyContent(root) {
     setGcDone(next);
     syncRoutineStep();
   });
-  root.querySelector("[data-retainer-done]")?.addEventListener("click", () => {
-    setTimeout(() => syncRoutineStep({ scrollPlan: true }), 0);
-  });
 }
 
 function ensureRoutine() {
   const root = rootPanel();
   if (!root) return false;
   createGrandCompanyContent(root);
-  decorateRetainerCopy(root);
+  decorateRoutineCopy(root);
   syncRoutineStep();
   return true;
 }
@@ -326,9 +301,7 @@ function installFetchHook() {
       const url = new URL(rawUrl, location.href);
       if (url.pathname === "/api/context/image") {
         response.clone().json().then(data => {
-          const pageType = data?.analysis?.page_type;
-          if (pageType === "grand_company_deliveries") showGrandCompanySaved(data.analysis);
-          else if (pageType === "retainer_ventures") setTimeout(() => syncRoutineStep(), 0);
+          if (data?.analysis?.page_type === "grand_company_deliveries") showGrandCompanySaved(data.analysis);
         }).catch(() => {});
       }
     } catch {}
