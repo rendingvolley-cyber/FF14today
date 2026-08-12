@@ -1,5 +1,7 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const GC_DONE_PREFIX = "ff14_today_grand_company_done_";
+const TRIBE_CRAFT_DONE_PREFIX = "ff14_today_tribe_craft_done_";
+const TRIBE_GATHER_DONE_PREFIX = "ff14_today_tribe_gather_done_";
 let loading = false;
 let lastGcStatus = "要スクショ";
 
@@ -31,6 +33,12 @@ function gcDoneKey() {
 
 function isGcDone() {
   return localStorage.getItem(gcDoneKey()) === "1";
+}
+
+function areTribesDone() {
+  const date = japanDateKey();
+  return localStorage.getItem(`${TRIBE_CRAFT_DONE_PREFIX}${date}`) === "1"
+    && localStorage.getItem(`${TRIBE_GATHER_DONE_PREFIX}${date}`) === "1";
 }
 
 function setGcDone(done) {
@@ -86,7 +94,7 @@ function syncRoutineStep({ scrollPlan = false } = {}) {
   setGcTabStatus(gcDone ? "✓ 納品済み" : lastGcStatus);
 
   if (!gcDone) setStep("grand-company");
-  else if (root.querySelector("[data-tribe-open]")) setStep("tribe");
+  else if (root.querySelector("[data-tribe-open]") && !areTribesDone()) setStep("tribe");
   else setStep("plan", { scroll: scrollPlan });
 }
 
