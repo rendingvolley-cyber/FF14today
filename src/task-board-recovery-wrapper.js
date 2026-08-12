@@ -1,9 +1,8 @@
-import app from "./retainer-level-band-wrapper.js";
+import app from "./category-job-focus-wrapper.js";
 import {
   rebuildDiscoverTaskBoardPlan,
   rebuildEfficientTaskBoardPlan
 } from "./task-board-recovery.js";
-import { handleRetainerWorkflowImage } from "./retainer-workflow-image.js";
 
 const OWNER_LODESTONE_ID = "3091607";
 
@@ -127,46 +126,9 @@ async function rewritePlanResponse(response, env, options) {
   return json(data, response.status);
 }
 
-async function workflowContext(request) {
-  try {
-    const form = await request.clone().formData();
-    return String(form.get("workflow_context") || "").trim();
-  } catch {
-    return "";
-  }
-}
-
-async function rewriteRetainerRecommendations(response) {
-  if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
-  let data;
-  try { data = await response.clone().json(); }
-  catch { return response; }
-  if (!data?.setup_required) return response;
-  return json({
-    ...data,
-    message: "リテイナー一覧（名前・ジョブ/クラス・Lvが見える画面）を1枚貼ってください。Lv帯から派遣可能品を自動で絞り、市場比較します。調達依頼の候補ページを何枚も貼る必要はありません。"
-  }, response.status);
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-
-    if (url.pathname === "/api/context/image" && request.method === "POST") {
-      const context = await workflowContext(request);
-      if (context === "retainer") {
-        try {
-          return await handleRetainerWorkflowImage(request, env);
-        } catch (error) {
-          return json({
-            ok: false,
-            error: "retainer_image_analysis_failed",
-            detail: error?.message || "リテイナー画像を解析できませんでした。"
-          }, Number(error?.status) || 500);
-        }
-      }
-      return app.fetch(request, env);
-    }
 
     if (url.pathname === "/api/state" && request.method === "GET") {
       const response = await app.fetch(request, env);
@@ -195,11 +157,6 @@ export default {
       });
     }
 
-    if (url.pathname === "/api/retainer/recommendations" && request.method === "GET") {
-      const response = await app.fetch(request, env);
-      return rewriteRetainerRecommendations(response);
-    }
-
     const response = await app.fetch(request, env);
     if (url.pathname === "/api/health" && request.method === "GET" && response.ok && (response.headers.get("content-type") || "").includes("application/json")) {
       let data;
@@ -209,8 +166,7 @@ export default {
         ...data,
         task_board_variety_recovery: true,
         daily_roulette_history_suppression: true,
-        retainer_workflow_direct_parser: true,
-        retainer_overview_level_band: true
+        retainer_feature_removed: true
       }, response.status);
     }
     return response;
