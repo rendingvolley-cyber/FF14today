@@ -112,7 +112,7 @@ function genericPayload(pathname) {
   return {};
 }
 
-test("semantic tabs keep timed tasks inside their own category", async ({ page }) => {
+test("five play categories keep time-sensitive information in the separate dashboard", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
@@ -138,16 +138,25 @@ test("semantic tabs keep timed tasks inside their own category", async ({ page }
 
   await expect(page.locator("#taskBoard")).toBeVisible();
   await expect(page.locator("#taskBoardTabs .task-board-tab")).toHaveCount(7);
-  for (const label of ["戦闘", "生産", "採集", "釣り", "イベント", "週次", "その他"]) {
+  await expect(page.locator("#taskBoardTabs .task-board-tab:visible")).toHaveCount(5);
+  for (const label of ["戦闘", "生産", "採集", "釣り", "その他"]) {
     await expect(page.locator("#taskBoardTabs")).toContainText(label);
   }
+  await expect(page.locator('#taskBoardTabs [data-category="event"]')).toBeHidden();
+  await expect(page.locator('#taskBoardTabs [data-category="weekly"]')).toBeHidden();
   await expect(page.locator("#taskBoardGrid")).toContainText("コンテンツルーレット：レベリング");
   await expect(page.locator("#taskBoardTimed")).toBeHidden();
 
+  await expect(page.locator("#timeSensitiveDashboard")).toBeVisible();
+  await expect(page.locator("#timeSensitiveDashboard [data-live-clock]")).toContainText("JST");
+  await expect(page.locator("#timeSensitiveDashboard [data-fish-list]")).toContainText("E2Eヌシ");
+  await expect(page.locator("#timeSensitiveDashboard [data-fish-list] .time-countdown")).toContainText("あと");
+  await expect(page.locator("#timeSensitiveDashboard [data-deadline-list]")).toContainText("Rarefied Raw Ametrine");
+  await expect(page.locator("#timeSensitiveDashboard [data-deadline-list] .time-countdown")).toContainText("あと");
+
   await page.locator('#taskBoardTabs [data-category="gather"]').click();
-  await expect(page.locator("#taskBoardTimed")).toBeVisible();
-  await expect(page.locator("#taskBoardTimed")).toContainText("Rarefied Raw Ametrine");
-  await expect(page.locator("#taskBoardTimed")).not.toContainText("E2Eヌシ");
+  await expect(page.locator("#taskBoardTimed")).toBeHidden();
+  await expect(page.locator("#taskBoardGrid")).toContainText("Rarefied High Durium Ore");
 
   await page.locator('#taskBoardTabs [data-category="craft"]').click();
   await expect(page.locator("#taskBoardGrid")).toContainText("Ginseng Angle Brush");
@@ -161,18 +170,9 @@ test("semantic tabs keep timed tasks inside their own category", async ({ page }
 
   await page.locator('#taskBoardTabs [data-category="fishing"]').click();
   await expect(page.locator("#taskBoardGrid")).toContainText("オーシャンフィッシング");
-  await expect(page.locator("#taskBoardTimed")).toContainText("E2Eヌシ");
-  await expect(page.locator("#taskBoardTimed")).not.toContainText("Rarefied Raw Ametrine");
-  await page.locator("#taskBoardTimedList .timed-task").first().locator('input[type="checkbox"]').check();
-  await expect(page.locator("#taskBoardSummaryText")).toContainText("選択2件");
-  await expect(page.locator("#taskBoardScheduleRows")).toContainText("移動・準備");
-  await expect(page.locator("#taskBoardScheduleRows")).toContainText("E2Eヌシ");
-  await expect(page.locator("#taskBoardScheduleMeta")).toContainText("カテゴリ横断");
+  await expect(page.locator("#taskBoardTimed")).toBeHidden();
+  await expect(page.locator("#timeSensitiveDashboard [data-fish-list]")).toContainText("E2Eヌシ");
 
-  await page.locator('#taskBoardTabs [data-category="event"]').click();
-  await expect(page.locator("#taskBoardGrid")).toContainText("シーズナルイベント");
-  await page.locator('#taskBoardTabs [data-category="weekly"]').click();
-  await expect(page.locator("#taskBoardGrid")).toContainText("ファッションチェック");
   await page.locator('#taskBoardTabs [data-category="other"]').click();
   await expect(page.locator("#taskBoardGrid")).toContainText("ゴールドソーサーで次のGATE");
 
