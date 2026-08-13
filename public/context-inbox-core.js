@@ -28,7 +28,7 @@ function statSummary(analysis, workflowContext = "plan") {
   if (analysis.page_type === "grand_company_deliveries" && analysis.grand_company_deliveries) {
     const entries = analysis.grand_company_deliveries.deliveries || [];
     const first = entries[0]?.item_name ? `「${entries[0].item_name}」など` : "";
-    return `今日の双蛇党納品を ${entries.length}件 ${first}読み取りました。必要数と所持数から最初の1件を決めます。`;
+    return `今日の双蛇党納品を ${entries.length}件 ${first}読み取りました。納品一覧へ反映します。`;
   }
   if (analysis.page_type === "inventory_items" && analysis.inventory_items) {
     const relevant = analysis.inventory_items.relevant_items || [];
