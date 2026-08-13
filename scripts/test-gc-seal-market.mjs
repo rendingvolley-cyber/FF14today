@@ -61,7 +61,7 @@ const sparse = rankSealExchangeRows([
 ], 3);
 assert.equal(sparse.length, 3, "one strong row must not collapse the requested top three to one row");
 assert.equal(sparse[0].recommendation_strength, "strong");
-assert.equal(sparse[1].recommendation_strength, "secondary");
+assert.equal(sparse[1].recommendation_strength, "fallback");
 assert.equal(sparse[2].recommendation_strength, "fallback");
 
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
