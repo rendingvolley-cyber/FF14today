@@ -83,13 +83,24 @@ export function scoreSealExchangeCandidate(input) {
   };
 }
 
+function sortRankedRows(rows) {
+  return [...rows].sort((a, b) => b.daily_sale_velocity - a.daily_sale_velocity
+    || b.estimated_gil_per_1000_seals - a.estimated_gil_per_1000_seals
+    || b.average_sale_price - a.average_sale_price);
+}
+
 export function rankSealExchangeRows(rows, limit = 5) {
-  return (Array.isArray(rows) ? rows : [])
-    .map(row => ({ ...row, ...scoreSealExchangeCandidate(row) }))
-    .filter(row => row.velocity_floor_pass && row.price_floor_pass && row.efficiency_floor_pass)
-    .sort((a, b) => b.daily_sale_velocity - a.daily_sale_velocity
-      || b.estimated_gil_per_1000_seals - a.estimated_gil_per_1000_seals
-      || b.average_sale_price - a.average_sale_price)
-    .slice(0, Math.max(1, Number(limit) || 5))
+  const max = Math.max(1, Number(limit) || 5);
+  const scored = (Array.isArray(rows) ? rows : []).map(row => ({ ...row, ...scoreSealExchangeCandidate(row) }));
+  const strong = sortRankedRows(scored.filter(row => row.velocity_floor_pass && row.price_floor_pass && row.efficiency_floor_pass))
+    .map(row => ({ ...row, recommendation_strength: "strong" }));
+  const strongKeys = new Set(strong.map(row => row.item_id || row.item_name || row.item_name_en));
+  const secondary = sortRankedRows(scored.filter(row => {
+    const key = row.item_id || row.item_name || row.item_name_en;
+    return !strongKeys.has(key) && row.price_floor_pass && row.efficiency_floor_pass && row.daily_sale_velocity > 0;
+  })).map(row => ({ ...row, recommendation_strength: "secondary" }));
+
+  return [...strong, ...secondary]
+    .slice(0, max)
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
