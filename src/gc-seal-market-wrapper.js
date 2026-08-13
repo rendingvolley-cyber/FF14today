@@ -9,7 +9,7 @@ import {
 const WORLD = "Chocobo";
 const ITEM_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MARKET_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
-const MARKET_CACHE_SCHEMA = "sell-through-300-v1";
+const MARKET_CACHE_SCHEMA = "sell-through-300-top3-v2";
 let schemaReady = null;
 
 function json(data, status = 200) {
@@ -223,15 +223,15 @@ async function buildRecommendations(env) {
     source: "Universalis",
     catalog_source: "Grand Company material exchange catalog",
     ranking_schema: MARKET_CACHE_SCHEMA,
-    ranking_mode: "daily_sale_velocity_desc_with_value_floor",
+    ranking_mode: "daily_sale_velocity_desc_with_value_floor_and_observed_fallback",
     sell_batch_quantity: GC_SEAL_SELL_BATCH_QUANTITY,
     target_max_days: GC_SEAL_MAX_BATCH_DAYS,
     recommendations,
     candidate_count: GC_SEAL_MARKET_CANDIDATES.length,
     resolved_count: resolved.length,
     message: recommendations.length
-      ? `約${GC_SEAL_SELL_BATCH_QUANTITY}個を出す前提で、実売数の多い順に比較しています。`
-      : `約${GC_SEAL_SELL_BATCH_QUANTITY}個を${GC_SEAL_MAX_BATCH_DAYS}日以内で吸収できる実売速度と最低限の軍票効率を両立する候補を確認できませんでした。`
+      ? `約${GC_SEAL_SELL_BATCH_QUANTITY}個を出す前提で、本命が3件未満の場合は市場実績のある次点も含めて比較しています。`
+      : `約${GC_SEAL_SELL_BATCH_QUANTITY}個の比較に使える実売データを確認できませんでした。`
   };
 }
 
@@ -251,7 +251,7 @@ async function handleRecommendations(env) {
       world: WORLD,
       source: "Universalis",
       ranking_schema: MARKET_CACHE_SCHEMA,
-      ranking_mode: "daily_sale_velocity_desc_with_value_floor",
+      ranking_mode: "daily_sale_velocity_desc_with_value_floor_and_observed_fallback",
       sell_batch_quantity: GC_SEAL_SELL_BATCH_QUANTITY,
       target_max_days: GC_SEAL_MAX_BATCH_DAYS,
       recommendations: [],
