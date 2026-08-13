@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { activateNowLayout, correctedPreparationRange } from "../public/task-board-schedule-correction.js";
+import { buildAbsoluteTiming, countdownState, isBigFishCandidate } from "../public/time-sensitive-dashboard.js";
 
 assert.equal(correctedPreparationRange("18:20–18:26"), "18:13–18:20");
 assert.equal(correctedPreparationRange("00:03–00:09"), "23:56–00:03");
@@ -18,4 +19,26 @@ assert.match(source, /body\.task-board-primary\.task-board-now-active #nowPanel 
 assert.match(source, /\.task-now-button/);
 assert.doesNotMatch(source, /MutationObserver/);
 
-console.log("task board schedule timing and layout de-dup: ok");
+const base = Date.parse("2026-08-13T18:00:00+09:00");
+const upcoming = buildAbsoluteTiming({ time_window: { starts_in_minutes: 7, duration_minutes: 6 } }, base);
+assert.equal(upcoming.startAt, base + 7 * 60000);
+assert.equal(upcoming.endAt, base + 13 * 60000);
+assert.equal(countdownState(upcoming, base).label, "あと7分");
+assert.equal(countdownState(upcoming, base + 8 * 60000).state, "open");
+assert.equal(countdownState(upcoming, base + 8 * 60000).label, "いま · 残り5分");
+
+const deadline = buildAbsoluteTiming({ title: "期間限定イベント 終了まで 90分" }, base);
+assert.equal(countdownState(deadline, base).label, "残り1時間30分");
+assert.equal(isBigFishCandidate({ job_code: "FSH", title: "オオヌシを狙う" }), true);
+assert.equal(isBigFishCandidate({ job_code: "FSH", title: "普通の魚を釣る" }), false);
+
+const dashboardSource = readFileSync(new URL("../public/time-sensitive-dashboard.js", import.meta.url), "utf8");
+assert.match(dashboardSource, /BIG FISH/);
+assert.match(dashboardSource, /期限・時限/);
+assert.match(dashboardSource, /data-category=\"event\"/);
+assert.match(dashboardSource, /data-category=\"weekly\"/);
+assert.match(dashboardSource, /#taskBoard \.task-board-timed/);
+assert.match(dashboardSource, /REFRESH_INTERVAL_MS = 10 \* 60 \* 1000/);
+assert.match(dashboardSource, /VISIBLE_TICK_MS = 1000/);
+
+console.log("task board schedule timing, separate time-sensitive dashboard, and live countdowns: ok");
