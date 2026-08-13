@@ -126,7 +126,7 @@ function createGrandCompanyContent(root) {
     <div class="retainer-advice-head">
       <div>
         <div class="retainer-advice-title"><span class="retainer-advice-icon">G</span><span>ログインしたら、まず双蛇党納品</span></div>
-        <p class="retainer-advice-sub">今日の納品一覧スクショから、所持数とボーナス表示だけで最初の1件を決めます。</p>
+        <p class="retainer-advice-sub">今日の納品一覧スクショから、品名・必要数・所持数・ボーナスを一覧で確認します。</p>
       </div>
       <button type="button" class="retainer-refresh" data-gc-refresh>一覧を再確認</button>
     </div>
@@ -165,13 +165,14 @@ function qtyText(row) {
   return "数量は画面で確認";
 }
 
-function buildDeliveryRow(row, { featured = false } = {}) {
+function buildDeliveryRow(row) {
   const article = document.createElement("article");
-  article.className = `gc-delivery${featured ? " featured" : ""}`;
+  article.className = "gc-delivery";
   const top = document.createElement("div");
   top.className = "gc-delivery-top";
   const name = document.createElement("strong");
   name.textContent = row.item_name || "品名未確認";
+  name.setAttribute("data-gc-delivery-item", "");
   top.append(name);
   if (row.starred) {
     const star = document.createElement("span");
@@ -187,12 +188,6 @@ function buildDeliveryRow(row, { featured = false } = {}) {
     meta.append(span);
   }
   article.append(top, meta);
-  if (featured && row.recommendation_reason) {
-    const reason = document.createElement("p");
-    reason.className = "gc-delivery-reason";
-    reason.textContent = row.recommendation_reason;
-    article.append(reason);
-  }
   return article;
 }
 
@@ -214,41 +209,24 @@ function renderDeliveries(data) {
   const body = rootPanel()?.querySelector("[data-gc-body]");
   if (!body) return;
   const rows = Array.isArray(data?.deliveries) ? data.deliveries : [];
-  const recommended = data?.recommended;
   body.replaceChildren();
-  if (!recommended) {
-    renderSetup("一覧は保存されていますが、確信を持てる納品行がありません。もう一度見やすいスクショを貼ってください。", "再スクショ");
+  if (!rows.length) {
+    renderSetup("納品行を確認できませんでした。もう一度見やすいスクショを貼ってください。", "再スクショ");
     return;
   }
 
-  const lead = document.createElement("div");
-  lead.className = "gc-recommendation";
-  const label = document.createElement("p");
-  label.className = "gc-kicker";
-  label.textContent = "まずこれを納品";
-  lead.append(label, buildDeliveryRow(recommended, { featured: true }));
-  body.append(lead);
-
-  const remaining = rows.filter(row => row.row_index !== recommended.row_index || row.item_name !== recommended.item_name);
-  if (remaining.length) {
-    const details = document.createElement("details");
-    details.className = "gc-remaining";
-    const summary = document.createElement("summary");
-    summary.textContent = `残りの納品候補 ${remaining.length}件`;
-    details.append(summary);
-    const list = document.createElement("div");
-    list.className = "gc-delivery-list";
-    for (const row of remaining) list.append(buildDeliveryRow(row));
-    details.append(list);
-    body.append(details);
-  }
+  const section = document.createElement("div");
+  section.className = "gc-delivery-list";
+  section.setAttribute("data-gc-plain-list", "");
+  for (const row of rows) section.append(buildDeliveryRow(row));
+  body.append(section);
 
   const note = document.createElement("p");
   note.className = "retainer-market-note";
   const company = data?.company_name ? `${data.company_name}・` : "";
   note.textContent = `${company}今日のスクショ証拠だけを使用。品名・必要数・所持数・ボーナスを外部知識で補完しません。`;
   body.append(note);
-  lastGcStatus = recommended.ready_now ? "すぐ納品" : "まずこれ";
+  lastGcStatus = `${rows.length}件`;
   if (!isGcDone()) setGcTabStatus(lastGcStatus);
 }
 
@@ -288,10 +266,10 @@ function showGrandCompanySaved(analysis) {
   const count = Array.isArray(payload.deliveries) ? payload.deliveries.length : 0;
   const status = document.getElementById("contextInboxStatus");
   if (status) {
-    status.textContent = `今日の双蛇党納品を${count}件読み取りました。必要数と所持数から最初の1件を決めます。`;
+    status.textContent = `今日の双蛇党納品を${count}件読み取りました。納品一覧へ反映します。`;
     status.dataset.kind = "success";
   }
-  lastGcStatus = "選定中";
+  lastGcStatus = `${count}件`;
   setStep("grand-company");
   setGcTabStatus(lastGcStatus);
   void loadDeliveries();
