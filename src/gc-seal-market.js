@@ -89,18 +89,27 @@ function sortRankedRows(rows) {
     || b.average_sale_price - a.average_sale_price);
 }
 
+function candidateKey(row) {
+  return row.item_id || row.item_name || row.item_name_en;
+}
+
 export function rankSealExchangeRows(rows, limit = 5) {
   const max = Math.max(1, Number(limit) || 5);
   const scored = (Array.isArray(rows) ? rows : []).map(row => ({ ...row, ...scoreSealExchangeCandidate(row) }));
   const strong = sortRankedRows(scored.filter(row => row.velocity_floor_pass && row.price_floor_pass && row.efficiency_floor_pass))
     .map(row => ({ ...row, recommendation_strength: "strong" }));
-  const strongKeys = new Set(strong.map(row => row.item_id || row.item_name || row.item_name_en));
+  const strongKeys = new Set(strong.map(candidateKey));
   const secondary = sortRankedRows(scored.filter(row => {
-    const key = row.item_id || row.item_name || row.item_name_en;
+    const key = candidateKey(row);
     return !strongKeys.has(key) && row.price_floor_pass && row.efficiency_floor_pass && row.daily_sale_velocity > 0;
   })).map(row => ({ ...row, recommendation_strength: "secondary" }));
+  const selectedKeys = new Set([...strong, ...secondary].map(candidateKey));
+  const fallback = sortRankedRows(scored.filter(row => {
+    const key = candidateKey(row);
+    return !selectedKeys.has(key) && row.daily_sale_velocity > 0 && row.average_sale_price > 0;
+  })).map(row => ({ ...row, recommendation_strength: "fallback" }));
 
-  return [...strong, ...secondary]
+  return [...strong, ...secondary, ...fallback]
     .slice(0, max)
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
