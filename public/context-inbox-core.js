@@ -112,11 +112,6 @@ async function loadSavedContext() {
   } catch {}
 }
 
-async function refreshPlanWithoutResettingSession() {
-  const active = document.querySelector("#modeChoices button[data-mode].active");
-  if (active) active.click();
-}
-
 function announceContextSaved(analysis, data) {
   window.dispatchEvent(new CustomEvent("ff14today:context-saved", {
     detail: {
@@ -156,7 +151,6 @@ async function uploadImage(file) {
     setInboxState(statSummary(analysis, workflowContext), analysis.page_type === "unknown" ? "warning" : "success");
     announceContextSaved(analysis, data);
     await loadSavedContext();
-    if (data.context_saved) await refreshPlanWithoutResettingSession();
   } catch (error) {
     setInboxState(`画像解析に失敗：${error.message}`, "error");
   } finally {
