@@ -29,21 +29,29 @@ assert.ok(fast.sell_through_score > fast.value_score, "300-item sell-through mus
 assert.equal(fast.velocity_floor_pass, true);
 assert.equal(fast.efficiency_floor_pass, true);
 
-const ranked = rankSealExchangeRows([
+const sampleRows = [
   { item_name: "高いが300個には遅い品", seal_cost: 200, exchange_quantity: 1, average_sale_price: 30000, daily_sale_velocity: 50, listed_quantity: 10, listing_rows_sampled: 10 },
   { item_name: "激安だが超高速", seal_cost: 200, exchange_quantity: 1, average_sale_price: 50, daily_sale_velocity: 1500, listed_quantity: 100, listing_rows_sampled: 30 },
   { item_name: "最速の実用品", seal_cost: 200, exchange_quantity: 1, average_sale_price: 248, daily_sale_velocity: 852.3, listed_quantity: 4432, listing_rows_sampled: 90 },
   { item_name: "高単価の次点", seal_cost: 200, exchange_quantity: 1, average_sale_price: 900, daily_sale_velocity: 300, listed_quantity: 300, listing_rows_sampled: 60 },
   { item_name: "ぎりぎり300個向き", seal_cost: 200, exchange_quantity: 1, average_sale_price: 400, daily_sale_velocity: 100, listed_quantity: 100, listing_rows_sampled: 20 }
-]);
-assert.equal(ranked.length, 3, "slow or extremely cheap candidates must be excluded from the 300-item list");
+];
+const ranked = rankSealExchangeRows(sampleRows, 3);
+assert.equal(ranked.length, 3, "the visible recommendation lane must stop at top three");
 assert.equal(ranked[0].item_name, "最速の実用品", "qualifying candidates must be ordered primarily by daily sales velocity");
 assert.equal(ranked[0].rank, 1);
 assert.equal(ranked[0].sales_priority, "かなり売れる");
+assert.equal(ranked[0].recommendation_strength, "strong");
 assert.ok(ranked[0].estimated_days_to_sell_batch < 0.4);
 assert.equal(ranked[1].item_name, "高単価の次点");
 assert.equal(ranked[2].item_name, "ぎりぎり300個向き");
 assert.equal(ranked[2].estimated_days_to_sell_batch, 3);
+
+const expanded = rankSealExchangeRows(sampleRows, 5);
+assert.equal(expanded.length, 4, "a slower but still valuable candidate may fill a lower rank when strong rows are scarce");
+assert.equal(expanded[3].item_name, "高いが300個には遅い品");
+assert.equal(expanded[3].recommendation_strength, "secondary");
+assert.equal(expanded.some(row => row.item_name === "激安だが超高速"), false, "extremely cheap candidates must remain excluded");
 
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
 const fallbackWrapper = readFileSync(new URL("../src/gc-market-fallback-wrapper.js", import.meta.url), "utf8");
