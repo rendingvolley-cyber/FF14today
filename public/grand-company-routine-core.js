@@ -226,7 +226,7 @@ function renderDeliveries(data) {
   const company = data?.company_name ? `${data.company_name}・` : "";
   note.textContent = `${company}今日のスクショ証拠だけを使用。品名・必要数・所持数・ボーナスを外部知識で補完しません。`;
   body.append(note);
-  lastGcStatus = `${rows.length}件`;
+  lastGcStatus = rows.some(row => row?.ready_now) ? "すぐ納品" : `${rows.length}件`;
   if (!isGcDone()) setGcTabStatus(lastGcStatus);
 }
 
