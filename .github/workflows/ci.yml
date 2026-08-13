@@ -78,6 +78,7 @@ jobs:
           node --check scripts/test-grand-company-deliveries.mjs
           node --check scripts/test-gc-jsonmode.mjs
           node --check scripts/test-gc-seal-market.mjs
+          node --check scripts/test-gc-ui-cleanup.mjs
           node --check scripts/test-inventory-context.mjs
           node --check scripts/test-dynamic-recipe-resolver.mjs
           node --check scripts/test-leve-japanese-labels.mjs
@@ -118,6 +119,8 @@ jobs:
         run: node scripts/test-gc-jsonmode.mjs
       - name: Grand Company seal market rules
         run: node scripts/test-gc-seal-market.mjs
+      - name: Grand Company UI cleanup
+        run: node scripts/test-gc-ui-cleanup.mjs
       - name: Inventory evidence rules
         run: node scripts/test-inventory-context.mjs
       - name: Task board schedule rules
