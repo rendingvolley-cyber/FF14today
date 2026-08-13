@@ -17,4 +17,5 @@ window.fetch = async (input, init = {}) => {
 };
 
 void import("./task-board-daily-checks.js");
+void import("./time-sensitive-dashboard.js");
 void import("./context-inbox-core.js");
