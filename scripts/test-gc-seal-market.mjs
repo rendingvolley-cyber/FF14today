@@ -93,7 +93,7 @@ assert.equal(wrangler.main, "src/gc-top3-entry.js");
 
 const gcCss = readFileSync(new URL("../public/grand-company-routine.css", import.meta.url), "utf8");
 const gcUi = readFileSync(new URL("../public/gc-seal-market.js", import.meta.url), "utf8");
-assert.match(gcCss, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/, "desktop routine steps must stay on one row");
+assert.match(gcCss, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/, "three desktop routine steps must stay on one row");
 assert.match(gcCss, /\.gc-delivery-table\{/);
 assert.match(gcCss, /\.gc-seal-table\{/);
 assert.match(gcUi, /300個出す前提で、売れ筋順に比較/);
