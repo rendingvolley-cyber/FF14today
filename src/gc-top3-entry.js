@@ -11,20 +11,31 @@ function json(data, status = 200) {
   });
 }
 
+function displayName(row) {
+  const base = row?.item_name || row?.item_name_en || "交換品";
+  if (row?.recommendation_strength === "fallback") return `${base}（条件弱め）`;
+  if (row?.recommendation_strength === "secondary") return `${base}（次点）`;
+  return base;
+}
+
 async function topThreeResponse(response) {
   if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
   let data;
   try { data = await response.clone().json(); }
   catch { return response; }
   const recommendations = Array.isArray(data?.recommendations)
-    ? data.recommendations.slice(0, 3).map((row, index) => ({ ...row, rank: index + 1 }))
+    ? data.recommendations.slice(0, 3).map((row, index) => ({
+      ...row,
+      item_name: displayName(row),
+      rank: index + 1
+    }))
     : [];
   return json({
     ...data,
     recommendations,
     recommendation_limit: 3,
     message: recommendations.length
-      ? `軍票交換は売れ筋上位${recommendations.length}件を表示しています。`
+      ? `軍票交換は市場データのある上位${recommendations.length}件を表示しています。条件を満たさない次点は明示しています。`
       : data?.message
   }, response.status);
 }
