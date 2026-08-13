@@ -177,6 +177,7 @@ function promoteTaskBoard(root = document) {
   `;
   root.head.append(style);
   root.body.classList.add("task-board-primary");
+  if (hasActiveFocusFlow()) activateNowLayout(root);
 }
 
 let queued = false;
@@ -186,6 +187,7 @@ function queueCorrection() {
   requestAnimationFrame(() => {
     queued = false;
     correctPreparationRows();
+    if (hasActiveFocusFlow()) activateNowLayout(document);
   });
 }
 
