@@ -48,10 +48,21 @@ assert.equal(ranked[2].item_name, "ぎりぎり300個向き");
 assert.equal(ranked[2].estimated_days_to_sell_batch, 3);
 
 const expanded = rankSealExchangeRows(sampleRows, 5);
-assert.equal(expanded.length, 4, "a slower but still valuable candidate may fill a lower rank when strong rows are scarce");
+assert.equal(expanded.length, 5, "market-observed rows may fill lower ranks when strong rows are scarce");
 assert.equal(expanded[3].item_name, "高いが300個には遅い品");
 assert.equal(expanded[3].recommendation_strength, "secondary");
-assert.equal(expanded.some(row => row.item_name === "激安だが超高速"), false, "extremely cheap candidates must remain excluded");
+assert.equal(expanded[4].item_name, "激安だが超高速");
+assert.equal(expanded[4].recommendation_strength, "fallback");
+
+const sparse = rankSealExchangeRows([
+  { item_name: "本命", seal_cost: 200, exchange_quantity: 1, average_sale_price: 250, daily_sale_velocity: 435.2, listed_quantity: 20 },
+  { item_name: "安いが売れる", seal_cost: 200, exchange_quantity: 1, average_sale_price: 80, daily_sale_velocity: 700, listed_quantity: 40 },
+  { item_name: "遅いが売れる", seal_cost: 200, exchange_quantity: 1, average_sale_price: 120, daily_sale_velocity: 30, listed_quantity: 15 }
+], 3);
+assert.equal(sparse.length, 3, "one strong row must not collapse the requested top three to one row");
+assert.equal(sparse[0].recommendation_strength, "strong");
+assert.equal(sparse[1].recommendation_strength, "secondary");
+assert.equal(sparse[2].recommendation_strength, "fallback");
 
 const costWrapper = readFileSync(new URL("../src/gc-delivery-cost-wrapper.js", import.meta.url), "utf8");
 const fallbackWrapper = readFileSync(new URL("../src/gc-market-fallback-wrapper.js", import.meta.url), "utf8");
@@ -73,10 +84,11 @@ assert.match(retainerBandWrapper, /category-job-focus-wrapper\.js/);
 assert.match(categoryJobWrapper, /gc-market-fallback-wrapper\.js/);
 assert.match(fallbackWrapper, /gc-delivery-cost-wrapper\.js/);
 assert.match(fallbackWrapper, /marketCostFromListings/);
-assert.match(sealWrapper, /sell-through-300-v1/);
+assert.match(sealWrapper, /sell-through-300-top3-v2/);
 assert.match(sealWrapper, /rankSealExchangeRows\(marketRows, 5\)/);
 assert.match(topThreeEntry, /recommendations\.slice\(0, 3\)/);
 assert.match(topThreeEntry, /recommendation_limit:\s*3/);
+assert.match(topThreeEntry, /条件弱め/);
 assert.equal(wrangler.main, "src/gc-top3-entry.js");
 
 const gcCss = readFileSync(new URL("../public/grand-company-routine.css", import.meta.url), "utf8");
