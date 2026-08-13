@@ -51,7 +51,9 @@ const categoryJobWrapper = readFileSync(new URL("../src/category-job-focus-wrapp
 const retainerBandWrapper = readFileSync(new URL("../src/retainer-level-band-wrapper.js", import.meta.url), "utf8");
 const recoveryWrapper = readFileSync(new URL("../src/task-board-recovery-wrapper.js", import.meta.url), "utf8");
 const sealWrapper = readFileSync(new URL("../src/gc-seal-market-wrapper.js", import.meta.url), "utf8");
+const topThreeEntry = readFileSync(new URL("../src/gc-top3-entry.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
+const wrangler = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
 assert.match(costWrapper, /\/api\/grand-company\/delivery-costs/);
 assert.match(costWrapper, /resolveDynamicCraftTarget/);
 assert.match(costWrapper, /buildDynamicLeveCostAdvice/);
@@ -65,6 +67,9 @@ assert.match(fallbackWrapper, /gc-delivery-cost-wrapper\.js/);
 assert.match(fallbackWrapper, /marketCostFromListings/);
 assert.match(sealWrapper, /sell-through-300-v1/);
 assert.match(sealWrapper, /rankSealExchangeRows\(marketRows, 5\)/);
+assert.match(topThreeEntry, /recommendations\.slice\(0, 3\)/);
+assert.match(topThreeEntry, /recommendation_limit:\s*3/);
+assert.equal(wrangler.main, "src/gc-top3-entry.js");
 
 const gcCss = readFileSync(new URL("../public/grand-company-routine.css", import.meta.url), "utf8");
 const gcUi = readFileSync(new URL("../public/gc-seal-market.js", import.meta.url), "utf8");
@@ -75,4 +80,4 @@ assert.match(gcUi, /300個出す前提で、売れ筋順に比較/);
 assert.match(gcUi, /data-gc-delivery-item/);
 assert.match(gcUi, /button\.textContent = "詳細"/);
 
-console.log("GC table UI, task board recovery, retainer-level-band, market fallback, and 300-item seal sell-through ranking: ok");
+console.log("GC table UI, task board recovery, market fallback, and top-three 300-item seal ranking: ok");
