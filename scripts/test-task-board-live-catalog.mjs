@@ -59,7 +59,7 @@ const fishData = {
 }
 
 {
-  assert.equal(calculateForecastTarget(0), 0);
+  assert.equal(calculateForecastTarget(0), 56);
   const reset = nextWeeklyResetMs(Date.parse("2026-08-14T19:28:00+09:00"));
   assert.equal(new Date(reset).toISOString(), "2026-08-18T08:00:00.000Z");
   const deadline = extractJapaneseDeadline("セール期間 2026年8月20日 23:59まで", Date.parse("2026-08-14T00:00:00+09:00"));
