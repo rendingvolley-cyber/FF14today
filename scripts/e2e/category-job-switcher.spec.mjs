@@ -27,11 +27,11 @@ function methodFor(mode, code) {
 
 function planFor(url) {
   const mode = url.searchParams.get("planner_mode") || "efficient";
-  const combat = url.searchParams.get("focus_combat_job_code") || "RDM";
-  const craft = url.searchParams.get("focus_craft_job_code") || "BSM";
-  const gather = url.searchParams.get("focus_gather_job_code") || "BTN";
+  const combat = url.searchParams.get("focus_combat_job_code") || "";
+  const craft = url.searchParams.get("focus_craft_job_code") || "";
+  const gather = url.searchParams.get("focus_gather_job_code") || "";
   const code = mode === "efficient" ? combat : mode === "craft" ? craft : mode === "gather" ? gather : "";
-  const methods = methodFor(mode, code);
+  const methods = mode === "discover" ? methodFor(mode, code) : (code ? methodFor(mode, code) : []);
   const job = character.jobs.find(row => row.code === code) || null;
   return {
     selected_mode: mode,
@@ -82,8 +82,17 @@ test("task board lists jobs, keeps selected jobs, and exposes daily roulette che
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(generic(url.pathname)) });
   });
 
+  const initialCombatFocus = page.waitForRequest(req => {
+    const url = new URL(req.url());
+    return url.pathname === "/api/state"
+      && url.searchParams.get("planner_mode") === "efficient"
+      && url.searchParams.get("focus_combat_job_code") === "RDM";
+  });
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await initialCombatFocus;
   await expect(page.locator("#taskBoard")).toBeVisible();
+  await expect(page.locator('#taskBoardTabs [data-category="combat"] small')).toHaveText("1");
+  await expect(page.locator("#taskBoardGrid")).toContainText("RDMの戦闘候補");
 
   await page.locator('#taskBoardTabs [data-category="combat"]').click();
   await expect(page.locator("#categoryJobFocus")).toBeVisible();
