@@ -1,4 +1,5 @@
 import app from "./gc-supply-duty-entry.js";
+import { augmentStateResponse, liveFeedResponse } from "./task-board-live-catalog.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -54,7 +55,16 @@ function rewriteHtml(response) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/live-feed" && request.method === "GET") {
+      return liveFeedResponse(env);
+    }
+
     const response = await app.fetch(request, env);
+
+    if (url.pathname === "/api/state" && request.method === "GET") {
+      return augmentStateResponse(request, response, env);
+    }
     if (url.pathname === "/api/grand-company/seal-exchange-recommendations" && request.method === "GET") {
       return topThreeResponse(response);
     }
@@ -62,7 +72,14 @@ export default {
       let data;
       try { data = await response.clone().json(); }
       catch { return response; }
-      return json({ ...data, gc_seal_recommendation_limit: 3, task_board_focus_first_request: true }, response.status);
+      return json({
+        ...data,
+        gc_seal_recommendation_limit: 3,
+        task_board_focus_first_request: true,
+        task_board_live_catalog: true,
+        big_fish_live_feed: true,
+        lodestone_deadline_feed: true
+      }, response.status);
     }
     if (request.method === "GET") return rewriteHtml(response);
     return response;
