@@ -11,6 +11,7 @@
   let character = null;
   let renderTimer = null;
   let pendingCategory = "";
+  let defaultRefreshQueued = false;
 
   function selectedCode(mode) {
     return String(localStorage.getItem(KEYS[mode] || "") || "").trim().toUpperCase();
@@ -75,6 +76,7 @@
             if (code) modeFocus.set(mode, code);
             modeNotice.set(mode, String(plan?.notice || ""));
           }
+          if (ensureDefaultSelections()) queueDefaultRefresh();
           scheduleRender();
         }).catch(() => {});
       }
@@ -96,6 +98,42 @@
       if (mode === "gather") return job?.role === "gatherer" && ["MIN", "BTN"].includes(code) && level > 0 && level < 100;
       return false;
     }).sort((a, b) => (Number(b.level) - Number(a.level)) || String(a.name_ja || a.code).localeCompare(String(b.name_ja || b.code), "ja"));
+  }
+
+  function preferredCode(mode, jobs) {
+    const selected = selectedCode(mode);
+    if (jobs.some(job => String(job.code).toUpperCase() === selected)) return selected;
+    const planned = modeFocus.get(mode) || "";
+    if (jobs.some(job => String(job.code).toUpperCase() === planned)) return planned;
+    return String(jobs[0]?.code || "").trim().toUpperCase();
+  }
+
+  function ensureDefaultSelections() {
+    if (!character) return false;
+    let changed = false;
+    for (const mode of Object.keys(KEYS)) {
+      const jobs = eligibleJobs(mode);
+      if (!jobs.length) continue;
+      const current = selectedCode(mode);
+      if (jobs.some(job => String(job.code).toUpperCase() === current)) continue;
+      const code = preferredCode(mode, jobs);
+      if (!code) continue;
+      localStorage.setItem(KEYS[mode], code);
+      modeFocus.set(mode, code);
+      changed = true;
+    }
+    return changed;
+  }
+
+  function queueDefaultRefresh() {
+    if (defaultRefreshQueued) return;
+    defaultRefreshQueued = true;
+    queueMicrotask(() => {
+      defaultRefreshQueued = false;
+      window.dispatchEvent(new CustomEvent("ff14today:context-updated", {
+        detail: { source: "category-job-focus-defaults" }
+      }));
+    });
   }
 
   function injectStyle() {
@@ -155,11 +193,11 @@
     }
     panel.classList.remove("hidden");
     const select = panel.querySelector("select");
-    let code = selectedCode(mode);
-    if (!jobs.some(job => String(job.code).toUpperCase() === code)) {
-      const planned = modeFocus.get(mode) || "";
-      code = jobs.some(job => String(job.code).toUpperCase() === planned) ? planned : String(jobs[0].code).toUpperCase();
+    let code = preferredCode(mode, jobs);
+    if (!jobs.some(job => String(job.code).toUpperCase() === selectedCode(mode)) && code) {
       localStorage.setItem(KEYS[mode], code);
+      modeFocus.set(mode, code);
+      queueDefaultRefresh();
     }
     select.replaceChildren(...jobs.map(job => {
       const option = document.createElement("option");
