@@ -40,6 +40,17 @@ async function topThreeResponse(response) {
   }, response.status);
 }
 
+function rewriteHtml(response) {
+  if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
+  return new HTMLRewriter()
+    .on("head", {
+      element(element) {
+        element.prepend('<script src="/task-board-focus-first.js"></script>', { html: true });
+      }
+    })
+    .transform(response);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -51,8 +62,9 @@ export default {
       let data;
       try { data = await response.clone().json(); }
       catch { return response; }
-      return json({ ...data, gc_seal_recommendation_limit: 3 }, response.status);
+      return json({ ...data, gc_seal_recommendation_limit: 3, task_board_focus_first_request: true }, response.status);
     }
+    if (request.method === "GET") return rewriteHtml(response);
     return response;
   }
 };
