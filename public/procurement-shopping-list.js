@@ -1,8 +1,11 @@
 import { parseMaterialSummary, shoppingListText } from "./procurement-shopping-list-core.js";
 
+function knownPrice(value) {
+  return value != null && Number.isFinite(Number(value)) && Number(value) >= 0;
+}
+
 function gil(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? `${Math.round(n).toLocaleString("ja-JP")}G` : "—";
+  return knownPrice(value) ? `${Math.round(Number(value)).toLocaleString("ja-JP")}G` : "—";
 }
 
 function hashText(value) {
@@ -58,7 +61,7 @@ function render(block) {
   }
 
   const title = titleFor(block);
-  const totalKnown = rows.every(row => Number.isFinite(Number(row.total_gil)));
+  const totalKnown = rows.every(row => knownPrice(row.total_gil));
   const total = totalKnown ? rows.reduce((sum, row) => sum + Number(row.total_gil), 0) : null;
   const rowHtml = rows.map(row => `
     <div class="procurement-shopping-row">
