@@ -14,10 +14,10 @@ function normalizeMode(value) {
   return MODES.has(value) ? value : "efficient";
 }
 
-function pickHighestJob(character, predicate, includeCapped = false) {
+function pickCatchupJob(character, predicate, includeCapped = false) {
   return (character?.jobs || [])
     .filter(job => job.level !== null && (includeCapped || job.level < 100) && predicate(job))
-    .sort((a, b) => (b.level - a.level) || a.code.localeCompare(b.code))[0] || null;
+    .sort((a, b) => (a.level - b.level) || a.code.localeCompare(b.code))[0] || null;
 }
 
 function findJob(character, code) {
@@ -25,16 +25,16 @@ function findJob(character, code) {
 }
 
 function pickPrimaryCombatJob(character) {
-  return pickHighestJob(character, job => !["crafter", "gatherer", "limited"].includes(job.role));
+  return pickCatchupJob(character, job => !["crafter", "gatherer", "limited"].includes(job.role));
 }
 
 function pickCrafterJob(character) {
-  return pickHighestJob(character, job => job.role === "crafter");
+  return pickCatchupJob(character, job => job.role === "crafter");
 }
 
 function pickGathererJob(character) {
-  return pickHighestJob(character, job => job.role === "gatherer" && job.code !== "FSH")
-    || pickHighestJob(character, job => job.role === "gatherer");
+  return pickCatchupJob(character, job => job.role === "gatherer" && job.code !== "FSH")
+    || pickCatchupJob(character, job => job.role === "gatherer");
 }
 
 function dungeonForLevel(level) {
@@ -137,11 +137,11 @@ function efficientMethods(character) {
   if (!job) return [];
   const methods = [
     rouletteMethod(job, "leveling", "レベリング", "日次ボーナス", 30,
-      "1日1回の経験値ボーナスがあるため、未消化なら通常周回より先に出します。")
+      "低Lvジョブを先に追いつかせて装備帯を揃える方針。1日1回の経験値ボーナスを最低Lv側へ使います。")
   ];
   if (job.level >= 50) {
     methods.push(rouletteMethod(job, "alliance", "アライアンスレイド", "日次ボーナス", 35,
-      "個別レイド周回ではなく、1日1回のアライアンスルーレット経験値ボーナスを回収するために出します。"));
+      "低Lvジョブの底上げを優先しつつ、1日1回のアライアンスルーレット経験値ボーナスを回収します。"));
   }
   const dungeon = repeatDungeonMethod(job, dungeonForLevel(job.level));
   if (dungeon) methods.push(dungeon);
@@ -283,7 +283,7 @@ function gatherMethods(character) {
 
 function discoverMethods(character) {
   const methods = [];
-  const anyCombat = pickHighestJob(
+  const anyCombat = pickCatchupJob(
     character,
     job => !["crafter", "gatherer", "limited"].includes(job.role),
     true
@@ -447,7 +447,7 @@ function concretePlan(character, availableMinutes, energy, completedDailyInput, 
         completedDaily,
         mode,
         null,
-        "この職・レベル帯は、対象・場所・報酬根拠まで確定できる候補がまだありません。適当な『何か作る／採る』は出しません。"
+        "最低Lv側を優先していますが、この職・レベル帯は対象・場所・報酬根拠まで確定できる候補がまだありません。適当な『何か作る／採る』は出しません。"
       );
     }
     return null;
@@ -461,10 +461,10 @@ function concretePlan(character, availableMinutes, energy, completedDailyInput, 
   const label = modeLabel(mode);
   const repeatNote = recommended.repeat_count > 0
     ? "今日すでに実行済みですが、同カテゴリ内でまだ目的・報酬根拠が強いため再提示しています。"
-    : "未実行で、目的・報酬・場所まで具体化できる候補を優先しています。";
+    : "最低Lv側を先に追いつかせつつ、目的・報酬・場所まで具体化できる候補を優先しています。";
 
   return {
-    planner_kind: "decision-owned-v1.3",
+    planner_kind: "decision-owned-v1.4-low-level-catchup",
     session_complete: false,
     selected_mode: mode,
     remaining_minutes: Math.max(0, Math.round(Number(availableMinutes) || 0)),
