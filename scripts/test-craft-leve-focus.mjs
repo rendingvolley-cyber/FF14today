@@ -41,9 +41,12 @@ const armguardsAdvice = buildLeveCostAdvice(armguardsTarget, armPrices, {
   availableMinutes: 60,
   preferTraining: true
 });
-const armguardsRaw = armguardsAdvice.routes.find(route => route.key === "craft_raw");
-assert.equal(armguardsRaw?.available, true);
-const armguardsMaterials = new Map((armguardsRaw?.purchases || []).map(row => [row.itemId, row.quantity]));
+const armguardsRaw = armguardsAdvice.routes.find(route =>
+  route.crafts?.some(row => row.itemId === 34107)
+  && route.purchases?.some(row => row.itemId === 36162)
+);
+assert.ok(armguardsRaw, "an expanded armguards craft route must be available");
+const armguardsMaterials = new Map((armguardsRaw.purchases || []).map(row => [row.itemId, row.quantity]));
 assert.equal(armguardsMaterials.get(36162), 10, "two ARM nuggets need ten High Durium Sand");
 assert.equal(armguardsMaterials.get(5113), 2, "two ARM nuggets need two Silver Ore");
 assert.equal(armguardsMaterials.get(9), 24, "ARM nugget crystals must combine with the final armguards crystals");
@@ -57,9 +60,12 @@ const nuggetAdvice = buildLeveCostAdvice(nuggetTarget, armPrices, {
   availableMinutes: 60,
   preferTraining: true
 });
-const nuggetRaw = nuggetAdvice.routes.find(route => route.key === "craft_raw");
-assert.equal(nuggetRaw?.available, true);
-const nuggetMaterials = new Map((nuggetRaw?.purchases || []).map(row => [row.itemId, row.quantity]));
+const nuggetRaw = nuggetAdvice.routes.find(route =>
+  route.crafts?.some(row => row.itemId === 36168)
+  && route.purchases?.some(row => row.itemId === 36162)
+);
+assert.ok(nuggetRaw, "an expanded ARM nugget craft route must be available");
+const nuggetMaterials = new Map((nuggetRaw.purchases || []).map(row => [row.itemId, row.quantity]));
 assert.equal(nuggetMaterials.get(36162), 15);
 assert.equal(nuggetMaterials.get(5113), 3);
 assert.equal(nuggetMaterials.get(9), 24, "ARM High Durium Nugget must use Ice Crystal, not the Blacksmith Fire Crystal recipe");
