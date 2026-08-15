@@ -13,6 +13,11 @@ export function completedDailyFromHistory(counts, explicit = {}) {
   };
 }
 
+export function shouldRebuildEfficientTaskBoardPlan(currentPlan) {
+  const selectedMode = String(currentPlan?.selected_mode || "").trim();
+  return !selectedMode || selectedMode === "efficient";
+}
+
 export function rebuildEfficientTaskBoardPlan({
   character,
   currentPlan,
@@ -22,6 +27,10 @@ export function rebuildEfficientTaskBoardPlan({
   completionCounts = {},
   explicitCompletedDaily = {}
 }) {
+  // This recovery layer is combat/efficient-only. Craft/gather plans may already
+  // have been rewritten by their own focus policies; rebuilding them here would
+  // discard those policies and can resurrect login-routine society tasks.
+  if (!shouldRebuildEfficientTaskBoardPlan(currentPlan)) return currentPlan;
   if (!character || !focusJobCode) return currentPlan;
   const completedDaily = completedDailyFromHistory(completionCounts, explicitCompletedDaily);
   const base = makeConcretePlan(
