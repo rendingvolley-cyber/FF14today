@@ -2,6 +2,7 @@ import app from "./gc-supply-duty-entry.js";
 import { augmentStateResponse, liveFeedResponse } from "./task-board-live-catalog.js";
 import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
 import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
+import { addNearestTeleportHints } from "./time-sensitive-nearest-teleport.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -51,7 +52,8 @@ async function taskBoardStateResponse(request, response, env) {
   const seeded = seedCatalogPlan(data, request.url);
   const prepared = seeded === data ? response : json(seeded, response.status);
   const augmented = await augmentStateResponse(request, prepared, env);
-  return applyGameWindowPolicy(request, augmented);
+  const timed = await applyGameWindowPolicy(request, augmented);
+  return addNearestTeleportHints(request, timed);
 }
 
 function rewriteHtml(response) {
@@ -94,6 +96,7 @@ export default {
         task_board_null_plan_recovery: true,
         time_sensitive_scope: "game_windows",
         time_sensitive_gathering: true,
+        time_sensitive_nearest_teleport: true,
         big_fish_live_feed: true,
         lodestone_deadline_feed: true
       }, response.status);
