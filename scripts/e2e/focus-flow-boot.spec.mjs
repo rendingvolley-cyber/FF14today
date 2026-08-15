@@ -6,7 +6,7 @@ const character = {
   world: "Chocobo",
   data_center: "Mana",
   synced_at: "2026-08-10T12:00:00.000Z",
-  jobs: [{ code: "ALC", name_ja: "錬金術師", level: 90 }]
+  jobs: [{ code: "ALC", name_ja: "錬金術師", level: 90, role: "crafter" }]
 };
 
 const achievements = {
@@ -224,9 +224,15 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await expect(page.locator("[data-tribe-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-gc-content]")).toBeHidden();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
+  await expect(page.locator("[data-tribe-content]")).toContainText("友好部族 今日の12枠");
+  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("0/12");
 
-  await page.locator("[data-tribe-craft-toggle]").click();
-  await page.locator("[data-tribe-gather-toggle]").click();
+  for (const completed of [3, 6, 9]) {
+    await page.locator('[data-tribe-group-toggle][aria-pressed="false"]').first().click();
+    await expect(page.locator("[data-tribe-tab-status]")).toHaveText(`${completed}/12`);
+  }
+  await page.locator('[data-tribe-group-toggle][aria-pressed="false"]').first().click();
+  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("✓ 完了");
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-tribe-content]")).toBeHidden();
 

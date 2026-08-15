@@ -1,4 +1,26 @@
 const NORMAL_ROLES = new Set(["tank", "healer", "melee", "ranged", "caster"]);
+const CATEGORY_ORDER = ["combat", "craft", "gather"];
+
+export const ALLIED_SOCIETY_DAILY_LIMIT = 12;
+export const ALLIED_SOCIETY_QUESTS_PER_GROUP = 3;
+
+export const ALLIED_SOCIETY_DAILY_GUIDES = [
+  { id: "vanu_vanu", name: "バヌバヌ族", categories: ["combat"], min_level: 50, max_level: 59, area: "アバラシア雲海" },
+  { id: "vath", name: "グナース族（分かたれし者）", categories: ["combat"], min_level: 50, max_level: 59, area: "高地ドラヴァニア" },
+  { id: "moogle", name: "モーグリ族", categories: ["craft"], min_level: 50, max_level: 59, area: "ドラヴァニア雲海" },
+  { id: "kojin", name: "コウジン族", categories: ["combat"], min_level: 60, max_level: 69, area: "紅玉海" },
+  { id: "ananta", name: "アナンタ族", categories: ["combat"], min_level: 60, max_level: 69, area: "ギラバニア辺境地帯" },
+  { id: "namazu", name: "ナマズオ族", categories: ["craft", "gather"], min_level: 60, max_level: 69, area: "アジムステップ" },
+  { id: "pixie", name: "ピクシー族", categories: ["combat"], min_level: 70, max_level: 79, area: "イル・メグ" },
+  { id: "qitari", name: "キタリ族", categories: ["gather"], min_level: 70, max_level: 79, area: "ラケティカ大森林" },
+  { id: "dwarf", name: "ドワーフ族", categories: ["craft"], min_level: 70, max_level: 79, area: "レイクランド" },
+  { id: "arkasodara", name: "アルカソーダラ族", categories: ["combat"], min_level: 80, max_level: 89, area: "サベネア島" },
+  { id: "omicron", name: "オミクロン族", categories: ["gather"], min_level: 80, max_level: 89, area: "ウルティマ・トゥーレ" },
+  { id: "loporrit", name: "レポリット族", categories: ["craft"], min_level: 80, max_level: 89, area: "嘆きの海" },
+  { id: "pelupelu", name: "ペルペル族", categories: ["combat"], min_level: 90, max_level: 99, area: "コザマル・カ" },
+  { id: "mamool_ja", name: "マムージャ族", categories: ["gather"], min_level: 90, max_level: 99, area: "ヤクテル樹海" },
+  { id: "yok_huy", name: "ヨカフイ族", categories: ["craft"], min_level: 90, max_level: 99, area: "オルコ・パチャ" }
+];
 
 export const TRIBE_LEVELING_GUIDES = [
   {
@@ -58,9 +80,162 @@ export const TRIBE_LEVELING_GUIDES = [
   }
 ];
 
+function normalizeCode(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function jobCategory(job) {
+  const code = normalizeCode(job?.code);
+  if (!code || code === "BLU" || job?.role === "limited") return null;
+  if (NORMAL_ROLES.has(job?.role)) return "combat";
+  if (job?.role === "crafter") return "craft";
+  if (job?.role === "gatherer") return "gather";
+  return null;
+}
+
+function normalizeFocus(focus = {}) {
+  return {
+    combat: normalizeCode(focus.combat || focus.efficient || focus.focus_combat_job_code),
+    craft: normalizeCode(focus.craft || focus.focus_craft_job_code),
+    gather: normalizeCode(focus.gather || focus.focus_gather_job_code)
+  };
+}
+
+function jobsForCategory(jobs, category) {
+  return (Array.isArray(jobs) ? jobs : []).filter(job => {
+    const level = Number(job?.level);
+    return jobCategory(job) === category && Number.isInteger(level) && level > 0;
+  });
+}
+
+function pickTargetJob(jobs, society, category, focus, progression = false) {
+  const candidates = jobsForCategory(jobs, category).filter(job => {
+    const level = Number(job.level);
+    return progression
+      ? level > society.max_level
+      : level >= society.min_level && level <= society.max_level;
+  });
+  if (!candidates.length) return null;
+  const focusCode = focus[category] || "";
+  return candidates.sort((a, b) => {
+    const aFocus = normalizeCode(a.code) === focusCode ? 1 : 0;
+    const bFocus = normalizeCode(b.code) === focusCode ? 1 : 0;
+    if (aFocus !== bFocus) return bFocus - aFocus;
+    if (progression) return Number(b.level) - Number(a.level);
+    return Number(b.level) - Number(a.level);
+  })[0];
+}
+
+function candidateScore(candidate) {
+  const focusBonus = candidate.focused ? 100000 : 0;
+  const levelingBonus = candidate.kind === "leveling" ? 50000 : 0;
+  const bandBonus = Number(candidate.min_level || 0) * 100;
+  const jobBonus = Number(candidate.target_job_level || 0);
+  return focusBonus + levelingBonus + bandBonus + jobBonus;
+}
+
+function makeCandidate(society, category, job, focus, kind) {
+  const code = normalizeCode(job.code);
+  const focused = Boolean(focus[category] && focus[category] === code);
+  const leveling = kind === "leveling";
+  return {
+    society_id: society.id,
+    society_name: society.name,
+    category,
+    area: society.area,
+    min_level: society.min_level,
+    max_level: society.max_level,
+    range_label: `Lv${society.min_level}〜${society.max_level}`,
+    quests: ALLIED_SOCIETY_QUESTS_PER_GROUP,
+    target_job_code: code,
+    target_job_name: String(job.name_ja || job.name || code),
+    target_job_level: Number(job.level),
+    kind,
+    conditional: !leveling,
+    focused,
+    reason: leveling
+      ? `${focused ? "選択中の" : "Lodestone上の"}${String(job.name_ja || job.name || code)} Lv${job.level}が${society.name}の適正帯（Lv${society.min_level}〜${society.max_level}）。経験値目的で3件まとめます。`
+      : `経験値の適正帯は超えています。${society.name}の友好度・通貨・報酬を進める余力3枠として提案します。友好度MAXならここは使わなくてOKです。`
+  };
+}
+
+function buildCandidates(jobs, focus, progression = false) {
+  const rows = [];
+  for (const society of ALLIED_SOCIETY_DAILY_GUIDES) {
+    for (const category of society.categories) {
+      const job = pickTargetJob(jobs, society, category, focus, progression);
+      if (!job) continue;
+      rows.push(makeCandidate(society, category, job, focus, progression ? "progression" : "leveling"));
+    }
+  }
+  return rows.sort((a, b) => candidateScore(b) - candidateScore(a));
+}
+
+function addUniqueGroup(groups, usedSocieties, candidate) {
+  if (!candidate || usedSocieties.has(candidate.society_id)) return false;
+  groups.push(candidate);
+  usedSocieties.add(candidate.society_id);
+  return true;
+}
+
+export function buildTribeDailyPlan(characterOrJobs, options = {}) {
+  const jobs = Array.isArray(characterOrJobs) ? characterOrJobs : characterOrJobs?.jobs || [];
+  const focus = normalizeFocus(options.focus || options);
+  const maxGroups = Math.floor(ALLIED_SOCIETY_DAILY_LIMIT / ALLIED_SOCIETY_QUESTS_PER_GROUP);
+  const levelingCandidates = buildCandidates(jobs, focus, false);
+  const groups = [];
+  const usedSocieties = new Set();
+
+  // First reserve one useful block for each available play category.
+  for (const category of CATEGORY_ORDER) {
+    const candidate = levelingCandidates.find(row => row.category === category && !usedSocieties.has(row.society_id));
+    addUniqueGroup(groups, usedSocieties, candidate);
+  }
+
+  // Fill remaining slots with other level-appropriate societies before using reputation-only overflow.
+  for (const candidate of levelingCandidates) {
+    if (groups.length >= maxGroups) break;
+    addUniqueGroup(groups, usedSocieties, candidate);
+  }
+
+  if (groups.length < maxGroups) {
+    const progressionCandidates = buildCandidates(jobs, focus, true);
+    for (const candidate of progressionCandidates) {
+      if (groups.length >= maxGroups) break;
+      addUniqueGroup(groups, usedSocieties, candidate);
+    }
+  }
+
+  const ranked = groups.slice(0, maxGroups).map((group, index) => ({ ...group, priority_rank: index + 1 }));
+  const plannedQuests = ranked.reduce((sum, group) => sum + Number(group.quests || 0), 0);
+  const levelingQuests = ranked.filter(group => group.kind === "leveling").reduce((sum, group) => sum + group.quests, 0);
+  const conditionalQuests = ranked.filter(group => group.conditional).reduce((sum, group) => sum + group.quests, 0);
+
+  return {
+    version: "allied-society-daily-plan-v1",
+    daily_limit: ALLIED_SOCIETY_DAILY_LIMIT,
+    quests_per_society: ALLIED_SOCIETY_QUESTS_PER_GROUP,
+    planned_quests: Math.min(ALLIED_SOCIETY_DAILY_LIMIT, plannedQuests),
+    remaining_quests: Math.max(0, ALLIED_SOCIETY_DAILY_LIMIT - plannedQuests),
+    leveling_quests: levelingQuests,
+    conditional_quests: conditionalQuests,
+    groups: ranked,
+    note: conditionalQuests
+      ? "余力枠は経験値目的ではありません。解放状況・友好度MAXはLodestoneから判別できないため、不要なら空けてOKです。"
+      : "LodestoneのジョブLvと選択中ジョブから、経験値の適正帯を優先して配分しています。"
+  };
+}
+
+export function alliedSocietyCategoryLabel(category) {
+  if (category === "combat") return "戦闘";
+  if (category === "craft") return "製作";
+  if (category === "gather") return "採集";
+  return "その他";
+}
+
 export function tribeGuideForJob(job) {
   if (!job || !NORMAL_ROLES.has(job.role)) return null;
-  const code = String(job.code || "").trim().toUpperCase();
+  const code = normalizeCode(job.code);
   if (code === "BLU" || job.role === "limited") return null;
   const level = Number(job.level);
   if (!Number.isInteger(level)) return null;

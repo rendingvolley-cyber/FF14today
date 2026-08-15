@@ -191,7 +191,7 @@ function payload(pathname, gcUploaded = false) {
   return {};
 }
 
-test("GC screenshot stays in the GC card and routine flows GC -> craft/gather tribes -> plan", async ({ page }) => {
+test("GC screenshot stays in the GC card and routine flows GC -> 12-slot tribes -> plan", async ({ page }) => {
   const pageErrors = [];
   let gcUploaded = false;
   let contextPasteBody = "";
@@ -294,13 +294,16 @@ test("GC screenshot stays in the GC card and routine flows GC -> craft/gather tr
 
   await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
-  await expect(page.locator("[data-tribe-content]")).toContainText("双蛇党納品の次に友好部族（生産・採集）");
+  await expect(page.locator("[data-tribe-content]")).toContainText("友好部族デイリーを12枠で配分");
+  await expect(page.locator("[data-tribe-content]")).toContainText("ペルペル族");
+  await expect(page.locator("[data-tribe-content]")).toContainText("オミクロン族");
+  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("0/12");
   await expect(page.locator("#contextInbox")).toBeHidden();
 
-  await page.locator("[data-tribe-craft-toggle]").click();
-  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("1/2");
-  await page.locator("[data-tribe-gather-toggle]").click();
-  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("✓ 完了");
+  await page.locator('[data-tribe-group-toggle][aria-pressed="false"]').first().click();
+  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("3/12");
+  await page.locator("[data-tribe-defer]").click();
+  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("3/12 保留");
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#planner #contextInboxSaved")).toContainText("ジャーナル 3件");
 
