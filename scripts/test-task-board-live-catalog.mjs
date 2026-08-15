@@ -8,6 +8,7 @@ import {
   extractJapaneseDeadline,
   buildCatalogPlan
 } from "../src/task-board-live-catalog.js";
+import { seedCatalogPlan } from "../src/task-board-null-plan-recovery.js";
 
 const fishData = {
   FISH: {
@@ -68,7 +69,7 @@ const fishData = {
 
 const character = {
   jobs: [
-    { code: "RPR", name_ja: "リーパー", level: 72, role: "melee" },
+    { code: "RPR", name_ja: "リーパー", level: 73, role: "melee" },
     { code: "MIN", name_ja: "採掘師", level: 81, role: "gatherer" },
     { code: "FSH", name_ja: "漁師", level: 100, role: "gatherer" }
   ],
@@ -88,6 +89,24 @@ const env = {
     }
   }
 };
+
+{
+  const seeded = seedCatalogPlan(
+    { character, preferences: { available_minutes: 60 }, plan: null },
+    "https://example.invalid/api/state?planner_mode=efficient&focus_combat_job_code=RPR"
+  );
+  assert.equal(seeded.plan.selected_mode, "efficient");
+  assert.equal(seeded.plan.remaining_minutes, 60);
+  const request = new Request("https://example.invalid/api/state?planner_mode=efficient&focus_combat_job_code=RPR");
+  const recovered = await buildCatalogPlan(request, env, seeded);
+  assert.equal(recovered.focus_job.code, "RPR");
+  assert.ok(recovered.methods.length >= 3);
+}
+
+{
+  const existing = { character, plan: { selected_mode: "efficient", methods: [{ task_key: "keep" }] } };
+  assert.equal(seedCatalogPlan(existing, "https://example.invalid/api/state?planner_mode=gather"), existing);
+}
 
 {
   const request = new Request("https://example.invalid/api/state?planner_mode=efficient&focus_combat_job_code=RPR");
