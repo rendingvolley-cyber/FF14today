@@ -59,7 +59,12 @@ function generic(pathname) {
   return {};
 }
 
-test("task board lists jobs, keeps selected jobs, and exposes daily roulette checks", async ({ page }) => {
+test("task board defaults to low-level catch-up, preserves manual choices, and exposes daily roulette checks", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("ff14today-e2e-cleared") === "1") return;
+    localStorage.clear();
+    sessionStorage.setItem("ff14today-e2e-cleared", "1");
+  });
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/state") {
@@ -86,13 +91,13 @@ test("task board lists jobs, keeps selected jobs, and exposes daily roulette che
     const url = new URL(req.url());
     return url.pathname === "/api/state"
       && url.searchParams.get("planner_mode") === "efficient"
-      && url.searchParams.get("focus_combat_job_code") === "RDM";
+      && url.searchParams.get("focus_combat_job_code") === "WAR";
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await initialCombatFocus;
   await expect(page.locator("#taskBoard")).toBeVisible();
   await expect(page.locator('#taskBoardTabs [data-category="combat"] small')).toHaveText("1");
-  await expect(page.locator("#taskBoardGrid")).toContainText("RDMの戦闘候補");
+  await expect(page.locator("#taskBoardGrid")).toContainText("WARの戦闘候補");
 
   await page.locator('#taskBoardTabs [data-category="combat"]').click();
   await expect(page.locator("#categoryJobFocus")).toBeVisible();
@@ -100,6 +105,9 @@ test("task board lists jobs, keeps selected jobs, and exposes daily roulette che
   await expect(page.locator("#dailyChecklist")).toContainText("今日の戦闘日課");
   await expect(page.locator("#dailyChecklist")).toContainText("レベルレ済み");
   await expect(page.locator("#dailyChecklist")).toContainText("アラルレ済み");
+  await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("WAR");
+  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveAttribute("value", "WAR");
+  await expect(page.locator("#categoryJobFocusNote")).toContainText("低Lvを先に追いつかせて装備帯を揃える");
 
   const dailyRequest = page.waitForRequest(req => {
     if (!req.url().includes("/api/plan") || req.method() !== "POST") return false;
@@ -114,36 +122,28 @@ test("task board lists jobs, keeps selected jobs, and exposes daily roulette che
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("戦士 · Lv88");
   const combatRequest = page.waitForRequest(req => {
     const url = new URL(req.url());
-    return url.pathname === "/api/state" && url.searchParams.get("planner_mode") === "efficient" && url.searchParams.get("focus_combat_job_code") === "WAR";
+    return url.pathname === "/api/state" && url.searchParams.get("planner_mode") === "efficient" && url.searchParams.get("focus_combat_job_code") === "RDM";
   });
-  await page.locator("#categoryJobFocusSelect").selectOption("WAR");
+  await page.locator("#categoryJobFocusSelect").selectOption("RDM");
   await combatRequest;
 
   await page.locator('#taskBoardTabs [data-category="craft"]').click();
   await expect(page.locator("#dailyChecklist")).toBeHidden();
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("鍛冶師 · Lv95");
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("錬金術師 · Lv91");
-  const craftRequest = page.waitForRequest(req => {
-    const url = new URL(req.url());
-    return url.pathname === "/api/state" && url.searchParams.get("planner_mode") === "craft" && url.searchParams.get("focus_craft_job_code") === "ALC";
-  });
-  await page.locator("#categoryJobFocusSelect").selectOption("ALC");
-  await craftRequest;
+  await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("ALC");
+  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveAttribute("value", "ALC");
   await expect(page.locator("#taskBoardGrid")).toContainText("ウコギ・アングルブラシ");
 
   await page.locator('#taskBoardTabs [data-category="gather"]').click();
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("園芸師 · Lv90");
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("採掘師 · Lv81");
-  const gatherRequest = page.waitForRequest(req => {
-    const url = new URL(req.url());
-    return url.pathname === "/api/state" && url.searchParams.get("planner_mode") === "gather" && url.searchParams.get("focus_gather_job_code") === "MIN";
-  });
-  await page.locator("#categoryJobFocusSelect").selectOption("MIN");
-  await gatherRequest;
+  await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("MIN");
+  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveAttribute("value", "MIN");
   await expect(page.locator("#taskBoardGrid")).toContainText("収集用の輝翠銀鉱");
 
   await page.locator("#categoryJobFocusSelect").selectOption("BTN");
-  await expect(page.locator("#categoryJobFocusNote")).toContainText("別ジョブへ自動変更しません");
+  await expect(page.locator("#categoryJobFocusNote")).toContainText("手動で別ジョブを選べます");
 
   await page.locator('#taskBoardTabs [data-category="fishing"]').click();
   await expect(page.locator("#categoryJobFocus")).toBeHidden();
@@ -152,4 +152,9 @@ test("task board lists jobs, keeps selected jobs, and exposes daily roulette che
   await page.locator('#taskBoardTabs [data-category="combat"]').click();
   await expect(page.locator("#dailyChecklist")).toBeVisible();
   await expect(page.locator("#dailyLeveling")).toBeChecked();
+  await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("RDM");
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator('#taskBoardTabs [data-category="combat"]').click();
+  await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("RDM");
 });

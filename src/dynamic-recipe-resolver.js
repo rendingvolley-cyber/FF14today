@@ -2,8 +2,11 @@ const XIVAPI_BASE = "https://v2.xivapi.com/api";
 const MAX_RECIPE_DEPTH = 5;
 const MAX_GRAPH_ITEMS = 60;
 const MAX_RECIPE_CANDIDATES = 4;
+const XIVAPI_RETRY_ATTEMPTS = 3;
 const recipeCache = new Map();
+const recipeInFlight = new Map();
 const itemSearchCache = new Map();
+const itemSearchInFlight = new Map();
 
 export class DynamicRecipeError extends Error {
   constructor(code, message) {
@@ -55,24 +58,66 @@ function queryEscape(value) {
   return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+function containsJapanese(value) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(String(value || ""));
+}
+
+function retryableStatus(status) {
+  const code = Number(status) || 0;
+  return code === 408 || code === 425 || code === 429 || code >= 500;
+}
+
+function transientXivapiError(error) {
+  return ["xivapi_unreachable", "xivapi_http", "xivapi_json"].includes(String(error?.code || ""));
+}
+
+function retryDelayMs(attempt) {
+  return 40 * (2 ** attempt);
+}
+
+async function wait(ms) {
+  await new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function fetchJson(url, fetchImpl) {
-  let response;
-  try {
-    response = await fetchImpl(url, {
-      headers: { "user-agent": "FF14Today/1.9.3 dynamic-recipe-resolver" },
-      cf: { cacheEverything: true, cacheTtl: 604800 }
-    });
-  } catch (error) {
-    throw new DynamicRecipeError("xivapi_unreachable", `XIVAPIへ接続できませんでした: ${error.message}`);
+  let lastError = null;
+  for (let attempt = 0; attempt < XIVAPI_RETRY_ATTEMPTS; attempt += 1) {
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        headers: { "user-agent": "FF14Today/1.9.4 dynamic-recipe-resolver" },
+        cf: { cacheEverything: true, cacheTtl: 604800 }
+      });
+    } catch (error) {
+      lastError = new DynamicRecipeError("xivapi_unreachable", `XIVAPIへ接続できませんでした: ${error.message}`);
+      if (attempt + 1 < XIVAPI_RETRY_ATTEMPTS) {
+        await wait(retryDelayMs(attempt));
+        continue;
+      }
+      throw lastError;
+    }
+
+    if (!response.ok) {
+      lastError = new DynamicRecipeError("xivapi_http", `XIVAPI HTTP ${response.status}`);
+      if (retryableStatus(response.status) && attempt + 1 < XIVAPI_RETRY_ATTEMPTS) {
+        await wait(retryDelayMs(attempt));
+        continue;
+      }
+      throw lastError;
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      lastError = new DynamicRecipeError("xivapi_json", "XIVAPI応答をJSONとして読めませんでした。");
+      if (attempt + 1 < XIVAPI_RETRY_ATTEMPTS) {
+        await wait(retryDelayMs(attempt));
+        continue;
+      }
+      throw lastError;
+    }
   }
-  if (!response.ok) {
-    throw new DynamicRecipeError("xivapi_http", `XIVAPI HTTP ${response.status}`);
-  }
-  try {
-    return await response.json();
-  } catch {
-    throw new DynamicRecipeError("xivapi_json", "XIVAPI応答をJSONとして読めませんでした。");
-  }
+  throw lastError || new DynamicRecipeError("xivapi_unreachable", "XIVAPIへ接続できませんでした。");
 }
 
 async function searchItemExact(itemName, fetchImpl) {
@@ -80,41 +125,49 @@ async function searchItemExact(itemName, fetchImpl) {
   if (!clean) throw new DynamicRecipeError("item_name_required", "製作品名がありません。");
   const cacheKey = clean.toLocaleLowerCase("ja-JP");
   if (itemSearchCache.has(cacheKey)) return itemSearchCache.get(cacheKey);
+  if (itemSearchInFlight.has(cacheKey)) return itemSearchInFlight.get(cacheKey);
 
-  const queries = [
-    `Name=\"${queryEscape(clean)}\"`,
-    `Name@ja=\"${queryEscape(clean)}\"`
-  ];
-  let exact = [];
-  for (const query of queries) {
-    const params = new URLSearchParams({
-      sheets: "Item",
-      fields: "Name,Name@lang(ja)",
-      query,
-      limit: "8"
-    });
-    let data;
-    try { data = await fetchJson(`${XIVAPI_BASE}/search?${params.toString()}`, fetchImpl); }
-    catch (error) {
-      if (error.code === "xivapi_http") continue;
-      throw error;
+  const promise = (async () => {
+    const englishQuery = `Name=\"${queryEscape(clean)}\"`;
+    const japaneseQuery = `Name@ja=\"${queryEscape(clean)}\"`;
+    const queries = containsJapanese(clean)
+      ? [japaneseQuery, englishQuery]
+      : [englishQuery, japaneseQuery];
+    let exact = [];
+    for (const query of queries) {
+      const params = new URLSearchParams({
+        sheets: "Item",
+        fields: "Name,Name@lang(ja)",
+        query,
+        limit: "8"
+      });
+      let data;
+      try { data = await fetchJson(`${XIVAPI_BASE}/search?${params.toString()}`, fetchImpl); }
+      catch (error) {
+        if (error.code === "xivapi_http") continue;
+        throw error;
+      }
+      for (const result of data?.results || []) {
+        const id = positiveInt(result?.row_id);
+        if (!id) continue;
+        const english = normalizeText(result?.fields?.Name);
+        const japanese = normalizeText(result?.fields?.["Name@lang(ja)"]);
+        if (clean !== english && clean !== japanese) continue;
+        exact.push({ itemId: id, englishName: english || clean, japaneseName: japanese || null });
+      }
+      if (exact.length) break;
     }
-    for (const result of data?.results || []) {
-      const id = positiveInt(result?.row_id);
-      if (!id) continue;
-      const english = normalizeText(result?.fields?.Name);
-      const japanese = normalizeText(result?.fields?.["Name@lang(ja)"]);
-      if (clean !== english && clean !== japanese) continue;
-      exact.push({ itemId: id, englishName: english || clean, japaneseName: japanese || null });
-    }
-    if (exact.length) break;
-  }
 
-  exact = [...new Map(exact.map(row => [row.itemId, row])).values()];
-  if (!exact.length) throw new DynamicRecipeError("item_not_found", `「${clean}」をXIVAPIのItemとして特定できませんでした。`);
-  if (exact.length > 1) throw new DynamicRecipeError("item_ambiguous", `「${clean}」に複数のItem候補があり、安全に特定できませんでした。`);
-  itemSearchCache.set(cacheKey, exact[0]);
-  return exact[0];
+    exact = [...new Map(exact.map(row => [row.itemId, row])).values()];
+    if (!exact.length) throw new DynamicRecipeError("item_not_found", `「${clean}」をXIVAPIのItemとして特定できませんでした。`);
+    if (exact.length > 1) throw new DynamicRecipeError("item_ambiguous", `「${clean}」に複数のItem候補があり、安全に特定できませんでした。`);
+    itemSearchCache.set(cacheKey, exact[0]);
+    return exact[0];
+  })();
+
+  itemSearchInFlight.set(cacheKey, promise);
+  try { return await promise; }
+  finally { itemSearchInFlight.delete(cacheKey); }
 }
 
 function ingredientFromStruct(entry, pairedAmount = null) {
@@ -210,39 +263,47 @@ async function resolveRecipe(itemId, fetchImpl) {
   const id = positiveInt(itemId);
   if (!id) return null;
   if (recipeCache.has(id)) return recipeCache.get(id);
-  const rowIds = await searchRecipeRows(id, fetchImpl);
-  if (!rowIds.length) {
-    recipeCache.set(id, null);
-    return null;
-  }
+  if (recipeInFlight.has(id)) return recipeInFlight.get(id);
 
-  const recipes = [];
-  for (const rowId of rowIds) {
-    let data;
-    try { data = await fetchJson(`${XIVAPI_BASE}/sheet/Recipe/${rowId}`, fetchImpl); }
-    catch (error) {
-      if (error.code === "xivapi_http") continue;
-      throw error;
+  const promise = (async () => {
+    const rowIds = await searchRecipeRows(id, fetchImpl);
+    if (!rowIds.length) {
+      recipeCache.set(id, null);
+      return null;
     }
-    const parsed = parseRecipeRow(data, id);
-    if (parsed) recipes.push(parsed);
-  }
-  if (!recipes.length) {
-    recipeCache.set(id, null);
-    return null;
-  }
 
-  const bySignature = new Map();
-  for (const recipe of recipes) {
-    const signature = recipeSignature(recipe);
-    if (!bySignature.has(signature)) bySignature.set(signature, recipe);
-  }
-  if (bySignature.size > 1) {
-    throw new DynamicRecipeError("recipe_ambiguous", `Item ${id} に材料構成の異なる複数レシピがあり、自動選択を停止しました。`);
-  }
-  const recipe = [...bySignature.values()][0];
-  recipeCache.set(id, recipe);
-  return recipe;
+    const recipes = [];
+    for (const rowId of rowIds) {
+      let data;
+      try { data = await fetchJson(`${XIVAPI_BASE}/sheet/Recipe/${rowId}`, fetchImpl); }
+      catch (error) {
+        if (error.code === "xivapi_http") continue;
+        throw error;
+      }
+      const parsed = parseRecipeRow(data, id);
+      if (parsed) recipes.push(parsed);
+    }
+    if (!recipes.length) {
+      recipeCache.set(id, null);
+      return null;
+    }
+
+    const bySignature = new Map();
+    for (const recipe of recipes) {
+      const signature = recipeSignature(recipe);
+      if (!bySignature.has(signature)) bySignature.set(signature, recipe);
+    }
+    if (bySignature.size > 1) {
+      throw new DynamicRecipeError("recipe_ambiguous", `Item ${id} に材料構成の異なる複数レシピがあり、自動選択を停止しました。`);
+    }
+    const recipe = [...bySignature.values()][0];
+    recipeCache.set(id, recipe);
+    return recipe;
+  })();
+
+  recipeInFlight.set(id, promise);
+  try { return await promise; }
+  finally { recipeInFlight.delete(id); }
 }
 
 async function fetchItemNames(itemIds, fetchImpl) {
@@ -311,7 +372,17 @@ export async function resolveDynamicCraftTarget(input, { fetchImpl = fetch } = {
       warnings.push(`depth_limit:${id}`);
       return;
     }
-    const recipe = await resolveRecipe(id, fetchImpl);
+
+    let recipe;
+    try {
+      recipe = await resolveRecipe(id, fetchImpl);
+    } catch (error) {
+      if (depth > 0 && transientXivapiError(error)) {
+        warnings.push(`xivapi_partial:${id}:${error.code}`);
+        return;
+      }
+      throw error;
+    }
     if (!recipe) return;
     graph[id] = {
       outputQuantity: recipe.outputQuantity,
@@ -328,7 +399,14 @@ export async function resolveDynamicCraftTarget(input, { fetchImpl = fetch } = {
   if (!graph[item.itemId]) {
     throw new DynamicRecipeError("recipe_not_found", `「${safe.itemName}」の製作レシピを特定できませんでした。`);
   }
-  const itemNames = await fetchItemNames([...seen], fetchImpl);
+
+  let itemNames = {};
+  try {
+    itemNames = await fetchItemNames([...seen], fetchImpl);
+  } catch (error) {
+    if (!transientXivapiError(error)) throw error;
+    warnings.push(`item_names_partial:${error.code}`);
+  }
   itemNames[item.itemId] = item.englishName || itemNames[item.itemId] || safe.itemName;
   graph.__itemNames = itemNames;
 
@@ -343,7 +421,9 @@ export async function resolveDynamicCraftTarget(input, { fetchImpl = fetch } = {
     recipeGraph: graph,
     itemNames,
     reachableItemIds: collectGraphItemIds(item.itemId, graph),
-    source: "XIVAPI v2",
+    source: warnings.some(warning => warning.startsWith("xivapi_partial:") || warning.startsWith("item_names_partial:"))
+      ? "XIVAPI v2 (partial)"
+      : "XIVAPI v2",
     warnings: [...new Set(warnings)]
   };
 }

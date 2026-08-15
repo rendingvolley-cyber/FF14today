@@ -63,6 +63,7 @@ function basePayload(pathname) {
   if (pathname === "/api/grand-company/deliveries") return {
     ok: true,
     setup_required: false,
+    observed_at: "2026-08-11T04:10:00.000Z",
     page_status: { crafting: true, gathering: true },
     missing_pages: [],
     crafting_deliveries: [crafting],
@@ -89,9 +90,10 @@ async function pasteImage(page) {
   });
 }
 
-test("GC crafting and gathering pages stay separate and paste target is explicit", async ({ page }) => {
+test("GC crafting and gathering pages stay separate, paste target is explicit, and unchanged evidence does not hammer costs", async ({ page }) => {
   const pageErrors = [];
   const pastedBodies = [];
+  let costCalls = 0;
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.addInitScript(() => localStorage.clear());
 
@@ -119,6 +121,7 @@ test("GC crafting and gathering pages stay separate and paste target is explicit
       });
       return;
     }
+    if (url.pathname === "/api/grand-company/delivery-costs") costCalls += 1;
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(basePayload(url.pathname)) });
   });
 
@@ -131,6 +134,9 @@ test("GC crafting and gathering pages stay separate and paste target is explicit
   await expect(page.locator('[data-gc-category="crafting"]')).toContainText("製作テスト納品品");
   await expect(page.locator('[data-gc-category="gathering"]')).toContainText("採集一覧（補給品調達）");
   await expect(page.locator('[data-gc-category="gathering"]')).toContainText("採集テスト納品品");
+
+  await page.waitForTimeout(2500);
+  expect(costCalls).toBe(1);
 
   const craftingDetails = page.locator('[data-gc-category="crafting"] details').first();
   await craftingDetails.locator("summary").click();
@@ -153,5 +159,7 @@ test("GC crafting and gathering pages stay separate and paste target is explicit
 
   await expect(page.locator('[data-gc-category="crafting"]')).toContainText("製作テスト納品品");
   await expect(page.locator('[data-gc-category="gathering"]')).toContainText("採集テスト納品品");
+  await page.waitForTimeout(4500);
+  expect(costCalls).toBeLessThanOrEqual(3);
   expect(pageErrors).toEqual([]);
 });
