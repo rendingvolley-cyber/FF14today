@@ -5,6 +5,8 @@
     craft: "ff14_today_craft_job_v1",
     gather: "ff14_today_gather_job_v1"
   };
+  const LEVELING_POLICY_KEY = "ff14_today_leveling_policy_v2";
+  const LEVELING_POLICY_VERSION = "low-level-catchup-v1";
   const CATEGORY_MODE = { combat: "efficient", craft: "craft", gather: "gather" };
   const modeFocus = new Map();
   const modeNotice = new Map();
@@ -76,7 +78,8 @@
             if (code) modeFocus.set(mode, code);
             modeNotice.set(mode, String(plan?.notice || ""));
           }
-          if (ensureDefaultSelections()) queueDefaultRefresh();
+          const migrated = migrateLowLevelDefaults();
+          if (migrated || ensureDefaultSelections()) queueDefaultRefresh();
           scheduleRender();
         }).catch(() => {});
       }
@@ -97,7 +100,7 @@
       if (mode === "craft") return job?.role === "crafter" && level > 0 && level < 100;
       if (mode === "gather") return job?.role === "gatherer" && ["MIN", "BTN"].includes(code) && level > 0 && level < 100;
       return false;
-    }).sort((a, b) => (Number(b.level) - Number(a.level)) || String(a.name_ja || a.code).localeCompare(String(b.name_ja || b.code), "ja"));
+    }).sort((a, b) => (Number(a.level) - Number(b.level)) || String(a.name_ja || a.code).localeCompare(String(b.name_ja || b.code), "ja"));
   }
 
   function preferredCode(mode, jobs) {
@@ -106,6 +109,23 @@
     const planned = modeFocus.get(mode) || "";
     if (jobs.some(job => String(job.code).toUpperCase() === planned)) return planned;
     return String(jobs[0]?.code || "").trim().toUpperCase();
+  }
+
+  function migrateLowLevelDefaults() {
+    if (!character || localStorage.getItem(LEVELING_POLICY_KEY) === LEVELING_POLICY_VERSION) return false;
+    let changed = false;
+    for (const mode of Object.keys(KEYS)) {
+      const jobs = eligibleJobs(mode);
+      const code = String(jobs[0]?.code || "").trim().toUpperCase();
+      if (!code) continue;
+      if (selectedCode(mode) !== code) {
+        localStorage.setItem(KEYS[mode], code);
+        modeFocus.set(mode, code);
+        changed = true;
+      }
+    }
+    localStorage.setItem(LEVELING_POLICY_KEY, LEVELING_POLICY_VERSION);
+    return changed;
   }
 
   function ensureDefaultSelections() {
@@ -159,7 +179,7 @@
     panel = document.createElement("section");
     panel.id = "categoryJobFocus";
     panel.className = "category-job-focus hidden";
-    panel.innerHTML = `<span class="category-job-focus-label">対象ジョブ</span><select id="categoryJobFocusSelect" aria-label="このカテゴリで育てるジョブ"></select><span class="category-job-focus-note" id="categoryJobFocusNote">選んだジョブ以外へ勝手に切り替えません。</span>`;
+    panel.innerHTML = `<span class="category-job-focus-label">対象ジョブ</span><select id="categoryJobFocusSelect" aria-label="このカテゴリで育てるジョブ"></select><span class="category-job-focus-note" id="categoryJobFocusNote">低Lvを先に追いつかせます。手動で選んだジョブは保持します。</span>`;
     tabs.insertAdjacentElement("afterend", panel);
     panel.querySelector("select")?.addEventListener("change", event => {
       const mode = String(panel.dataset.mode || "");
@@ -167,6 +187,7 @@
       const code = String(event.target.value || "").trim().toUpperCase();
       if (!code) return;
       localStorage.setItem(KEYS[mode], code);
+      localStorage.setItem(LEVELING_POLICY_KEY, LEVELING_POLICY_VERSION);
       modeFocus.set(mode, code);
       window.dispatchEvent(new CustomEvent("ff14today:context-updated", { detail: { source: "category-job-focus", mode, code } }));
       scheduleRender();
@@ -210,7 +231,9 @@
     const notice = modeNotice.get(mode) || "";
     const unsupported = /未整備|候補がありません|候補がまだありません/.test(notice);
     note.classList.toggle("warn", unsupported);
-    note.textContent = unsupported ? "このジョブの根拠付き候補はまだ未整備です。別ジョブへ自動変更しません。" : "選んだジョブに合わせて候補を更新します。別ジョブへ勝手に切り替えません。";
+    note.textContent = unsupported
+      ? "低Lv底上げ対象ですが、このジョブの根拠付き候補はまだ未整備です。手動で別ジョブを選べます。"
+      : "低Lvを先に追いつかせて装備帯を揃える初期値です。手動選択後は勝手に切り替えません。";
   }
 
   function scheduleRender(categoryOverride = "") {
