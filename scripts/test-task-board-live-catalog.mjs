@@ -9,6 +9,12 @@ import {
   buildCatalogPlan
 } from "../src/task-board-live-catalog.js";
 import { seedCatalogPlan } from "../src/task-board-null-plan-recovery.js";
+import {
+  parseTeamcraftLazyFiles,
+  nextGatherWindow,
+  buildTimedGatheringRowsFromData,
+  applyGameWindowPolicyToPlan
+} from "../src/time-sensitive-game-windows.js";
 
 const fishData = {
   FISH: {
@@ -71,6 +77,7 @@ const character = {
   jobs: [
     { code: "RPR", name_ja: "リーパー", level: 73, role: "melee" },
     { code: "MIN", name_ja: "採掘師", level: 81, role: "gatherer" },
+    { code: "BTN", name_ja: "園芸師", level: 82, role: "gatherer" },
     { code: "FSH", name_ja: "漁師", level: 100, role: "gatherer" }
   ],
   bozja_rank: 0
@@ -122,6 +129,58 @@ const env = {
   const plan = await buildCatalogPlan(request, env, { character, preferences: { available_minutes: 60 }, plan: { selected_mode: "gather" } });
   assert.ok(plan.methods.some(row => row.job_code === "MIN"));
   assert.ok(plan.methods.some(row => row.job_code === "FSH" && /釣り手帳/.test(row.title)));
+}
+
+{
+  const files = parseTeamcraftLazyFiles(`
+    'nodes': { hashedFileName: 'nodes.abc.json' },
+    'items': { hashedFileName: 'items.def.json' },
+    'places': { hashedFileName: 'places.ghi.json' }
+  `);
+  assert.deepEqual(files, { nodes: "nodes.abc.json", items: "items.def.json", places: "places.ghi.json" });
+}
+
+{
+  const now = 175000;
+  const window = nextGatherWindow({ spawns: [0], duration: 120 }, now, 12);
+  assert.ok(window);
+  assert.equal(window.open, true);
+  assert.ok(window.end_at_ms > now);
+}
+
+{
+  const now = 175000;
+  const timedData = {
+    nodes: {
+      1: { limited: true, legendary: true, ephemeral: false, folklore: 9, spawns: [0], duration: 120, level: 81, type: 0, zoneid: 10, x: 12.3, y: 45.6, items: [100] },
+      2: { limited: true, legendary: false, ephemeral: true, spawns: [0], duration: 240, level: 82, type: 2, zoneid: 20, x: 22.2, y: 33.3, items: [200] },
+      3: { limited: true, legendary: true, ephemeral: false, spawns: [0], duration: 120, level: 90, type: 0, zoneid: 30, items: [300] },
+      4: { limited: true, legendary: true, ephemeral: false, spawns: [0], duration: 120, level: 70, type: 0, zoneid: 40, items: [400] }
+    },
+    items: {
+      100: { ja: "伝説の鉱石" },
+      200: { ja: "刻限の草" },
+      300: { ja: "高レベル鉱石" },
+      400: { ja: "旧レベル鉱石" }
+    },
+    places: { 10: { ja: "採掘エリア" }, 20: { ja: "園芸エリア" }, 30: { ja: "高レベルエリア" }, 40: { ja: "旧エリア" } }
+  };
+  const rows = buildTimedGatheringRowsFromData(timedData, character, now, 6);
+  assert.equal(rows.length, 2);
+  assert.ok(rows.some(row => row.job_code === "MIN" && row.node_kind === "伝説" && /伝説の鉱石/.test(row.title)));
+  assert.ok(rows.some(row => row.job_code === "BTN" && row.node_kind === "刻限" && /刻限の草/.test(row.title)));
+  assert.ok(rows.every(row => row.schedule_type === "game_window"));
+}
+
+{
+  const gather = applyGameWindowPolicyToPlan({ selected_mode: "gather", methods: [{ task_key: "normal" }] }, "gather", [{ task_key: "live:timed-gather:1", schedule_type: "game_window" }]);
+  assert.equal(gather.methods.length, 2);
+  const discover = applyGameWindowPolicyToPlan({ selected_mode: "discover", methods: [
+    { task_key: "keep" },
+    { task_key: "live:deadline:weekly-reset", schedule_type: "weekly" },
+    { task_key: "live:deadline:ceremony", schedule_type: "event", source_kind: "lodestone" }
+  ] }, "discover", []);
+  assert.deepEqual(discover.methods.map(row => row.task_key), ["keep"]);
 }
 
 console.log("task-board live catalog OK");
