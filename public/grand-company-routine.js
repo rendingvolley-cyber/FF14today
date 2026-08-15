@@ -1,12 +1,7 @@
-const GC_COST_CACHE_MS = 1000;
-
 function installGcCostFetchDedupe() {
   if (window.__ff14TodayGcCostFetchDedupe) return;
   window.__ff14TodayGcCostFetchDedupe = true;
   const previousFetch = window.fetch.bind(window);
-  let cachedKey = "";
-  let cachedUntil = 0;
-  let cachedResponse = null;
   let inFlightKey = "";
   let inFlight = null;
 
@@ -23,19 +18,10 @@ function installGcCostFetchDedupe() {
 
       const headers = new Headers(init.headers || input?.headers || undefined);
       const key = `${url.toString()}|${headers.get("x-profile-token") || ""}`;
-      const now = Date.now();
-      if (cachedResponse && cachedKey === key && now < cachedUntil) return cachedResponse.clone();
       if (inFlight && inFlightKey === key) return (await inFlight).clone();
 
       inFlightKey = key;
-      inFlight = previousFetch(...args).then(response => {
-        if (response.ok) {
-          cachedKey = key;
-          cachedUntil = Date.now() + GC_COST_CACHE_MS;
-          cachedResponse = response.clone();
-        }
-        return response;
-      }).finally(() => {
+      inFlight = previousFetch(...args).finally(() => {
         inFlight = null;
         inFlightKey = "";
       });
