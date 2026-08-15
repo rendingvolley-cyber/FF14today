@@ -4,6 +4,8 @@ import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
 import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
 import { addNearestTeleportHints } from "./time-sensitive-nearest-teleport.js";
 
+const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v2-20260815";
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -12,6 +14,18 @@ function json(data, status = 200) {
       "cache-control": "no-store",
       "x-content-type-options": "nosniff"
     }
+  });
+}
+
+function noStore(response) {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store, max-age=0");
+  headers.set("pragma", "no-cache");
+  headers.set("expires", "0");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
   });
 }
 
@@ -61,7 +75,7 @@ function rewriteHtml(response) {
   return new HTMLRewriter()
     .on("head", {
       element(element) {
-        element.prepend('<script src="/time-sensitive-game-window-labels.js"></script>', { html: true });
+        element.prepend(`<script src="/time-sensitive-game-window-labels.js?v=${TIME_SENSITIVE_LAYOUT_VERSION}"></script>`, { html: true });
         element.prepend('<script src="/task-board-focus-first.js"></script>', { html: true });
       }
     })
@@ -78,6 +92,9 @@ export default {
 
     const response = await app.fetch(request, env);
 
+    if (url.pathname === "/time-sensitive-game-window-labels.js" && request.method === "GET") {
+      return noStore(response);
+    }
     if (url.pathname === "/api/state" && request.method === "GET") {
       return taskBoardStateResponse(request, response, env);
     }
@@ -97,6 +114,7 @@ export default {
         time_sensitive_scope: "game_windows",
         time_sensitive_gathering: true,
         time_sensitive_nearest_teleport: true,
+        time_sensitive_layout_version: TIME_SENSITIVE_LAYOUT_VERSION,
         big_fish_live_feed: true,
         lodestone_deadline_feed: true
       }, response.status);
