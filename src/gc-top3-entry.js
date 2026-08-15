@@ -4,7 +4,7 @@ import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
 import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
 import { addNearestTeleportHints } from "./time-sensitive-nearest-teleport.js";
 
-const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v2-20260815";
+const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v3-20260815";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -72,7 +72,7 @@ async function taskBoardStateResponse(request, response, env) {
 
 function rewriteHtml(response) {
   if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
-  return new HTMLRewriter()
+  const transformed = new HTMLRewriter()
     .on("head", {
       element(element) {
         element.prepend(`<script src="/time-sensitive-game-window-labels.js?v=${TIME_SENSITIVE_LAYOUT_VERSION}"></script>`, { html: true });
@@ -80,6 +80,7 @@ function rewriteHtml(response) {
       }
     })
     .transform(response);
+  return noStore(transformed);
 }
 
 export default {
@@ -92,7 +93,7 @@ export default {
 
     const response = await app.fetch(request, env);
 
-    if (url.pathname === "/time-sensitive-game-window-labels.js" && request.method === "GET") {
+    if ((url.pathname === "/time-sensitive-game-window-labels.js" || url.pathname === "/task-board-focus-first.js") && request.method === "GET") {
       return noStore(response);
     }
     if (url.pathname === "/api/state" && request.method === "GET") {
@@ -115,6 +116,7 @@ export default {
         time_sensitive_gathering: true,
         time_sensitive_nearest_teleport: true,
         time_sensitive_layout_version: TIME_SENSITIVE_LAYOUT_VERSION,
+        html_cache_policy: "no-store",
         big_fish_live_feed: true,
         lodestone_deadline_feed: true
       }, response.status);
