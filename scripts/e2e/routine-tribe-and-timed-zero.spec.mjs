@@ -23,6 +23,8 @@ const emptyPlan = {
 
 const pastedDelivery = {
   row_index: 0,
+  page_kind: "crafting",
+  page_row_index: 0,
   class_or_job: "錬金術師",
   item_name: "E2E貼付納品薬",
   requested_quantity: 3,
@@ -182,6 +184,10 @@ function payload(pathname, gcUploaded = false) {
           company_name: "双蛇党",
           observed_at: "2026-08-11T01:10:00.000Z",
           confidence: 0.96,
+          page_status: { crafting: true, gathering: false },
+          missing_pages: ["gathering"],
+          crafting_deliveries: [pastedDelivery],
+          gathering_deliveries: [],
           deliveries: [pastedDelivery],
           recommended: pastedDelivery
         }
@@ -211,10 +217,13 @@ test("GC screenshot stays in the GC card and routine flows GC -> 12-slot tribes 
           duplicate: false,
           context_saved: false,
           grand_company_context_saved: true,
+          grand_company_page_kind: "crafting",
+          grand_company_page_status: { crafting: true, gathering: false },
           analysis: {
             page_type: "grand_company_deliveries",
             confidence: 0.96,
             grand_company_deliveries: {
+              page_kind: "crafting",
               company_name: "双蛇党",
               deliveries: [pastedDelivery]
             },
@@ -267,30 +276,26 @@ test("GC screenshot stays in the GC card and routine flows GC -> 12-slot tribes 
 
   await expect.poll(() => contextPasteBody).toContain('name="workflow_context"');
   await expect.poll(() => contextPasteBody).toContain("grand-company");
-  await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("双蛇党納品を1件");
+  await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("製作ページを保存しました");
   await expect(page.locator("[data-gc-content]")).toContainText("E2E貼付納品薬");
   await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 1");
 
-  const deliveryTable = page.locator(".gc-delivery-table");
+  const deliveryTable = page.locator(".gc-two-page-table").first();
   await expect(deliveryTable).toBeVisible();
   await expect(deliveryTable).toContainText("納品品");
-  await expect(deliveryTable).toContainText("調達おすすめ");
+  await expect(deliveryTable).toContainText("調達目安");
   await expect(deliveryTable).toContainText("原材料から全部作る");
   await expect(deliveryTable).toContainText("約1,200G");
-  await expect(page.locator(".gc-delivery-detail-row")).toBeHidden();
-  const detailButton = page.locator(".gc-detail-toggle").first();
-  await expect(detailButton).toHaveText("詳細");
-  await detailButton.click();
-  await expect(detailButton).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator(".gc-delivery-detail-row")).toBeVisible();
-  await expect(page.locator(".gc-delivery-detail-row")).toContainText("マケボで買う");
-  await expect(page.locator(".gc-delivery-detail-row")).toContainText("約2,800G");
-  await expect(page.locator(".gc-delivery-detail-row")).toContainText("原材料から作る");
-  await expect(page.locator(".gc-delivery-detail-row")).toContainText("製作素材：");
-  await expect(page.locator(".gc-delivery-detail-row")).toContainText("薬草 ×4（約800G）");
-  await detailButton.click();
-  await expect(page.locator(".gc-delivery-detail-row")).toBeHidden();
-  await expect(page.locator("[data-gc-content]")).toContainText("一覧で選び、価格・製作素材は「詳細」で確認");
+  const detail = page.locator(".gc-two-page-detail").first();
+  await expect(detail.locator("summary")).toHaveText("詳細");
+  await detail.locator("summary").click();
+  await expect(detail).toContainText("マケボで買う");
+  await expect(detail).toContainText("約2,800G");
+  await expect(detail).toContainText("原材料から作る");
+  await expect(detail).toContainText("製作素材：");
+  await expect(detail).toContainText("薬草 ×4（約800G）");
+  await detail.locator("summary").click();
+  await expect(page.locator("[data-gc-content]")).toContainText("製作と採集を別々に表示");
 
   await page.locator("button[data-gc-done]").click();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
