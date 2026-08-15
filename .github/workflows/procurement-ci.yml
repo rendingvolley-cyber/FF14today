@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'agent/**'
+      - main
   pull_request:
     branches:
       - main
@@ -33,6 +34,7 @@ jobs:
           node --check public/procurement-shopping-list.js
           node --check scripts/test-craft-leve-focus.mjs
           node --check scripts/test-task-board-recovery-mode-guard.mjs
+          node --check scripts/test-live-craft-outer-policy.mjs
           node --check scripts/test-procurement-summary.mjs
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
@@ -40,6 +42,8 @@ jobs:
         run: node scripts/test-craft-leve-focus.mjs
       - name: Task board recovery mode guard
         run: node scripts/test-task-board-recovery-mode-guard.mjs
+      - name: Outermost live craft policy
+        run: node scripts/test-live-craft-outer-policy.mjs
       - name: Grand Company procurement aggregation
         run: node scripts/test-procurement-summary.mjs
       - name: Craft procurement aggregation
@@ -50,3 +54,35 @@ jobs:
         run: |
           npm install
           npx wrangler deploy --dry-run --outdir .wrangler-procurement-dry-run
+      - name: Live production craft state
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        run: |
+          BASE="https://ff14-today.kaidoki.workers.dev"
+          echo "waiting for ${BASE} to expose ${GITHUB_SHA} policy"
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 10 "${BASE}/api/health" -o /tmp/health.json; then
+              if node -e 'const d=require("/tmp/health.json"); process.exit(d.task_board_craft_procurement_outer_policy===true?0:1)'; then
+                break
+              fi
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "Production did not expose the new outer craft policy" >&2
+              cat /tmp/health.json 2>/dev/null || true
+              exit 1
+            fi
+            sleep 5
+          done
+          curl -fsS --max-time 15 "${BASE}/api/state?lodestone_id=3091607&planner_mode=craft&focus_craft_job_code=ARM" -o /tmp/craft-state.json
+          node <<'NODE'
+          const data = require('/tmp/craft-state.json');
+          const plan = data?.plan;
+          if (!plan) throw new Error('production plan missing');
+          const rows = Array.isArray(plan.methods) ? plan.methods : [];
+          if (!rows.length) throw new Error('production craft methods missing');
+          const text = rows.map(row => `${row.task_key || ''} ${row.badge || ''} ${row.title || ''}`).join('\n');
+          if (/レポリット族|友好部族/.test(text)) throw new Error(`society task leaked into production:\n${text}`);
+          if (!rows.some(row => /:leve:/.test(String(row.task_key || '')))) throw new Error(`leve task missing from production:\n${text}`);
+          if (String(plan?.focus_job?.code || '').toUpperCase() !== 'ARM') throw new Error(`unexpected focus job: ${plan?.focus_job?.code}`);
+          console.log('Production craft state OK');
+          console.log(text);
+          NODE

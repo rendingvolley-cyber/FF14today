@@ -4,6 +4,7 @@ import { augmentStateResponse, liveFeedResponse } from "./task-board-live-catalo
 import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
 import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
 import { addNearestTeleportHints } from "./time-sensitive-nearest-teleport.js";
+import { replaceCraftSocietyFallback } from "./craft-leve-focus-wrapper.js";
 
 const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v3-20260815";
 const PROCUREMENT_UI_VERSION = "gc-procurement-v1-20260815";
@@ -62,6 +63,19 @@ async function topThreeResponse(response) {
   }, response.status);
 }
 
+export async function applyCraftProcurementPolicyResponse(request, response) {
+  if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
+  let data;
+  try { data = await response.clone().json(); }
+  catch { return response; }
+  if (!data?.plan) return response;
+  const url = new URL(request.url);
+  const mode = String(url.searchParams.get("planner_mode") || data.plan.selected_mode || "");
+  if (mode !== "craft") return response;
+  const availableMinutes = Number(data?.preferences?.available_minutes || data?.plan?.remaining_minutes || 60) || 60;
+  return json(replaceCraftSocietyFallback(data, { availableMinutes }), response.status);
+}
+
 async function taskBoardStateResponse(request, response, env) {
   if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
   let data;
@@ -70,7 +84,8 @@ async function taskBoardStateResponse(request, response, env) {
   const seeded = seedCatalogPlan(data, request.url);
   const prepared = seeded === data ? response : json(seeded, response.status);
   const augmented = await augmentStateResponse(request, prepared, env);
-  const timed = await applyGameWindowPolicy(request, augmented);
+  const procurement = await applyCraftProcurementPolicyResponse(request, augmented);
+  const timed = await applyGameWindowPolicy(request, procurement);
   return addNearestTeleportHints(request, timed);
 }
 
@@ -133,6 +148,7 @@ export default {
         task_board_focus_first_request: true,
         task_board_live_catalog: true,
         task_board_null_plan_recovery: true,
+        task_board_craft_procurement_outer_policy: true,
         time_sensitive_scope: "game_windows",
         time_sensitive_gathering: true,
         time_sensitive_nearest_teleport: true,
