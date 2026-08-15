@@ -53,3 +53,36 @@ jobs:
         run: |
           npm install
           npx wrangler deploy --dry-run --outdir .wrangler-procurement-dry-run
+      - name: Live Cloudflare preview craft state
+        if: github.event_name == 'pull_request'
+        run: |
+          BRANCH="${GITHUB_HEAD_REF}"
+          ALIAS="${BRANCH//\//-}-ff14-today.ff14-today.workers.dev"
+          BASE="https://${ALIAS}"
+          echo "checking ${BASE}"
+          for attempt in $(seq 1 18); do
+            if curl -fsS --max-time 10 "${BASE}/api/health" -o /tmp/health.json; then
+              if node -e 'const d=require("/tmp/health.json"); process.exit(d.task_board_craft_procurement_outer_policy===true?0:1)'; then
+                break
+              fi
+            fi
+            if [ "$attempt" -eq 18 ]; then
+              echo "Cloudflare preview did not expose the new outer craft policy" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          curl -fsS --max-time 15 "${BASE}/api/state?lodestone_id=3091607&planner_mode=craft&focus_craft_job_code=ARM" -o /tmp/craft-state.json
+          node <<'NODE'
+          const data = require('/tmp/craft-state.json');
+          const plan = data?.plan;
+          if (!plan) throw new Error('preview plan missing');
+          const rows = Array.isArray(plan.methods) ? plan.methods : [];
+          if (!rows.length) throw new Error('preview craft methods missing');
+          const text = rows.map(row => `${row.task_key || ''} ${row.badge || ''} ${row.title || ''}`).join('\n');
+          if (/レポリット族|友好部族/.test(text)) throw new Error(`society task leaked into preview:\n${text}`);
+          if (!rows.some(row => /:leve:/.test(String(row.task_key || '')))) throw new Error(`leve task missing from preview:\n${text}`);
+          if (String(plan?.focus_job?.code || '').toUpperCase() !== 'ARM') throw new Error(`unexpected focus job: ${plan?.focus_job?.code}`);
+          console.log('Cloudflare preview craft state OK');
+          console.log(text);
+          NODE
