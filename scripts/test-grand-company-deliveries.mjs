@@ -5,6 +5,7 @@ import {
   sanitizeGrandCompanyAnalysis
 } from "../src/grand-company-deliveries.js";
 import { isGrandCompanyWorkflowContext } from "../src/grand-company-wrapper.js";
+import { priceSnapshot } from "../src/gc-delivery-cost-wrapper.js";
 import {
   genericPayloadForCachedAnalysis,
   sameJsonValue
@@ -31,6 +32,31 @@ assert.match(supplyDutyPrompt, /報酬軍票/);
 assert.match(supplyDutyPrompt, /所持数/);
 assert.match(supplyDutyPrompt, /会社名が見えないことを理由に recognized=false にしない/);
 assert.match(supplyDutyPrompt, /アイコンだけからジョブ名を推測してはいけません/);
+
+assert.deepEqual(priceSnapshot({
+  listings: [],
+  minPriceNQ: 4321,
+  minPriceHQ: 9876
+}), {
+  nq: 4321,
+  hq: 9876,
+  nqOffers: null,
+  hqOffers: null,
+  priceSource: "min_price"
+}, "Universalis minimum prices must remain usable when quantity listings are absent");
+const listingSnapshot = priceSnapshot({
+  minPriceNQ: 9999,
+  listings: [
+    { hq: false, pricePerUnit: 2500, quantity: 2 },
+    { hq: false, pricePerUnit: 2200, quantity: 1 }
+  ]
+});
+assert.equal(listingSnapshot.nq, 2200);
+assert.equal(listingSnapshot.priceSource, "listings");
+assert.deepEqual(listingSnapshot.nqOffers, [
+  { unitPrice: 2200, quantity: 1 },
+  { unitPrice: 2500, quantity: 2 }
+]);
 
 assert.equal(shouldReuseSupplyDutyCache(null), false);
 assert.equal(shouldReuseSupplyDutyCache({ page_type: "unknown" }), false, "old failed cache must be reparsed after parser upgrade");

@@ -23,6 +23,11 @@ function positiveInt(value) {
   return n > 0 ? n : 0;
 }
 
+function positivePrice(value) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function acquisitionQuantity(row) {
   const requested = positiveInt(row?.requested_quantity);
   if (!requested) return 0;
@@ -38,7 +43,7 @@ function currentItemMap(data) {
   return {};
 }
 
-function priceSnapshot(item) {
+export function priceSnapshot(item) {
   const listings = Array.isArray(item?.listings) ? item.listings : [];
   const nqOffers = [];
   const hqOffers = [];
@@ -52,11 +57,16 @@ function priceSnapshot(item) {
   }
   nqOffers.sort((a, b) => a.unitPrice - b.unitPrice);
   hqOffers.sort((a, b) => a.unitPrice - b.unitPrice);
+  const minNq = positivePrice(item?.minPriceNQ);
+  const minHq = positivePrice(item?.minPriceHQ);
   return {
-    nq: nqOffers[0]?.unitPrice ?? null,
-    hq: hqOffers[0]?.unitPrice ?? null,
-    nqOffers,
-    hqOffers
+    nq: nqOffers[0]?.unitPrice ?? minNq,
+    hq: hqOffers[0]?.unitPrice ?? minHq,
+    // Empty arrays must not masquerade as quantity-aware listing data.
+    // The cost advisor will then use nq/hq as a unit-price fallback.
+    nqOffers: nqOffers.length ? nqOffers : null,
+    hqOffers: hqOffers.length ? hqOffers : null,
+    priceSource: nqOffers.length || hqOffers.length ? "listings" : (minNq || minHq ? "min_price" : "missing")
   };
 }
 
@@ -204,7 +214,7 @@ function procurementSummary(row, advice) {
   return {
     quantity_to_acquire: quantity,
     quantity_basis: Number.isInteger(Number(row?.owned_quantity)) ? "missing_quantity" : "requested_quantity",
-    status: "ok",
+    status: recommended ? "ok" : "market_unavailable",
     market_buy: market,
     craft_raw: craftRaw,
     recommended_route: recommended,
@@ -323,7 +333,7 @@ async function handleDeliveryCosts(request, env) {
     world: WORLD,
     source: "Universalis",
     market_age_minutes: market.ageMinutes,
-    market_pricing: "listing_quantity_curve",
+    market_pricing: "listing_quantity_curve_with_min_price_fallback",
     cost_advice: true,
     company_name: base.data.company_name || null,
     observed_at: base.data.observed_at || null,

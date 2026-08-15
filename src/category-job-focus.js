@@ -49,6 +49,44 @@ function focusedPlan(plan, job, methods, kind, minutes) {
   };
 }
 
+const CRAFT_SOCIETY_BANDS = [
+  { id: "moogle", name: "モーグリ族", min: 50, max: 59, area: "ドラヴァニア雲海" },
+  { id: "namazu", name: "ナマズオ族", min: 60, max: 69, area: "アジムステップ" },
+  { id: "dwarf", name: "ドワーフ族", min: 70, max: 79, area: "レイクランド" },
+  { id: "loporrit", name: "レポリット族", min: 80, max: 89, area: "嘆きの海" },
+  { id: "yok_huy", name: "ヨカフイ族", min: 90, max: 99, area: "オルコ・パチャ" }
+];
+
+function craftSocietyMethods(job) {
+  const level = Number(job.level);
+  const society = CRAFT_SOCIETY_BANDS.find(row => level >= row.min && level <= row.max);
+  if (!society) return [];
+  const common = {
+    daily_key: null,
+    job_code: job.code,
+    job_name: job.name_ja,
+    job_level: level,
+    job_role: job.role,
+    repeat_count: 0
+  };
+  return [{
+    ...common,
+    task_key: `craft:${normalizeCode(job.code).toLowerCase()}:society:${society.id}`,
+    badge: "友好部族・3件",
+    title: `${society.name}のデイリーを${job.name_ja}で3件やる`,
+    minutes: 20,
+    reason: `${job.name_ja} Lv${level}は${society.name}の製作適正帯（Lv${society.min}〜${society.max}）。高Lv職を先に100へ押し切らず、低Lv側を追いつかせて装備帯を揃えるための経験値先として使います。`,
+    condition: `解放済みなら実行。${society.area}の${society.name}デイリーを3件受注し、${job.name_ja}で報告する。未解放・友好度目的で使わない日はスキップ可。`,
+    steps: [
+      `${job.name_ja}（Lv${level}）へジョブチェンジ`,
+      `${society.area}の${society.name}デイリー受注拠点へ移動`,
+      "デイリーを3件受注して進める",
+      `${job.name_ja}のまま3件報告する`,
+      "終わったら「✓ 完了！」"
+    ]
+  }];
+}
+
 function alcMethods(job) {
   if (Number(job.level) < 90 || Number(job.level) > 91) return [];
   const common = { daily_key: null, job_code: job.code, job_name: job.name_ja, job_level: Number(job.level), job_role: job.role, repeat_count: 0 };
@@ -120,8 +158,9 @@ export function applyCategoryJobFocus(plan, character, options = {}) {
   if (mode === "craft" && options.focusCraftJobCode) {
     const job = findJob(character, options.focusCraftJobCode, "crafter");
     if (!job) return plan;
-    if (normalizeCode(job.code) !== "ALC") return emptyFocusedPlan(plan, job, "craft");
-    return focusedPlan(plan, job, alcMethods(job), "craft", options.availableMinutes ?? plan.remaining_minutes ?? 60);
+    const concrete = normalizeCode(job.code) === "ALC" ? alcMethods(job) : [];
+    const methods = concrete.length ? concrete : craftSocietyMethods(job);
+    return focusedPlan(plan, job, methods, "craft", options.availableMinutes ?? plan.remaining_minutes ?? 60);
   }
   if (mode === "gather" && options.focusGatherJobCode) {
     const job = findJob(character, options.focusGatherJobCode, "gatherer");
