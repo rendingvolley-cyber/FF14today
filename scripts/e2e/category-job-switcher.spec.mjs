@@ -102,7 +102,7 @@ test("task board defaults to low-level catch-up, preserves manual choices, and e
   await expect(page.locator("#dailyChecklist")).toContainText("レベルレ済み");
   await expect(page.locator("#dailyChecklist")).toContainText("アラルレ済み");
   await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("WAR");
-  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveValue("WAR");
+  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveAttribute("value", "WAR");
   await expect(page.locator("#categoryJobFocusNote")).toContainText("低Lvを先に追いつかせて装備帯を揃える");
 
   const dailyRequest = page.waitForRequest(req => {
@@ -128,14 +128,14 @@ test("task board defaults to low-level catch-up, preserves manual choices, and e
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("鍛冶師 · Lv95");
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("錬金術師 · Lv91");
   await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("ALC");
-  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveValue("ALC");
+  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveAttribute("value", "ALC");
   await expect(page.locator("#taskBoardGrid")).toContainText("ウコギ・アングルブラシ");
 
   await page.locator('#taskBoardTabs [data-category="gather"]').click();
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("園芸師 · Lv90");
   await expect(page.locator("#categoryJobFocusSelect")).toContainText("採掘師 · Lv81");
   await expect(page.locator("#categoryJobFocusSelect")).toHaveValue("MIN");
-  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveValue("MIN");
+  await expect(page.locator("#categoryJobFocusSelect option").first()).toHaveAttribute("value", "MIN");
   await expect(page.locator("#taskBoardGrid")).toContainText("収集用の輝翠銀鉱");
 
   await page.locator("#categoryJobFocusSelect").selectOption("BTN");
