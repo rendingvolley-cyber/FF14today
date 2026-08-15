@@ -118,20 +118,20 @@ function pickTargetJob(jobs, society, category, focus, progression = false) {
   if (!candidates.length) return null;
   const focusCode = focus[category] || "";
   return candidates.sort((a, b) => {
+    const levelDiff = Number(a.level) - Number(b.level);
+    if (levelDiff !== 0) return levelDiff;
     const aFocus = normalizeCode(a.code) === focusCode ? 1 : 0;
     const bFocus = normalizeCode(b.code) === focusCode ? 1 : 0;
-    if (aFocus !== bFocus) return bFocus - aFocus;
-    if (progression) return Number(b.level) - Number(a.level);
-    return Number(b.level) - Number(a.level);
+    return bFocus - aFocus;
   })[0];
 }
 
 function candidateScore(candidate) {
-  const focusBonus = candidate.focused ? 100000 : 0;
-  const levelingBonus = candidate.kind === "leveling" ? 50000 : 0;
-  const bandBonus = Number(candidate.min_level || 0) * 100;
-  const jobBonus = Number(candidate.target_job_level || 0);
-  return focusBonus + levelingBonus + bandBonus + jobBonus;
+  const levelingBonus = candidate.kind === "leveling" ? 1000000 : 0;
+  const catchupBonus = Math.max(0, 100 - Number(candidate.target_job_level || 100)) * 1000;
+  const lowerBandBonus = Math.max(0, 100 - Number(candidate.min_level || 100)) * 10;
+  const focusTieBreak = candidate.focused ? 1 : 0;
+  return levelingBonus + catchupBonus + lowerBandBonus + focusTieBreak;
 }
 
 function makeCandidate(society, category, job, focus, kind) {
@@ -154,7 +154,7 @@ function makeCandidate(society, category, job, focus, kind) {
     conditional: !leveling,
     focused,
     reason: leveling
-      ? `${focused ? "選択中の" : "Lodestone上の"}${String(job.name_ja || job.name || code)} Lv${job.level}が${society.name}の適正帯（Lv${society.min_level}〜${society.max_level}）。経験値目的で3件まとめます。`
+      ? `${String(job.name_ja || job.name || code)} Lv${job.level}が${society.name}の適正帯（Lv${society.min_level}〜${society.max_level}）。高Lvを先に100へ押し切るより、低Lv側を追いつかせて装備帯を揃えるための底上げ3件として優先します。`
       : `経験値の適正帯は超えています。${society.name}の友好度・通貨・報酬を進める余力3枠として提案します。友好度MAXならここは使わなくてOKです。`
   };
 }
@@ -186,13 +186,13 @@ export function buildTribeDailyPlan(characterOrJobs, options = {}) {
   const groups = [];
   const usedSocieties = new Set();
 
-  // First reserve one useful block for each available play category.
+  // Reserve one catch-up block per available play category, always starting from its lowest eligible job.
   for (const category of CATEGORY_ORDER) {
     const candidate = levelingCandidates.find(row => row.category === category && !usedSocieties.has(row.society_id));
     addUniqueGroup(groups, usedSocieties, candidate);
   }
 
-  // Fill remaining slots with other level-appropriate societies before using reputation-only overflow.
+  // Fill the remaining daily allowance from the lowest-level eligible jobs before reputation-only overflow.
   for (const candidate of levelingCandidates) {
     if (groups.length >= maxGroups) break;
     addUniqueGroup(groups, usedSocieties, candidate);
@@ -212,7 +212,7 @@ export function buildTribeDailyPlan(characterOrJobs, options = {}) {
   const conditionalQuests = ranked.filter(group => group.conditional).reduce((sum, group) => sum + group.quests, 0);
 
   return {
-    version: "allied-society-daily-plan-v1",
+    version: "allied-society-daily-plan-v2-low-level-catchup",
     daily_limit: ALLIED_SOCIETY_DAILY_LIMIT,
     quests_per_society: ALLIED_SOCIETY_QUESTS_PER_GROUP,
     planned_quests: Math.min(ALLIED_SOCIETY_DAILY_LIMIT, plannedQuests),
@@ -221,8 +221,8 @@ export function buildTribeDailyPlan(characterOrJobs, options = {}) {
     conditional_quests: conditionalQuests,
     groups: ranked,
     note: conditionalQuests
-      ? "余力枠は経験値目的ではありません。解放状況・友好度MAXはLodestoneから判別できないため、不要なら空けてOKです。"
-      : "LodestoneのジョブLvと選択中ジョブから、経験値の適正帯を優先して配分しています。"
+      ? "低Lvジョブの底上げを先に配分しています。余力枠は経験値目的ではなく、解放状況・友好度MAXはLodestoneから判別できないため不要なら空けてOKです。"
+      : "高Lvを100へ押し切るより、Lodestone上で低いジョブを適正帯の友好部族で追いつかせる配分です。"
   };
 }
 
