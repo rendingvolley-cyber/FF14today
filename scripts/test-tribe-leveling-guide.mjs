@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   ALLIED_SOCIETY_DAILY_LIMIT,
   ALLIED_SOCIETY_QUESTS_PER_GROUP,
@@ -66,5 +67,12 @@ const limitedOnly = buildTribeDailyPlan({
 assert.equal(limitedOnly.planned_quests, 0);
 assert.equal(limitedOnly.remaining_quests, 12);
 assert.deepEqual(limitedOnly.groups, []);
+
+const routineUi = await readFile(new URL("../public/routine-tribe-step.js", import.meta.url), "utf8");
+assert.match(routineUi, /友好部族 今日の12枠/);
+assert.match(routineUi, /data-tribe-group-toggle/);
+assert.match(routineUi, /0\/12/);
+assert.match(routineUi, /残りは今日はやらない/);
+assert.doesNotMatch(routineUi, /今日の友好部族 \$\{count\}\/2/);
 
 console.log("tribe leveling guide rules OK");
