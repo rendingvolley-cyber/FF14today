@@ -21,6 +21,7 @@ jobs:
       - name: Syntax
         run: |
           node --check src/craft-leve-focus-wrapper.js
+          node --check src/task-board-recovery.js
           node --check src/procurement-market.js
           node --check src/gc-procurement-summary.js
           node --check src/gc-top3-entry.js
@@ -31,11 +32,14 @@ jobs:
           node --check public/procurement-shopping-list-core.js
           node --check public/procurement-shopping-list.js
           node --check scripts/test-craft-leve-focus.mjs
+          node --check scripts/test-task-board-recovery-mode-guard.mjs
           node --check scripts/test-procurement-summary.mjs
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
       - name: Craft leve policy
         run: node scripts/test-craft-leve-focus.mjs
+      - name: Task board recovery mode guard
+        run: node scripts/test-task-board-recovery-mode-guard.mjs
       - name: Grand Company procurement aggregation
         run: node scripts/test-procurement-summary.mjs
       - name: Craft procurement aggregation
