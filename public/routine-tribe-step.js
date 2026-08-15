@@ -1,5 +1,20 @@
-const TRIBE_CRAFT_DONE_PREFIX = "ff14_today_tribe_craft_done_";
-const TRIBE_GATHER_DONE_PREFIX = "ff14_today_tribe_gather_done_";
+import {
+  ALLIED_SOCIETY_DAILY_LIMIT,
+  alliedSocietyCategoryLabel,
+  buildTribeDailyPlan
+} from "./tribe-leveling-data.js";
+
+const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
+const TRIBE_DAILY_DONE_PREFIX = "ff14_today_tribe_daily12_done_";
+const TRIBE_DAILY_DEFER_PREFIX = "ff14_today_tribe_daily12_defer_";
+const FOCUS_KEYS = {
+  combat: "ff14_today_combat_job_v1",
+  craft: "ff14_today_craft_job_v1",
+  gather: "ff14_today_gather_job_v1"
+};
+
+let currentPlan = null;
+let refreshInFlight = false;
 
 function japanDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -16,25 +31,63 @@ function key(prefix) {
   return `${prefix}${japanDateKey()}`;
 }
 
-function isCraftDone() {
-  return localStorage.getItem(key(TRIBE_CRAFT_DONE_PREFIX)) === "1";
+function loadDoneIds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key(TRIBE_DAILY_DONE_PREFIX)) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
 }
 
-function isGatherDone() {
-  return localStorage.getItem(key(TRIBE_GATHER_DONE_PREFIX)) === "1";
+function saveDoneIds(done) {
+  localStorage.setItem(key(TRIBE_DAILY_DONE_PREFIX), JSON.stringify([...done]));
 }
 
-function setDone(prefix, done) {
-  if (done) localStorage.setItem(key(prefix), "1");
-  else localStorage.removeItem(key(prefix));
+function setGroupDone(societyId, done) {
+  const ids = loadDoneIds();
+  if (done) ids.add(String(societyId));
+  else ids.delete(String(societyId));
+  saveDoneIds(ids);
+}
+
+function isDeferred() {
+  return localStorage.getItem(key(TRIBE_DAILY_DEFER_PREFIX)) === "1";
+}
+
+function setDeferred(value) {
+  if (value) localStorage.setItem(key(TRIBE_DAILY_DEFER_PREFIX), "1");
+  else localStorage.removeItem(key(TRIBE_DAILY_DEFER_PREFIX));
+}
+
+function completedQuestCount() {
+  if (!currentPlan) return 0;
+  const done = loadDoneIds();
+  return currentPlan.groups
+    .filter(group => done.has(group.society_id))
+    .reduce((sum, group) => sum + Number(group.quests || 0), 0);
 }
 
 function tribeDone() {
-  return isCraftDone() && isGatherDone();
+  if (!currentPlan) return false;
+  if (isDeferred()) return true;
+  return completedQuestCount() >= Number(currentPlan.planned_quests || 0);
 }
 
 function gcDone() {
   return localStorage.getItem(`ff14_today_grand_company_done_${japanDateKey()}`) === "1";
+}
+
+function profileToken() {
+  const token = String(localStorage.getItem(PROFILE_TOKEN_KEY) || "");
+  return /^[A-Za-z0-9_-]{43,128}$/.test(token) ? token : "";
+}
+
+function focusCodes() {
+  return Object.fromEntries(Object.entries(FOCUS_KEYS).map(([category, storageKey]) => [
+    category,
+    String(localStorage.getItem(storageKey) || "").trim().toUpperCase()
+  ]));
 }
 
 function root() {
@@ -46,13 +99,23 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "tribeRoutineStyles";
   style.textContent = `
-    .tribe-routine-list{display:grid;gap:10px;margin-top:4px}
-    .tribe-routine-row{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--line);border-radius:15px;background:#fff;padding:13px 14px}
-    .tribe-routine-copy strong{display:block;font-size:14px}.tribe-routine-copy small{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.5}
-    .tribe-routine-toggle{flex:0 0 auto;border:1px solid rgba(79,124,255,.38);border-radius:11px;background:var(--accent-soft);color:var(--accent);padding:8px 11px;font-weight:900;cursor:pointer}
+    .tribe-routine-summary{display:flex;justify-content:space-between;gap:14px;align-items:flex-end;margin:2px 0 12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#f8fbff}
+    .tribe-routine-summary strong{display:block;font-size:18px;color:#183f69}.tribe-routine-summary small{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.5}
+    .tribe-routine-count{font-weight:950;color:var(--accent);white-space:nowrap;font-size:14px}
+    .tribe-routine-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:4px}
+    .tribe-routine-row{display:flex;min-width:0;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:15px;background:#fff;padding:13px 14px}
+    .tribe-routine-row.conditional{background:#fffaf2;border-color:#eadcbf}
+    .tribe-routine-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.tribe-routine-copy{min-width:0}.tribe-routine-copy strong{display:block;font-size:14px;line-height:1.45}.tribe-routine-copy small{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.5}
+    .tribe-routine-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.tribe-routine-badge{display:inline-flex;border-radius:999px;background:#edf4fc;color:#34628f;padding:3px 7px;font-size:10px;font-weight:900}.tribe-routine-row.conditional .tribe-routine-badge.kind{background:#f7ead2;color:#805d24}
+    .tribe-routine-quests{flex:0 0 auto;border-radius:999px;background:var(--accent-soft);color:var(--accent);padding:4px 8px;font-size:11px;font-weight:950}
+    .tribe-routine-reason{margin:0;color:#5f7890;font-size:11px;line-height:1.55}
+    .tribe-routine-toggle{margin-top:auto;border:1px solid rgba(79,124,255,.38);border-radius:11px;background:var(--accent-soft);color:var(--accent);padding:8px 11px;font-weight:900;cursor:pointer}
     .tribe-routine-toggle.done{background:var(--accent);border-color:var(--accent);color:#fff}
-    .tribe-routine-progress{margin:12px 0 0;color:var(--muted);font-size:12px;font-weight:800}
-    @media(max-width:620px){.tribe-routine-row{align-items:flex-start;flex-direction:column}.tribe-routine-toggle{width:100%}}
+    .tribe-routine-footer{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap}.tribe-routine-progress{margin:0;color:var(--muted);font-size:12px;font-weight:800;line-height:1.5;flex:1;min-width:220px}
+    .tribe-routine-defer{border:1px solid var(--line);border-radius:11px;background:#fff;color:#55718c;padding:8px 11px;font-weight:850;cursor:pointer}.tribe-routine-defer.active{background:#eef3f8}
+    .tribe-routine-note{margin:9px 0 0;color:#8294a6;font-size:10px;line-height:1.5}
+    .tribe-routine-loading{padding:16px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:12px}
+    @media(max-width:760px){.tribe-routine-list{grid-template-columns:1fr}.tribe-routine-summary{align-items:flex-start;flex-direction:column}.tribe-routine-count{white-space:normal}.tribe-routine-defer{width:100%}}
   `;
   document.head.append(style);
 }
@@ -84,27 +147,117 @@ function setVisualStep(name) {
   }
 }
 
-function updateUi() {
-  const panel = root();
-  if (!panel) return;
-  const craftDone = isCraftDone();
-  const gatherDone = isGatherDone();
-  const count = Number(craftDone) + Number(gatherDone);
-  const status = panel.querySelector("[data-tribe-tab-status]");
-  if (status) status.textContent = count === 2 ? "✓ 完了" : `${count}/2`;
+function makeGroupCard(group, done) {
+  const card = document.createElement("article");
+  card.className = `tribe-routine-row${group.conditional ? " conditional" : ""}`;
 
-  for (const [kind, done] of [["craft", craftDone], ["gather", gatherDone]]) {
-    const button = panel.querySelector(`[data-tribe-${kind}-toggle]`);
-    if (!button) continue;
-    button.classList.toggle("done", done);
-    button.textContent = done ? "✓ 完了" : "終えた";
-    button.setAttribute("aria-pressed", done ? "true" : "false");
+  const top = document.createElement("div");
+  top.className = "tribe-routine-top";
+  const copy = document.createElement("div");
+  copy.className = "tribe-routine-copy";
+  const title = document.createElement("strong");
+  title.textContent = `${group.priority_rank}. ${group.society_name}`;
+  const target = document.createElement("small");
+  target.textContent = `${alliedSocietyCategoryLabel(group.category)} · ${group.target_job_name} Lv${group.target_job_level} · ${group.area}`;
+  const badges = document.createElement("div");
+  badges.className = "tribe-routine-badges";
+  const range = document.createElement("span");
+  range.className = "tribe-routine-badge";
+  range.textContent = group.range_label;
+  const kind = document.createElement("span");
+  kind.className = "tribe-routine-badge kind";
+  kind.textContent = group.conditional ? "余力・友好度枠" : group.focused ? "選択ジョブ優先" : "経験値適正";
+  badges.append(range, kind);
+  copy.append(title, target, badges);
+
+  const quests = document.createElement("span");
+  quests.className = "tribe-routine-quests";
+  quests.textContent = `${group.quests}件`;
+  top.append(copy, quests);
+
+  const reason = document.createElement("p");
+  reason.className = "tribe-routine-reason";
+  reason.textContent = group.reason;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `tribe-routine-toggle${done ? " done" : ""}`;
+  button.dataset.tribeGroupToggle = group.society_id;
+  button.setAttribute("aria-pressed", done ? "true" : "false");
+  button.textContent = done ? `✓ ${group.quests}件完了` : `${group.quests}件終えた`;
+
+  card.append(top, reason, button);
+  return card;
+}
+
+function renderPlan() {
+  const panel = root();
+  const content = panel?.querySelector("[data-tribe-content]");
+  if (!content) return;
+  const list = content.querySelector("[data-tribe-plan-list]");
+  const summary = content.querySelector("[data-tribe-summary]");
+  const progress = content.querySelector("[data-tribe-progress]");
+  const note = content.querySelector("[data-tribe-note]");
+  const deferButton = content.querySelector("[data-tribe-defer]");
+
+  if (!currentPlan) {
+    if (summary) summary.innerHTML = '<div><strong>今日の12枠を計算中…</strong><small>LodestoneのジョブLvを読み込んでいます。</small></div>';
+    if (list) list.innerHTML = '<div class="tribe-routine-loading">友好部族の配分を読み込み中です。</div>';
+    return;
   }
-  const progress = panel.querySelector("[data-tribe-progress]");
+
+  const completed = completedQuestCount();
+  const deferred = isDeferred();
+  const planned = Number(currentPlan.planned_quests || 0);
+  const remaining = Number(currentPlan.remaining_quests || 0);
+
+  if (summary) {
+    summary.replaceChildren();
+    const copy = document.createElement("div");
+    const strong = document.createElement("strong");
+    strong.textContent = "友好部族 今日の12枠";
+    const small = document.createElement("small");
+    const pieces = [`経験値優先 ${currentPlan.leveling_quests}件`];
+    if (currentPlan.conditional_quests) pieces.push(`余力 ${currentPlan.conditional_quests}件`);
+    if (remaining) pieces.push(`未配分 ${remaining}件`);
+    small.textContent = pieces.join(" · ");
+    copy.append(strong, small);
+    const count = document.createElement("span");
+    count.className = "tribe-routine-count";
+    count.textContent = `${completed}/${planned || ALLIED_SOCIETY_DAILY_LIMIT}件完了`;
+    summary.append(copy, count);
+  }
+
+  const doneIds = loadDoneIds();
+  if (list) {
+    if (currentPlan.groups.length) {
+      list.replaceChildren(...currentPlan.groups.map(group => makeGroupCard(group, doneIds.has(group.society_id))));
+    } else {
+      const empty = document.createElement("div");
+      empty.className = "tribe-routine-loading";
+      empty.textContent = "Lv50〜99で経験値の適正帯に入る友好部族候補がありません。";
+      list.replaceChildren(empty);
+    }
+  }
+
   if (progress) {
-    progress.textContent = count === 2
-      ? "生産・採集の友好部族は今日ぶん完了。次は今日のプランです。"
-      : `今日の友好部族 ${count}/2 完了。生産と採集をそれぞれ終えたら今日のプランへ進みます。`;
+    if (!planned) progress.textContent = "今日ここで優先する友好部族はありません。今日のプランへ進めます。";
+    else if (completed >= planned) progress.textContent = `今日の友好部族 ${completed}/${planned}件 完了。`;
+    else if (deferred) progress.textContent = `${completed}/${planned}件まで完了。残りは今日は保留にしています。`;
+    else progress.textContent = `${completed}/${planned}件 完了。3件単位で終えた部族をチェックできます。`;
+  }
+  if (note) note.textContent = currentPlan.note || "";
+  if (deferButton) {
+    deferButton.hidden = !planned || completed >= planned;
+    deferButton.classList.toggle("active", deferred);
+    deferButton.textContent = deferred ? "保留を解除する" : "残りは今日はやらない";
+  }
+
+  const status = panel?.querySelector("[data-tribe-tab-status]");
+  if (status) {
+    if (!planned || completed >= planned) status.textContent = "✓ 完了";
+    else if (deferred) status.textContent = `${completed}/${planned} 保留`;
+    else status.textContent = `${completed}/${planned}`;
   }
 }
 
@@ -126,7 +279,7 @@ function ensureStep() {
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", "false");
     tab.setAttribute("aria-controls", "tribeRoutineContent");
-    tab.innerHTML = '<span class="retainer-flow-step">2</span><span>友好部族</span><small data-tribe-tab-status>0/2</small>';
+    tab.innerHTML = '<span class="retainer-flow-step">2</span><span>友好部族</span><small data-tribe-tab-status>0/12</small>';
     tabs.insertBefore(tab, planTab);
   }
 
@@ -143,21 +296,17 @@ function ensureStep() {
     content.innerHTML = `
       <div class="retainer-advice-head">
         <div>
-          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>双蛇党納品の次に友好部族（生産・採集）</span></div>
-          <p class="retainer-advice-sub">戦闘系はここに混ぜず、生産系と採集系の日課だけ片付けます。</p>
+          <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>友好部族デイリーを12枠で配分</span></div>
+          <p class="retainer-advice-sub">1日合計12件を上限に、LodestoneのジョブLvと選択中ジョブから3件単位で優先順を作ります。</p>
         </div>
       </div>
-      <div class="tribe-routine-list">
-        <div class="tribe-routine-row">
-          <div class="tribe-routine-copy"><strong>生産系の友好部族</strong><small>今日ぶんの生産系デイリーを終えたらチェック。</small></div>
-          <button type="button" class="tribe-routine-toggle" data-tribe-craft-toggle aria-pressed="false">終えた</button>
-        </div>
-        <div class="tribe-routine-row">
-          <div class="tribe-routine-copy"><strong>採集系の友好部族</strong><small>今日ぶんの採集系デイリーを終えたらチェック。</small></div>
-          <button type="button" class="tribe-routine-toggle" data-tribe-gather-toggle aria-pressed="false">終えた</button>
-        </div>
+      <div class="tribe-routine-summary" data-tribe-summary></div>
+      <div class="tribe-routine-list" data-tribe-plan-list></div>
+      <div class="tribe-routine-footer">
+        <p class="tribe-routine-progress" data-tribe-progress></p>
+        <button type="button" class="tribe-routine-defer" data-tribe-defer>残りは今日はやらない</button>
       </div>
-      <p class="tribe-routine-progress" data-tribe-progress></p>
+      <p class="tribe-routine-note" data-tribe-note></p>
     `;
     const gcContent = panel.querySelector("[data-gc-content]");
     if (gcContent) gcContent.insertAdjacentElement("afterend", content);
@@ -181,16 +330,19 @@ function ensureStep() {
         }, 0);
         return;
       }
-      if (button.matches("[data-tribe-craft-toggle]")) {
-        setDone(TRIBE_CRAFT_DONE_PREFIX, !isCraftDone());
-        updateUi();
-        setVisualStep(tribeDone() ? "plan" : "tribe");
+      if (button.matches("[data-tribe-group-toggle]")) {
+        const id = String(button.dataset.tribeGroupToggle || "");
+        const doneIds = loadDoneIds();
+        setGroupDone(id, !doneIds.has(id));
+        setDeferred(false);
+        renderPlan();
+        if (tribeDone()) setVisualStep("plan");
         return;
       }
-      if (button.matches("[data-tribe-gather-toggle]")) {
-        setDone(TRIBE_GATHER_DONE_PREFIX, !isGatherDone());
-        updateUi();
-        setVisualStep(tribeDone() ? "plan" : "tribe");
+      if (button.matches("[data-tribe-defer]")) {
+        setDeferred(!isDeferred());
+        renderPlan();
+        if (isDeferred()) setVisualStep("plan");
         return;
       }
       if (button.matches("[data-gc-done]")) {
@@ -199,8 +351,34 @@ function ensureStep() {
     });
   }
 
-  updateUi();
+  renderPlan();
   return true;
+}
+
+async function refreshTribePlan() {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  try {
+    const headers = {};
+    const token = profileToken();
+    if (token) headers["x-profile-token"] = token;
+    const params = new URLSearchParams({ lodestone_id: "3091607", planner_mode: "efficient" });
+    const response = await fetch(`/api/state?${params.toString()}`, { headers });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    currentPlan = buildTribeDailyPlan(data?.character || { jobs: [] }, { focus: focusCodes() });
+    ensureStep();
+    renderPlan();
+    enforceAutomaticStep();
+  } catch (error) {
+    currentPlan = null;
+    ensureStep();
+    const content = root()?.querySelector("[data-tribe-content]");
+    const list = content?.querySelector("[data-tribe-plan-list]");
+    if (list) list.innerHTML = `<div class="tribe-routine-loading">友好部族の配分を取得できませんでした：${String(error?.message || error)}</div>`;
+  } finally {
+    refreshInFlight = false;
+  }
 }
 
 function enforceAutomaticStep() {
@@ -209,7 +387,7 @@ function enforceAutomaticStep() {
     setVisualStep("grand-company");
     return true;
   }
-  if (!tribeDone()) {
+  if (!currentPlan || !tribeDone()) {
     setVisualStep("tribe");
     return true;
   }
@@ -223,6 +401,11 @@ function boot() {
       ensureStep();
       enforceAutomaticStep();
     }, delay);
+  }
+  void refreshTribePlan();
+
+  for (const eventName of ["ff14today:context-saved", "ff14today:context-updated", "ff14today:inventory-evidence-updated"]) {
+    window.addEventListener(eventName, () => setTimeout(() => void refreshTribePlan(), 300));
   }
 }
 
