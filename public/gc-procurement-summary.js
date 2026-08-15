@@ -12,9 +12,14 @@ function japanDateKey() {
   const get = type => parts.find(part => part.type === type)?.value || "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
-
 function storageKey() { return `${STORAGE_PREFIX}${japanDateKey()}`; }
 function profileToken() { return localStorage.getItem(PROFILE_TOKEN_KEY) || ""; }
+function hashText(value) {
+  let hash = 2166136261;
+  for (const char of String(value || "")) { hash ^= char.codePointAt(0); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function setTextIfChanged(node, text) { if (node && node.textContent !== text) node.textContent = text; }
 function loadSelected() {
   try {
     const parsed = JSON.parse(localStorage.getItem(storageKey()) || "[]");
@@ -64,14 +69,26 @@ async function loadData({ force = false } = {}) {
 }
 
 function rowLookup(data) {
-  const byExact = new Map();
   const byName = new Map();
   for (const row of data?.deliveries || []) {
-    byExact.set(deliveryKey(row), row);
     const key = `${row.page_kind || ""}:${row.item_name || ""}`;
     if (!byName.has(key)) byName.set(key, row);
   }
-  return { byExact, byName };
+  return byName;
+}
+
+function bindPanelActions(panel, data, selected) {
+  panel.querySelector("[data-gc-select-crafting]")?.addEventListener("click", () => {
+    for (const row of data?.deliveries || []) if (row.page_kind === "crafting") selected.add(deliveryKey(row));
+    saveSelected(selected); void reconcile();
+  });
+  panel.querySelector("[data-gc-select-all]")?.addEventListener("click", () => {
+    for (const row of data?.deliveries || []) selected.add(deliveryKey(row));
+    saveSelected(selected); void reconcile();
+  });
+  panel.querySelector("[data-gc-clear-selection]")?.addEventListener("click", () => {
+    selected.clear(); saveSelected(selected); void reconcile();
+  });
 }
 
 function renderPanel(container, data, selected) {
@@ -88,7 +105,7 @@ function renderPanel(container, data, selected) {
   const materials = summary.materials.length
     ? summary.materials.map(row => `${row.item_name} ×${row.quantity}${row.total_gil == null ? "" : `（約${gil(row.total_gil)}）`}`).join(" / ")
     : "製作納品を選ぶと、原材料から作る場合の必要素材をここで合算します。";
-  panel.innerHTML = `
+  const html = `
     <div class="gc-procurement-head">
       <strong>今日の納品準備｜選択 ${summary.selected_count}件</strong>
       <div class="gc-procurement-actions">
@@ -104,17 +121,11 @@ function renderPanel(container, data, selected) {
     </div>
     <div class="gc-procurement-materials"><strong>必要素材 合算：</strong>${materials}</div>
   `;
-  panel.querySelector("[data-gc-select-crafting]")?.addEventListener("click", () => {
-    for (const row of data?.deliveries || []) if (row.page_kind === "crafting") selected.add(deliveryKey(row));
-    saveSelected(selected); void reconcile();
-  });
-  panel.querySelector("[data-gc-select-all]")?.addEventListener("click", () => {
-    for (const row of data?.deliveries || []) selected.add(deliveryKey(row));
-    saveSelected(selected); void reconcile();
-  });
-  panel.querySelector("[data-gc-clear-selection]")?.addEventListener("click", () => {
-    selected.clear(); saveSelected(selected); void reconcile();
-  });
+  const signature = hashText(html);
+  if (panel.dataset.renderHash === signature) return;
+  panel.dataset.renderHash = signature;
+  panel.innerHTML = html;
+  bindPanelActions(panel, data, selected);
 }
 
 function enhanceRows(container, data, selected) {
@@ -125,7 +136,7 @@ function enhanceRows(container, data, selected) {
       const strong = tr.querySelector("[data-gc-delivery-item]");
       const itemName = strong?.textContent?.trim() || "";
       if (!itemName) continue;
-      const row = lookup.byName.get(`${kind}:${itemName}`);
+      const row = lookup.get(`${kind}:${itemName}`);
       if (!row) continue;
       const key = deliveryKey(row);
       tr.dataset.gcProcurementKey = key;
@@ -143,7 +154,7 @@ function enhanceRows(container, data, selected) {
         itemTop.prepend(check);
       } else {
         const check = itemTop?.querySelector("[data-gc-procurement-check]");
-        if (check) check.checked = selected.has(key);
+        if (check && check.checked !== selected.has(key)) check.checked = selected.has(key);
       }
       const itemCell = strong.closest("td");
       let market = itemCell?.querySelector("[data-gc-procurement-market]");
@@ -153,7 +164,7 @@ function enhanceRows(container, data, selected) {
         market.setAttribute("data-gc-procurement-market", "");
         itemCell.append(market);
       }
-      if (market) market.textContent = marketLine(row.market);
+      setTextIfChanged(market, marketLine(row.market));
     }
   }
 }
@@ -182,7 +193,12 @@ async function reconcile({ force = false } = {}) {
 
 function boot() {
   ensureStyles();
-  const observer = new MutationObserver(() => { setTimeout(() => void reconcile(), 0); });
+  let queued = false;
+  const observer = new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => { queued = false; void reconcile(); }, 0);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   for (const delay of [300, 900, 1800, 3500]) setTimeout(() => void reconcile(), delay);
   window.addEventListener("ff14today:context-saved", () => {
