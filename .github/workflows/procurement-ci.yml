@@ -57,7 +57,7 @@ jobs:
       - name: Live production craft state
         if: github.event_name == 'push' && github.ref_name == 'main'
         run: |
-          BASE="https://ff14-today.kaidoki.workers.dev"
+          BASE="https://ff14-today.ff14-today.workers.dev"
           echo "waiting for ${BASE} to expose ${GITHUB_SHA} policy"
           for attempt in $(seq 1 30); do
             if curl -fsS --max-time 10 "${BASE}/api/health" -o /tmp/health.json; then
