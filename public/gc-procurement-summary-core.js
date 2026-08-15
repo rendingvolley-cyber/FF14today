@@ -10,25 +10,23 @@ function nonNegative(value) {
 export function aggregateSelectedDeliveries(deliveries, selectedKeys) {
   const selected = new Set((selectedKeys || []).map(String));
   const rows = (deliveries || []).filter(row => selected.has(deliveryKey(row)));
+  const craftingRows = rows.filter(row => row?.page_kind === "crafting");
   const materials = new Map();
   const totals = {
-    finishedBuy: { value: 0, known: 0 },
-    craftRaw: { value: 0, known: 0 },
-    recommended: { value: 0, known: 0 }
+    finishedBuy: { value: 0, known: 0, expected: rows.length },
+    craftRaw: { value: 0, known: 0, expected: craftingRows.length },
+    recommended: { value: 0, known: 0, expected: rows.length }
   };
 
   for (const row of rows) {
     const p = row?.procurement || {};
-    for (const [bucket, value] of [
-      ["finishedBuy", p?.market_buy?.gil],
-      ["craftRaw", p?.craft_raw?.gil],
-      ["recommended", p?.recommended_route?.gil]
-    ]) {
-      const cost = nonNegative(value);
-      if (cost != null) {
-        totals[bucket].value += cost;
-        totals[bucket].known += 1;
-      }
+    const finished = nonNegative(p?.market_buy?.gil);
+    if (finished != null) { totals.finishedBuy.value += finished; totals.finishedBuy.known += 1; }
+    const recommended = nonNegative(p?.recommended_route?.gil);
+    if (recommended != null) { totals.recommended.value += recommended; totals.recommended.known += 1; }
+    if (row?.page_kind === "crafting") {
+      const raw = nonNegative(p?.craft_raw?.gil);
+      if (raw != null) { totals.craftRaw.value += raw; totals.craftRaw.known += 1; }
     }
 
     for (const material of p?.craft_raw?.materials || []) {
@@ -50,9 +48,14 @@ export function aggregateSelectedDeliveries(deliveries, selectedKeys) {
     }
   }
 
-  const total = bucket => rows.length && totals[bucket].known === rows.length ? Math.round(totals[bucket].value) : null;
+  const total = bucket => {
+    const entry = totals[bucket];
+    if (!entry.expected) return null;
+    return entry.known === entry.expected ? Math.round(entry.value) : null;
+  };
   return {
     selected_count: rows.length,
+    crafting_selected_count: craftingRows.length,
     finished_buy_gil: total("finishedBuy"),
     craft_raw_gil: total("craftRaw"),
     recommended_gil: total("recommended"),
