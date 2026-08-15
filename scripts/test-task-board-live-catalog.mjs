@@ -15,6 +15,11 @@ import {
   buildTimedGatheringRowsFromData,
   applyGameWindowPolicyToPlan
 } from "../src/time-sensitive-game-windows.js";
+import {
+  parseTeleportLazyFiles,
+  nearestAetheryteForNode,
+  applyNearestTeleportHintsToPlan
+} from "../src/time-sensitive-nearest-teleport.js";
 
 const fishData = {
   FISH: {
@@ -141,6 +146,15 @@ const env = {
 }
 
 {
+  const files = parseTeleportLazyFiles(`
+    'nodes': { hashedFileName: 'nodes.abc.json' },
+    'aetherytes': { hashedFileName: 'aetherytes.def.json' },
+    'places': { hashedFileName: 'places.ghi.json' }
+  `);
+  assert.deepEqual(files, { nodes: "nodes.abc.json", aetherytes: "aetherytes.def.json", places: "places.ghi.json" });
+}
+
+{
   const now = 175000;
   const window = nextGatherWindow({ spawns: [0], duration: 120 }, now, 12);
   assert.ok(window);
@@ -152,10 +166,10 @@ const env = {
   const now = 175000;
   const timedData = {
     nodes: {
-      1: { limited: true, legendary: true, ephemeral: false, folklore: 9, spawns: [0], duration: 120, level: 81, type: 0, zoneid: 10, x: 12.3, y: 45.6, items: [100] },
-      2: { limited: true, legendary: false, ephemeral: true, spawns: [0], duration: 240, level: 82, type: 2, zoneid: 20, x: 22.2, y: 33.3, items: [200] },
-      3: { limited: true, legendary: true, ephemeral: false, spawns: [0], duration: 120, level: 90, type: 0, zoneid: 30, items: [300] },
-      4: { limited: true, legendary: true, ephemeral: false, spawns: [0], duration: 120, level: 70, type: 0, zoneid: 40, items: [400] }
+      1: { limited: true, legendary: true, ephemeral: false, folklore: 9, spawns: [0], duration: 120, level: 81, type: 0, zoneid: 10, map: 101, x: 12.3, y: 45.6, items: [100] },
+      2: { limited: true, legendary: false, ephemeral: true, spawns: [0], duration: 240, level: 82, type: 2, zoneid: 20, map: 202, x: 22.2, y: 33.3, items: [200] },
+      3: { limited: true, legendary: true, ephemeral: false, spawns: [0], duration: 120, level: 90, type: 0, zoneid: 30, map: 303, items: [300] },
+      4: { limited: true, legendary: true, ephemeral: false, spawns: [0], duration: 120, level: 70, type: 0, zoneid: 40, map: 404, items: [400] }
     },
     items: {
       100: { ja: "伝説の鉱石" },
@@ -170,6 +184,35 @@ const env = {
   assert.ok(rows.some(row => row.job_code === "MIN" && row.node_kind === "伝説" && /伝説の鉱石/.test(row.title)));
   assert.ok(rows.some(row => row.job_code === "BTN" && row.node_kind === "刻限" && /刻限の草/.test(row.title)));
   assert.ok(rows.every(row => row.schedule_type === "game_window"));
+}
+
+{
+  const nearest = nearestAetheryteForNode(
+    { map: 101, zoneid: 10, x: 20, y: 20 },
+    [
+      { id: 1, type: 0, map: 101, zoneid: 10, nameid: 501, x: 5, y: 5 },
+      { id: 2, type: 0, map: 101, zoneid: 10, nameid: 502, x: 18, y: 19 },
+      { id: 3, type: 0, map: 999, zoneid: 99, nameid: 503, x: 20, y: 20 },
+      { id: 4, type: 1, map: 101, zoneid: 10, nameid: 504, x: 19, y: 20 }
+    ]
+  );
+  assert.equal(nearest.id, 2);
+
+  const enriched = applyNearestTeleportHintsToPlan({
+    selected_mode: "gather",
+    methods: [{
+      task_key: "live:timed-gather:1",
+      source_kind: "ffxiv_teamcraft_timed_gather",
+      reason: "伝説 Lv81 / 採掘エリア / X:20.0 Y:20.0 / ET 00:00-02:00",
+      steps: []
+    }]
+  }, {
+    1: { name: "最寄りエーテライト", x: 18, y: 19, distance: Math.sqrt(5) }
+  });
+  assert.equal(enriched.nearest_teleport_hint_count, 1);
+  assert.equal(enriched.methods[0].nearest_teleport.name, "最寄りエーテライト");
+  assert.match(enriched.methods[0].reason, /^最短テレポ：最寄りエーテライト/);
+  assert.equal(enriched.methods[0].steps[0], "最寄りエーテライトへテレポ");
 }
 
 {
