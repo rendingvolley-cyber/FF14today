@@ -1,6 +1,11 @@
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
+const COST_RETRY_COOLDOWN_MS = 30_000;
 let refreshing = false;
 let lastKnownStatus = { crafting: false, gathering: false };
+let cachedCostFingerprint = "";
+let cachedCostData = null;
+let costRequestInFlight = null;
+let costFailure = { fingerprint: "", retryAfter: 0 };
 
 function profileToken() {
   let token = localStorage.getItem(PROFILE_TOKEN_KEY);
@@ -300,7 +305,53 @@ async function fetchJson(path) {
   return response.json();
 }
 
-async function refreshAll() {
+function deliveryFingerprint(deliveryData) {
+  const rows = Array.isArray(deliveryData?.deliveries) ? deliveryData.deliveries : [];
+  return JSON.stringify({
+    observed_at: deliveryData?.observed_at || "",
+    page_status: deliveryData?.page_status || {},
+    rows: rows.map(row => [
+      row?.page_kind || "",
+      Number(row?.row_index ?? -1),
+      String(row?.item_name || ""),
+      Number(row?.requested_quantity ?? -1),
+      Number(row?.owned_quantity ?? -1),
+      Boolean(row?.starred)
+    ])
+  });
+}
+
+function invalidateCostCache() {
+  cachedCostFingerprint = "";
+  cachedCostData = null;
+  costFailure = { fingerprint: "", retryAfter: 0 };
+}
+
+async function costDataFor(deliveryData, { force = false } = {}) {
+  const fingerprint = deliveryFingerprint(deliveryData);
+  if (!force && cachedCostData && cachedCostFingerprint === fingerprint) return cachedCostData;
+  if (!force && costFailure.fingerprint === fingerprint && Date.now() < costFailure.retryAfter) return null;
+  if (costRequestInFlight?.fingerprint === fingerprint) return costRequestInFlight.promise;
+
+  const promise = fetchJson("/api/grand-company/delivery-costs")
+    .then(data => {
+      cachedCostFingerprint = fingerprint;
+      cachedCostData = data;
+      costFailure = { fingerprint: "", retryAfter: 0 };
+      return data;
+    })
+    .catch(() => {
+      costFailure = { fingerprint, retryAfter: Date.now() + COST_RETRY_COOLDOWN_MS };
+      return null;
+    })
+    .finally(() => {
+      if (costRequestInFlight?.fingerprint === fingerprint) costRequestInFlight = null;
+    });
+  costRequestInFlight = { fingerprint, promise };
+  return promise;
+}
+
+async function refreshAll({ forceCost = false } = {}) {
   if (refreshing) return;
   const gc = gcContent();
   if (!gc || gc.hidden) return;
@@ -308,8 +359,7 @@ async function refreshAll() {
   try {
     const deliveryData = await fetchJson("/api/grand-company/deliveries");
     updateCaptureStatus(deliveryData);
-    let costData = null;
-    try { costData = await fetchJson("/api/grand-company/delivery-costs"); } catch {}
+    const costData = await costDataFor(deliveryData, { force: forceCost });
     renderSeparateLists(deliveryData, costData);
   } catch {
     ensureCapturePanel();
@@ -337,11 +387,17 @@ function boot() {
     if (event?.detail?.pageType !== "grand_company_deliveries") return;
     const kind = inbox()?.dataset?.gcPageKind || (lastKnownStatus.crafting ? "gathering" : "crafting");
     overrideSavedMessage(kind);
-    setTimeout(() => void refreshAll(), 120);
+    invalidateCostCache();
+    setTimeout(() => void refreshAll({ forceCost: true }), 120);
     setTimeout(() => void refreshAll(), 1200);
   });
 
   document.addEventListener("click", event => {
+    if (event.target?.closest?.("[data-gc-refresh]")) {
+      invalidateCostCache();
+      setTimeout(() => void refreshAll({ forceCost: true }), 80);
+      return;
+    }
     if (event.target?.closest?.("[data-gc-open]")) setTimeout(() => void refreshAll(), 30);
   });
 
