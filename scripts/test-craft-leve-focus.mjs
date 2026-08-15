@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { armorerLeveMethods, replaceCraftSocietyFallback } from "../src/craft-leve-focus-wrapper.js";
+import { buildLeveCostAdvice } from "../src/leve-cost-advisor.js";
+import { collectReachableItemIds, leveTarget } from "../src/leve-cost-data.js";
 
 const arm81 = { code: "ARM", name: "甲冑師", level: 81, role: "crafter" };
 const methods = armorerLeveMethods(arm81, 60);
@@ -12,6 +14,61 @@ assert.equal(methods[0].leve_reward_gil, null);
 assert.doesNotMatch(methods[0].reason, /G。|ギル|Gil/i);
 assert.equal(methods[1].delivery_quantity, 3);
 assert.match(methods[1].title, /ハイダリウムナゲット/);
+
+const armguardsTarget = leveTarget(methods[0].task_key);
+const nuggetTarget = leveTarget(methods[1].task_key);
+assert.equal(armguardsTarget?.itemId, 34107, "ARM Lv80 armguards leve must use the verified static material graph");
+assert.equal(nuggetTarget?.itemId, 36168, "ARM Lv80 nugget leve must use the verified static material graph");
+assert.equal(armguardsTarget?.hqRequired, false);
+assert.equal(nuggetTarget?.requiredQuantity, 3);
+assert.deepEqual(
+  new Set(collectReachableItemIds(armguardsTarget)),
+  new Set([34107, 36168, 36162, 5113, 9, 36247, 27757, 11])
+);
+
+const armPrices = {
+  34107: { nq: 24978 },
+  36168: { nq: 1200 },
+  36162: { nq: 100 },
+  5113: { nq: 50 },
+  9: { nq: 20 },
+  11: { nq: 20 },
+  36247: { nq: 900 },
+  27757: { nq: 700 }
+};
+const armguardsAdvice = buildLeveCostAdvice(armguardsTarget, armPrices, {
+  energy: 4,
+  availableMinutes: 60,
+  preferTraining: true
+});
+const armguardsRaw = armguardsAdvice.routes.find(route =>
+  route.crafts?.some(row => row.itemId === 34107)
+  && route.purchases?.some(row => row.itemId === 36162)
+);
+assert.ok(armguardsRaw, "an expanded armguards craft route must be available");
+const armguardsMaterials = new Map((armguardsRaw.purchases || []).map(row => [row.itemId, row.quantity]));
+assert.equal(armguardsMaterials.get(36162), 10, "two ARM nuggets need ten High Durium Sand");
+assert.equal(armguardsMaterials.get(5113), 2, "two ARM nuggets need two Silver Ore");
+assert.equal(armguardsMaterials.get(9), 24, "ARM nugget crystals must combine with the final armguards crystals");
+assert.equal(armguardsMaterials.get(11), 7);
+assert.equal(armguardsMaterials.get(36247), 1);
+assert.equal(armguardsMaterials.get(27757), 1);
+assert.equal(armguardsMaterials.has(36168), false, "High Durium Nugget must be expanded instead of left as an unresolved purchase");
+
+const nuggetAdvice = buildLeveCostAdvice(nuggetTarget, armPrices, {
+  energy: 4,
+  availableMinutes: 60,
+  preferTraining: true
+});
+const nuggetRaw = nuggetAdvice.routes.find(route =>
+  route.crafts?.some(row => row.itemId === 36168)
+  && route.purchases?.some(row => row.itemId === 36162)
+);
+assert.ok(nuggetRaw, "an expanded ARM nugget craft route must be available");
+const nuggetMaterials = new Map((nuggetRaw.purchases || []).map(row => [row.itemId, row.quantity]));
+assert.equal(nuggetMaterials.get(36162), 15);
+assert.equal(nuggetMaterials.get(5113), 3);
+assert.equal(nuggetMaterials.get(9), 24, "ARM High Durium Nugget must use Ice Crystal, not the Blacksmith Fire Crystal recipe");
 
 const data = {
   plan: {

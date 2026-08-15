@@ -12,18 +12,39 @@ export const LEVE_TARGETS = Object.freeze({
     itemName: "Growth Formula Lambda",
     requiredQuantity: 3,
     hqRequired: true
+  }),
+  "craft:arm80:leve:armguards-maiming": Object.freeze({
+    taskKey: "craft:arm80:leve:armguards-maiming",
+    itemId: 34107,
+    itemName: "High Durium Armguards of Maiming",
+    requiredQuantity: 1,
+    hqRequired: false
+  }),
+  "craft:arm80:leve:high-durium-nugget": Object.freeze({
+    taskKey: "craft:arm80:leve:high-durium-nugget",
+    itemId: 36168,
+    itemName: "High Durium Nugget",
+    requiredQuantity: 3,
+    hqRequired: false
   })
 });
 
 export const ITEM_NAMES = Object.freeze({
+  9: "Ice Crystal",
   10: "Wind Crystal",
   11: "Earth Crystal",
   12: "Lightning Crystal",
   13: "Water Crystal",
+  5113: "Silver Ore",
+  27757: "Dwarven Cotton",
+  34107: "High Durium Armguards of Maiming",
+  36162: "High Durium Sand",
   36165: "Manganese Ore",
+  36168: "High Durium Nugget",
   36238: "Enchanted Manganese Ink",
   36239: "Moon Gel",
   36241: "Eblan Alumen",
+  36247: "Gaja Leather",
   36257: "Mousse Flesh",
   36258: "Lunatender Blossom",
   36260: "Petalouda Scales",
@@ -38,9 +59,23 @@ export const ITEM_NAMES = Object.freeze({
   44068: "Poison Frog Secretions"
 });
 
-// Patch 7.0 recipe facts from the public XIV data tables. Keep this small and
-// explicit: only recipes reachable from the leve targets above are included.
+// Verified static recipe facts for leve targets where a deterministic graph is
+// useful. High Durium Nugget deliberately uses the Armorer recipe (Ice Crystal),
+// because the same item also has a Blacksmith recipe with Fire Crystal and the
+// generic dynamic resolver correctly refuses to guess between different graphs.
 export const RECIPE_GRAPH = Object.freeze({
+  34107: Object.freeze({
+    outputQuantity: 1,
+    ingredients: Object.freeze([
+      [36168, 2], [36247, 1], [27757, 1], [9, 8], [11, 7]
+    ])
+  }),
+  36168: Object.freeze({
+    outputQuantity: 1,
+    ingredients: Object.freeze([
+      [36162, 5], [5113, 1], [9, 8]
+    ])
+  }),
   41856: Object.freeze({
     outputQuantity: 1,
     ingredients: Object.freeze([
