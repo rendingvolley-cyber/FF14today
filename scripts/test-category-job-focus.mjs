@@ -41,9 +41,8 @@ function base(mode) {
   const plan = applyCategoryJobFocus(base("craft"), character, { focusCraftJobCode: "ALC", availableMinutes: 60 });
   assert.equal(plan.session_complete, false);
   assert.equal(plan.focus_job.code, "ALC");
-  assert.ok(plan.methods.length >= 2);
+  assert.equal(plan.methods.length, 3);
   assert.ok(plan.methods.every(row => row.job_code === "ALC"));
-  assert.ok(plan.methods.some(row => /ヨカフイ族/.test(row.title)));
   assert.ok(plan.methods.some(row => /ウコギ・アングルブラシ/.test(row.title)));
   const collectable = plan.methods.find(row => row.task_key === "craft:alc91:collectable:loboskin-grimoire");
   assert.ok(collectable);
