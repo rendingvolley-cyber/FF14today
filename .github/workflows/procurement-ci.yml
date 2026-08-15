@@ -33,6 +33,7 @@ jobs:
           node --check public/procurement-shopping-list.js
           node --check scripts/test-craft-leve-focus.mjs
           node --check scripts/test-task-board-recovery-mode-guard.mjs
+          node --check scripts/test-live-craft-outer-policy.mjs
           node --check scripts/test-procurement-summary.mjs
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
@@ -40,6 +41,8 @@ jobs:
         run: node scripts/test-craft-leve-focus.mjs
       - name: Task board recovery mode guard
         run: node scripts/test-task-board-recovery-mode-guard.mjs
+      - name: Outermost live craft policy
+        run: node scripts/test-live-craft-outer-policy.mjs
       - name: Grand Company procurement aggregation
         run: node scripts/test-procurement-summary.mjs
       - name: Craft procurement aggregation
