@@ -1,6 +1,11 @@
 function number(value) {
-  const n = Number(String(value ?? "").replace(/,/g, ""));
+  if (value == null || String(value).trim() === "") return null;
+  const n = Number(String(value).replace(/,/g, ""));
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function knownPrice(value) {
+  return value != null && Number.isFinite(Number(value)) && Number(value) >= 0;
 }
 
 export function parseMaterialSummary(text) {
@@ -29,10 +34,10 @@ export function shoppingListText(rows, { title = "マケボ購入リスト" } = 
   if (!items.length) return `${title}\n追加購入素材なし`;
   const lines = items.map(row => {
     const qty = Math.round(Number(row.quantity));
-    const cost = Number.isFinite(Number(row.total_gil)) ? ` / 概算 ${Math.round(Number(row.total_gil)).toLocaleString("ja-JP")}G` : "";
+    const cost = knownPrice(row.total_gil) ? ` / 概算 ${Math.round(Number(row.total_gil)).toLocaleString("ja-JP")}G` : "";
     return `${row.item_name} ×${qty}${cost}`;
   });
-  const total = items.every(row => Number.isFinite(Number(row.total_gil)))
+  const total = items.every(row => knownPrice(row.total_gil))
     ? items.reduce((sum, row) => sum + Number(row.total_gil), 0)
     : null;
   if (total != null) lines.push(`合計概算 ${Math.round(total).toLocaleString("ja-JP")}G`);
