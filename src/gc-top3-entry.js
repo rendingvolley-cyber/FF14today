@@ -1,10 +1,14 @@
 import app from "./gc-supply-duty-entry.js";
+import { grandCompanyProcurementSummaryResponse } from "./gc-procurement-summary.js";
 import { augmentStateResponse, liveFeedResponse } from "./task-board-live-catalog.js";
 import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
 import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
 import { addNearestTeleportHints } from "./time-sensitive-nearest-teleport.js";
 
 const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v3-20260815";
+const PROCUREMENT_UI_VERSION = "gc-procurement-v1-20260815";
+const CRAFT_PROCUREMENT_UI_VERSION = "craft-procurement-v1-20260815";
+const SHOPPING_LIST_UI_VERSION = "procurement-shopping-v1-20260815";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -75,6 +79,9 @@ function rewriteHtml(response) {
   const transformed = new HTMLRewriter()
     .on("head", {
       element(element) {
+        element.prepend(`<script type="module" src="/procurement-shopping-list.js?v=${SHOPPING_LIST_UI_VERSION}"></script>`, { html: true });
+        element.prepend(`<script type="module" src="/craft-procurement-summary.js?v=${CRAFT_PROCUREMENT_UI_VERSION}"></script>`, { html: true });
+        element.prepend(`<script type="module" src="/gc-procurement-summary.js?v=${PROCUREMENT_UI_VERSION}"></script>`, { html: true });
         element.prepend(`<script src="/time-sensitive-game-window-labels.js?v=${TIME_SENSITIVE_LAYOUT_VERSION}"></script>`, { html: true });
         element.prepend('<script src="/task-board-focus-first.js"></script>', { html: true });
       }
@@ -90,10 +97,20 @@ export default {
     if (url.pathname === "/api/live-feed" && request.method === "GET") {
       return liveFeedResponse(env);
     }
+    if (url.pathname === "/api/grand-company/procurement-summary" && request.method === "GET") {
+      return grandCompanyProcurementSummaryResponse(request, env, app);
+    }
 
     const response = await app.fetch(request, env);
 
-    if ((url.pathname === "/time-sensitive-game-window-labels.js" || url.pathname === "/task-board-focus-first.js") && request.method === "GET") {
+    if ((url.pathname === "/time-sensitive-game-window-labels.js" ||
+         url.pathname === "/task-board-focus-first.js" ||
+         url.pathname === "/gc-procurement-summary.js" ||
+         url.pathname === "/gc-procurement-summary-core.js" ||
+         url.pathname === "/craft-procurement-summary.js" ||
+         url.pathname === "/craft-procurement-summary-core.js" ||
+         url.pathname === "/procurement-shopping-list.js" ||
+         url.pathname === "/procurement-shopping-list-core.js") && request.method === "GET") {
       return noStore(response);
     }
     if (url.pathname === "/api/state" && request.method === "GET") {
@@ -109,6 +126,10 @@ export default {
       return json({
         ...data,
         gc_seal_recommendation_limit: 3,
+        gc_procurement_summary: true,
+        gc_procurement_market_world: "Chocobo",
+        craft_leve_procurement_summary: true,
+        procurement_shopping_list: true,
         task_board_focus_first_request: true,
         task_board_live_catalog: true,
         task_board_null_plan_recovery: true,

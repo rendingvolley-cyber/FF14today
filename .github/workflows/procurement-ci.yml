@@ -1,0 +1,48 @@
+name: Procurement Planner CI
+
+on:
+  push:
+    branches:
+      - 'agent/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check src/craft-leve-focus-wrapper.js
+          node --check src/procurement-market.js
+          node --check src/gc-procurement-summary.js
+          node --check src/gc-top3-entry.js
+          node --check public/gc-procurement-summary-core.js
+          node --check public/gc-procurement-summary.js
+          node --check public/craft-procurement-summary-core.js
+          node --check public/craft-procurement-summary.js
+          node --check public/procurement-shopping-list-core.js
+          node --check public/procurement-shopping-list.js
+          node --check scripts/test-craft-leve-focus.mjs
+          node --check scripts/test-procurement-summary.mjs
+          node --check scripts/test-craft-procurement-summary.mjs
+          node --check scripts/test-procurement-shopping-list.mjs
+      - name: Craft leve policy
+        run: node scripts/test-craft-leve-focus.mjs
+      - name: Grand Company procurement aggregation
+        run: node scripts/test-procurement-summary.mjs
+      - name: Craft procurement aggregation
+        run: node scripts/test-craft-procurement-summary.mjs
+      - name: Shopping list formatting
+        run: node scripts/test-procurement-shopping-list.mjs
+      - name: Wrangler dry run
+        run: |
+          npm install
+          npx wrangler deploy --dry-run --outdir .wrangler-procurement-dry-run
