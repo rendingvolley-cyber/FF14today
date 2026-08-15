@@ -8,7 +8,8 @@ assert.equal(methods[0].job_code, "ARM");
 assert.match(methods[0].title, /ハイダリウム・スレイヤーアームガード/);
 assert.match(methods[0].title, /1個納品/);
 assert.equal(methods[0].leve_reward_exp, 935000);
-assert.equal(methods[0].leve_reward_gil, 4900);
+assert.equal(methods[0].leve_reward_gil, null);
+assert.doesNotMatch(methods[0].reason, /G。|ギル|Gil/i);
 assert.equal(methods[1].delivery_quantity, 3);
 assert.match(methods[1].title, /ハイダリウムナゲット/);
 
