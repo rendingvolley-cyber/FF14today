@@ -40,6 +40,7 @@ const jobs = [
 const daily = buildTribeDailyPlan({ jobs }, {
   focus: { combat: "RPR", craft: "ALC", gather: "BTN" }
 });
+assert.match(daily.version, /low-level-catchup/);
 assert.equal(daily.daily_limit, ALLIED_SOCIETY_DAILY_LIMIT);
 assert.equal(daily.quests_per_society, ALLIED_SOCIETY_QUESTS_PER_GROUP);
 assert.equal(daily.planned_quests, 12);
@@ -48,11 +49,26 @@ assert.equal(daily.groups.length, 4);
 assert.ok(daily.groups.every(group => group.quests === 3));
 assert.equal(daily.groups.reduce((sum, group) => sum + group.quests, 0), daily.planned_quests);
 assert.equal(new Set(daily.groups.map(group => group.society_id)).size, daily.groups.length);
-assert.ok(daily.groups.some(group => group.society_id === "pixie" && group.target_job_code === "RPR" && group.focused));
-assert.ok(daily.groups.some(group => group.society_id === "yok_huy" && group.target_job_code === "ALC" && group.focused));
-assert.ok(daily.groups.some(group => group.society_id === "mamool_ja" && group.target_job_code === "BTN" && group.focused));
-assert.ok(daily.leveling_quests >= 9);
-assert.ok(daily.planned_quests <= 12);
+
+// Low-level catch-up wins over the currently selected higher-level jobs.
+assert.ok(daily.groups.some(group => ["kojin", "ananta"].includes(group.society_id) && group.target_job_code === "BLM" && group.target_job_level === 66));
+assert.ok(daily.groups.some(group => group.society_id === "dwarf" && group.target_job_code === "CRP" && group.target_job_level === 75));
+assert.ok(daily.groups.some(group => group.society_id === "qitari" && group.target_job_code === "FSH" && group.target_job_level === 72));
+assert.equal(daily.groups.some(group => group.target_job_code === "RPR"), false);
+assert.equal(daily.groups.some(group => group.target_job_code === "ALC"), false);
+assert.equal(daily.groups.some(group => group.target_job_code === "BTN"), false);
+assert.equal(daily.leveling_quests, 12);
+assert.equal(daily.conditional_quests, 0);
+assert.match(daily.note, /低いジョブ/);
+
+// Focus remains only a tie-break when two eligible jobs are at the same level.
+const sameLevel = buildTribeDailyPlan({
+  jobs: [
+    { code: "DRG", name_ja: "竜騎士", role: "melee", level: 73 },
+    { code: "RPR", name_ja: "リーパー", role: "melee", level: 73 }
+  ]
+}, { focus: { combat: "RPR" } });
+assert.ok(sameLevel.groups.some(group => group.society_id === "pixie" && group.target_job_code === "RPR"));
 
 const onlyCombat = buildTribeDailyPlan({
   jobs: [{ code: "RPR", name_ja: "リーパー", role: "melee", level: 73 }]
