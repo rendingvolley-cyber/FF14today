@@ -158,10 +158,8 @@ export function applyCategoryJobFocus(plan, character, options = {}) {
   if (mode === "craft" && options.focusCraftJobCode) {
     const job = findJob(character, options.focusCraftJobCode, "crafter");
     if (!job) return plan;
-    const methods = [
-      ...craftSocietyMethods(job),
-      ...(normalizeCode(job.code) === "ALC" ? alcMethods(job) : [])
-    ];
+    const concrete = normalizeCode(job.code) === "ALC" ? alcMethods(job) : [];
+    const methods = concrete.length ? concrete : craftSocietyMethods(job);
     return focusedPlan(plan, job, methods, "craft", options.availableMinutes ?? plan.remaining_minutes ?? 60);
   }
   if (mode === "gather" && options.focusGatherJobCode) {
