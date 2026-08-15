@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { applyCombatJobFocus, levelingCombatJobs } from "../src/combat-job-focus.js";
+import { makeConcretePlan } from "../src/concrete-plan.js";
 
 const character = {
   bozja_rank: 23,
@@ -24,6 +25,28 @@ const basePlan = {
 
 const selectable = levelingCombatJobs(character);
 assert.deepEqual(selectable.map(job => job.code), ["RDM", "SAM", "SCH", "WHM", "BLU"]);
+
+const catchupBase = makeConcretePlan(character, 60, 3, null, { leveling: false, alliance: false }, {}, "efficient");
+assert.equal(catchupBase.focus_job.code, "WHM");
+assert.equal(catchupBase.focus_job.level, 80);
+assert.match(catchupBase.notice, /最低Lv側/);
+assert.match(catchupBase.planner_kind, /low-level-catchup/);
+
+const catchupCraft = makeConcretePlan({
+  jobs: [
+    { code: "BSM", name_ja: "鍛冶師", level: 95, role: "crafter" },
+    { code: "ALC", name_ja: "錬金術師", level: 91, role: "crafter" }
+  ]
+}, 60, 3, null, {}, {}, "craft");
+assert.equal(catchupCraft.focus_job.code, "ALC");
+
+const catchupGather = makeConcretePlan({
+  jobs: [
+    { code: "BTN", name_ja: "園芸師", level: 90, role: "gatherer" },
+    { code: "MIN", name_ja: "採掘師", level: 81, role: "gatherer" }
+  ]
+}, 60, 3, null, {}, {}, "gather");
+assert.equal(catchupGather.focus_job.code, "MIN");
 
 const rdmDaily = applyCombatJobFocus(basePlan, character, {
   focusJobCode: "RDM",
