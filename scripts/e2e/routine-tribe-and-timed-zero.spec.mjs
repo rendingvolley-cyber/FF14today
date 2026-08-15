@@ -276,7 +276,7 @@ test("GC screenshot stays in the GC card and routine flows GC -> 12-slot tribes 
 
   await expect.poll(() => contextPasteBody).toContain('name="workflow_context"');
   await expect.poll(() => contextPasteBody).toContain("grand-company");
-  await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("製作ページを保存しました");
+  await expect(page.locator("#grandCompanyRoutineContent #contextInboxStatus")).toContainText("双蛇党納品を1件");
   await expect(page.locator("[data-gc-content]")).toContainText("E2E貼付納品薬");
   await expect(page.locator("[data-gc-content]")).toContainText("必要 3 / 所持 1");
 
