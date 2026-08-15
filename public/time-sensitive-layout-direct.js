@@ -5,7 +5,9 @@
     const section = document.getElementById("timeSensitiveDashboard");
     if (!section) return;
 
-    section.dataset.layout = "stacked-direct-v1";
+    if (section.dataset.layout !== "stacked-direct-v1") {
+      section.dataset.layout = "stacked-direct-v1";
+    }
 
     const grid = section.querySelector(".time-sensitive-grid");
     const fishList = section.querySelector("[data-fish-list]");
@@ -20,8 +22,8 @@
     const gatherTitle = gatherColumn?.querySelector(".time-sensitive-title");
     const gatherStrong = gatherTitle?.querySelector("strong");
     const gatherNote = gatherTitle?.querySelector("span");
-    if (gatherStrong) gatherStrong.textContent = "時限採集";
-    if (gatherNote) gatherNote.textContent = "次の窓を表示";
+    if (gatherStrong && gatherStrong.textContent !== "時限採集") gatherStrong.textContent = "時限採集";
+    if (gatherNote && gatherNote.textContent !== "次の窓を表示") gatherNote.textContent = "次の窓を表示";
 
     const empty = gatherList?.querySelector(".time-empty");
     if (empty && /期限|時限情報/.test(empty.textContent || "")) {
