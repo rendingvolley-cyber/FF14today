@@ -60,7 +60,11 @@ function generic(pathname) {
 }
 
 test("task board defaults to low-level catch-up, preserves manual choices, and exposes daily roulette checks", async ({ page }) => {
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("ff14today-e2e-cleared") === "1") return;
+    localStorage.clear();
+    sessionStorage.setItem("ff14today-e2e-cleared", "1");
+  });
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/state") {
