@@ -26,12 +26,17 @@ jobs:
           node --check src/gc-top3-entry.js
           node --check public/gc-procurement-summary-core.js
           node --check public/gc-procurement-summary.js
+          node --check public/craft-procurement-summary-core.js
+          node --check public/craft-procurement-summary.js
           node --check scripts/test-craft-leve-focus.mjs
           node --check scripts/test-procurement-summary.mjs
+          node --check scripts/test-craft-procurement-summary.mjs
       - name: Craft leve policy
         run: node scripts/test-craft-leve-focus.mjs
-      - name: Procurement aggregation
+      - name: Grand Company procurement aggregation
         run: node scripts/test-procurement-summary.mjs
+      - name: Craft procurement aggregation
+        run: node scripts/test-craft-procurement-summary.mjs
       - name: Wrangler dry run
         run: |
           npm install
