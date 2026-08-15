@@ -46,6 +46,7 @@ assert.equal(daily.planned_quests, 12);
 assert.equal(daily.remaining_quests, 0);
 assert.equal(daily.groups.length, 4);
 assert.ok(daily.groups.every(group => group.quests === 3));
+assert.equal(daily.groups.reduce((sum, group) => sum + group.quests, 0), daily.planned_quests);
 assert.equal(new Set(daily.groups.map(group => group.society_id)).size, daily.groups.length);
 assert.ok(daily.groups.some(group => group.society_id === "pixie" && group.target_job_code === "RPR" && group.focused));
 assert.ok(daily.groups.some(group => group.society_id === "yok_huy" && group.target_job_code === "ALC" && group.focused));
