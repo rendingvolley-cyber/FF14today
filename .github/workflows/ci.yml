@@ -38,6 +38,7 @@ jobs:
           node --check src/task-board-recovery.js
           node --check src/task-board-recovery-wrapper.js
           node --check src/task-board-live-catalog.js
+          node --check src/time-sensitive-game-windows.js
           node --check src/grand-company-deliveries.js
           node --check src/grand-company-wrapper.js
           node --check src/inventory-context.js
@@ -77,6 +78,7 @@ jobs:
           node --check public/tribe-leveling-data.js
           node --check public/focus-flow.js
           node --check public/leve-cost-advice.js
+          node --check public/time-sensitive-game-window-labels.js
           node --check scripts/test-grand-company-deliveries.mjs
           node --check scripts/test-gc-jsonmode.mjs
           node --check scripts/test-gc-seal-market.mjs

@@ -1,6 +1,7 @@
 import app from "./gc-supply-duty-entry.js";
 import { augmentStateResponse, liveFeedResponse } from "./task-board-live-catalog.js";
 import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
+import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -49,7 +50,8 @@ async function taskBoardStateResponse(request, response, env) {
   catch { return response; }
   const seeded = seedCatalogPlan(data, request.url);
   const prepared = seeded === data ? response : json(seeded, response.status);
-  return augmentStateResponse(request, prepared, env);
+  const augmented = await augmentStateResponse(request, prepared, env);
+  return applyGameWindowPolicy(request, augmented);
 }
 
 function rewriteHtml(response) {
@@ -57,6 +59,7 @@ function rewriteHtml(response) {
   return new HTMLRewriter()
     .on("head", {
       element(element) {
+        element.prepend('<script src="/time-sensitive-game-window-labels.js"></script>', { html: true });
         element.prepend('<script src="/task-board-focus-first.js"></script>', { html: true });
       }
     })
@@ -89,6 +92,8 @@ export default {
         task_board_focus_first_request: true,
         task_board_live_catalog: true,
         task_board_null_plan_recovery: true,
+        time_sensitive_scope: "game_windows",
+        time_sensitive_gathering: true,
         big_fish_live_feed: true,
         lodestone_deadline_feed: true
       }, response.status);
