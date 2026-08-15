@@ -25,6 +25,17 @@ function gil(value) {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? `${Math.round(n).toLocaleString("ja-JP")}G` : "—";
 }
+function setTextIfChanged(node, text) {
+  if (node && node.textContent !== text) node.textContent = text;
+}
+function setHtmlIfChanged(node, html) {
+  if (!node) return false;
+  const signature = hashText(html);
+  if (node.dataset.renderHash === signature) return false;
+  node.dataset.renderHash = signature;
+  node.innerHTML = html;
+  return true;
+}
 
 function ensureStyles() {
   if (document.getElementById("craftProcurementStyles")) return;
@@ -90,18 +101,18 @@ function renderCombined() {
   const cards = selectedCards();
   const models = cards.map(card => cache.get(modelKey(card))).filter(Boolean);
   if (!cards.length) {
-    box.innerHTML = "<strong>生産準備：</strong>リーヴを選ぶと、完成品購入・原材料自作・必要素材を合算します。";
+    setHtmlIfChanged(box, "<strong>生産準備：</strong>リーヴを選ぶと、完成品購入・原材料自作・必要素材を合算します。");
     return;
   }
   if (models.length < cards.length) {
-    box.innerHTML = `<strong>生産準備：</strong>選択${cards.length}件の費用と素材を計算中…`;
+    setHtmlIfChanged(box, `<strong>生産準備：</strong>選択${cards.length}件の費用と素材を計算中…`);
     return;
   }
   const combined = aggregateCraftProcurement(models);
   const materials = combined.materials.length
     ? combined.materials.map(row => `${row.item_name} ×${row.quantity}${row.total_gil == null ? "" : `（約${gil(row.total_gil)}）`}`).join(" / ")
     : "追加購入素材なし";
-  box.innerHTML = `
+  setHtmlIfChanged(box, `
     <strong>生産準備｜選択 ${combined.count}件</strong>
     <div class="craft-procurement-combined-costs">
       <span>完成品購入 ${gil(combined.buy_finished_gil)}</span>
@@ -109,7 +120,7 @@ function renderCombined() {
       <span>おすすめ合計 ${gil(combined.recommended_gil)}</span>
     </div>
     <div class="craft-procurement-combined-materials"><strong>必要素材：</strong>${materials}</div>
-  `;
+  `);
 }
 
 function renderCard(card, model) {
@@ -123,21 +134,22 @@ function renderCard(card, model) {
     else card.querySelector(".task-select-body")?.append(box);
   }
   if (!model) {
-    box.textContent = "購入費・製作費・必要素材を計算中…";
+    delete box.dataset.renderHash;
+    setTextIfChanged(box, "購入費・製作費・必要素材を計算中…");
     return;
   }
   const materials = model.materials.length
     ? model.materials.map(row => `${row.item_name} ×${row.quantity}${row.total_gil == null ? "" : `（約${gil(row.total_gil)}）`}`).join(" / ")
     : "追加購入素材なし";
   const age = model.market_age_minutes == null ? "" : `<span class="craft-procurement-age">相場 ${model.market_age_minutes}分前</span>`;
-  box.innerHTML = `
+  setHtmlIfChanged(box, `
     <div class="craft-procurement-costs">
       <span class="craft-procurement-cost">完成品購入 ${gil(model.buy_finished_gil)}</span>
       <span class="craft-procurement-cost">原材料自作 ${gil(model.craft_raw_gil)}</span>
     </div>
     <div class="craft-procurement-recommend">おすすめ：${model.recommended_label || "比較中"} ${gil(model.recommended_gil)}${age}</div>
     <div class="craft-procurement-materials"><strong>製作素材：</strong>${materials}</div>
-  `;
+  `);
 }
 
 async function enhanceCard(card) {
@@ -151,7 +163,10 @@ async function enhanceCard(card) {
     renderCard(card, model);
   } catch {
     const box = card.querySelector("[data-craft-procurement-detail]");
-    if (box) box.textContent = "価格またはレシピを取得できませんでした。既存のリーヴ候補はそのまま利用できます。";
+    if (box) {
+      delete box.dataset.renderHash;
+      setTextIfChanged(box, "価格またはレシピを取得できませんでした。既存のリーヴ候補はそのまま利用できます。");
+    }
   } finally {
     renderCombined();
   }
@@ -164,10 +179,10 @@ async function reconcile() {
   const active = board.querySelector(".task-board-tab.active")?.textContent?.trim() || "";
   const combined = board.querySelector("[data-craft-procurement-combined]");
   if (!active.startsWith("生産")) {
-    if (combined) combined.hidden = true;
+    if (combined && !combined.hidden) combined.hidden = true;
     return;
   }
-  if (combined) combined.hidden = false;
+  if (combined?.hidden) combined.hidden = false;
   reconciling = true;
   try {
     ensureStyles();
@@ -186,7 +201,12 @@ function clearPriceCache() {
 
 function boot() {
   ensureStyles();
-  const observer = new MutationObserver(() => setTimeout(() => void reconcile(), 0));
+  let queued = false;
+  const observer = new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => { queued = false; void reconcile(); }, 0);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   document.addEventListener("change", event => {
     if (event.target?.closest?.("#taskBoardGrid .task-select-card")) setTimeout(renderCombined, 0);
