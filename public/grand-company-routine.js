@@ -1,4 +1,4 @@
-const GC_COST_CACHE_MS = 1000;
+const GC_COST_CACHE_MS = 30_000;
 
 function installGcCostFetchDedupe() {
   if (window.__ff14TodayGcCostFetchDedupe) return;
