@@ -24,6 +24,8 @@ jobs:
           node --check src/task-board-recovery.js
           node --check src/procurement-market.js
           node --check src/gc-procurement-summary.js
+          node --check src/gc-market-fallback.js
+          node --check src/gc-market-fallback-wrapper.js
           node --check src/gc-top3-entry.js
           node --check src/leve-reward-market-comparison.js
           node --check public/gc-procurement-summary-core.js
@@ -39,6 +41,7 @@ jobs:
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
           node --check scripts/test-leve-reward-market-comparison.mjs
+          node --check scripts/test-gc-comparison-fallback.mjs
       - name: Craft leve policy
         run: node scripts/test-craft-leve-focus.mjs
       - name: Task board recovery mode guard
@@ -47,6 +50,8 @@ jobs:
         run: node scripts/test-live-craft-outer-policy.mjs
       - name: Grand Company procurement aggregation
         run: node scripts/test-procurement-summary.mjs
+      - name: Grand Company comparison fallback
+        run: node scripts/test-gc-comparison-fallback.mjs
       - name: Craft procurement aggregation
         run: node scripts/test-craft-procurement-summary.mjs
       - name: Leve reward market comparison
