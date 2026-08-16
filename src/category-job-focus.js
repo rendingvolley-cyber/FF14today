@@ -152,6 +152,70 @@ function minerMethods(job) {
   ];
 }
 
+function botanistMethods(job) {
+  const level = Number(job.level);
+  if (level < 81) return [];
+  const common = { daily_key: null, job_code: job.code, job_name: job.name_ja, job_level: level, job_role: job.role, repeat_count: 0 };
+  const rows = [
+    {
+      ...common,
+      task_key: "gather:btn81:collectable:rarefied-thavnairian-perilla",
+      badge: "いつでも採れる収集品",
+      title: "サベネア島で「収集用のサベネアンペリラ」を1回採って納品する",
+      minutes: 15,
+      reason: "時間窓待ちがない園芸収集品。園芸師の経験値とギャザラースクリップを安定して進める常設候補です。",
+      condition: "目的：待ち時間なしで園芸師の経験値とスクリップを進める。サベネア島イェドリマン周辺のLv85草刈場。",
+      steps: [`${job.name_ja}（Lv${level}）へジョブチェンジ`, "サベネア島「イェドリマン」へテレポ", "X:24 Y:30付近のLv85草刈場へ移動", "「収集用のサベネアンペリラ」を収集品として採集", "収集品取引窓口へ納品して「✓ 完了！」"]
+    }
+  ];
+
+  if (level >= 87) rows.push({
+    ...common,
+    task_key: "gather:btn87:collectable:rarefied-sykon",
+    badge: "時間限定・Lv87",
+    title: "エルピスで「収集用のシューコン」を1回採って納品する",
+    minutes: 20,
+    reason: "Lv87の園芸師に合う未知の収集品。経験値とギャザラースクリップを同時に進めます。",
+    condition: "目的：Lv87帯の収集品で効率よく経験値を得る。ET 00:00-02:00 / 12:00-14:00、エルピス X:25 Y:5付近。",
+    steps: [`${job.name_ja}（Lv${level}）へジョブチェンジ`, "エルピス「ポイエテーン・オイコス」方面へ移動", "ET 00:00-02:00 または 12:00-14:00 にX:25 Y:5付近で採集", "「収集用のシューコン」を収集品として確保", "収集品取引窓口へ納品して「✓ 完了！」"]
+  });
+
+  if (level >= 85) rows.push({
+    ...common,
+    task_key: "gather:btn85:collectable:rarefied-coconut",
+    badge: "時間限定・Lv85",
+    title: "サベネア島で「収集用のココナッツ」を1回採って納品する",
+    minutes: 20,
+    reason: "Lv85から採れる未知の園芸収集品。Lv87でも有効な経験値・スクリップ候補です。",
+    condition: "目的：園芸師の経験値とスクリップを進める。ET 02:00-04:00 / 14:00-16:00、サベネア島 X:14 Y:14付近。",
+    steps: [`${job.name_ja}（Lv${level}）へジョブチェンジ`, "サベネア島「デミールの遺烈郷」へテレポ", "ET 02:00-04:00 または 14:00-16:00 にX:14 Y:14付近で採集", "「収集用のココナッツ」を収集品として確保", "収集品取引窓口へ納品して「✓ 完了！」"]
+  });
+
+  if (level >= 81 && level < 85) rows.push({
+    ...common,
+    task_key: "gather:btn81:collectable:rarefied-palm-log",
+    badge: "時間限定・Lv81",
+    title: "サベネア島で「収集用のパーム原木」を1回採って納品する",
+    minutes: 20,
+    reason: "Lv81から採れる未知の園芸収集品。序盤の園芸レベリングとスクリップ獲得を兼ねます。",
+    condition: "目的：園芸師の経験値とスクリップを進める。ET 02:00-04:00 / 14:00-16:00、サベネア島 X:14 Y:14付近。",
+    steps: [`${job.name_ja}（Lv${level}）へジョブチェンジ`, "サベネア島「デミールの遺烈郷」へテレポ", "ET 02:00-04:00 または 14:00-16:00 にX:14 Y:14付近で採集", "「収集用のパーム原木」を収集品として確保", "収集品取引窓口へ納品して「✓ 完了！」"]
+  });
+
+  if (level >= 83 && rows.length < 3) rows.push({
+    ...common,
+    task_key: "gather:btn83:collectable:rarefied-red-pine-log",
+    badge: "時間限定・Lv83",
+    title: "ガレマルドで「収集用のレッドパイン原木」を1回採って納品する",
+    minutes: 20,
+    reason: "Lv83から採れる未知の園芸収集品。次の時限候補として経験値とスクリップを補います。",
+    condition: "目的：園芸師の経験値とスクリップを進める。ET 04:00-06:00 / 16:00-18:00、ガレマルド X:35 Y:5付近。",
+    steps: [`${job.name_ja}（Lv${level}）へジョブチェンジ`, "ガレマルド「テルティウム駅」方面へ移動", "ET 04:00-06:00 または 16:00-18:00 にX:35 Y:5付近で採集", "「収集用のレッドパイン原木」を収集品として確保", "収集品取引窓口へ納品して「✓ 完了！」"]
+  });
+
+  return rows;
+}
+
 export function applyCategoryJobFocus(plan, character, options = {}) {
   if (!plan) return plan;
   const mode = String(plan.selected_mode || options.mode || "");
@@ -165,8 +229,10 @@ export function applyCategoryJobFocus(plan, character, options = {}) {
   if (mode === "gather" && options.focusGatherJobCode) {
     const job = findJob(character, options.focusGatherJobCode, "gatherer");
     if (!job || normalizeCode(job.code) === "FSH") return plan;
-    if (normalizeCode(job.code) !== "MIN") return emptyFocusedPlan(plan, job, "gather");
-    return focusedPlan(plan, job, minerMethods(job), "gather", options.availableMinutes ?? plan.remaining_minutes ?? 60);
+    const code = normalizeCode(job.code);
+    if (code === "MIN") return focusedPlan(plan, job, minerMethods(job), "gather", options.availableMinutes ?? plan.remaining_minutes ?? 60);
+    if (code === "BTN") return focusedPlan(plan, job, botanistMethods(job), "gather", options.availableMinutes ?? plan.remaining_minutes ?? 60);
+    return emptyFocusedPlan(plan, job, "gather");
   }
   return plan;
 }

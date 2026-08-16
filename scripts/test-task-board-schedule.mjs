@@ -19,6 +19,15 @@ assert.match(source, /body\.task-board-primary\.task-board-now-active #nowPanel 
 assert.match(source, /\.task-now-button/);
 assert.doesNotMatch(source, /MutationObserver/);
 
+const presentationSource = readFileSync(new URL("../public/task-board-no-schedule.js", import.meta.url), "utf8");
+assert.match(presentationSource, /\.task-board-schedule\{display:none!important\}/);
+assert.match(presentationSource, /category !== "craft"/);
+assert.match(presentationSource, /data-craft-only-hidden/);
+assert.match(presentationSource, /visibleCandidateCount/);
+assert.match(presentationSource, /#taskBoardGrid \.task-select-card/);
+assert.match(presentationSource, /#taskBoardTimedList \.timed-task/);
+assert.match(presentationSource, /MutationObserver/);
+
 const base = Date.parse("2026-08-13T18:00:00+09:00");
 const upcoming = buildAbsoluteTiming({ time_window: { starts_in_minutes: 7, duration_minutes: 6 } }, base);
 assert.equal(upcoming.startAt, base + 7 * 60000);
@@ -41,4 +50,4 @@ assert.match(dashboardSource, /#taskBoard \.task-board-timed/);
 assert.match(dashboardSource, /REFRESH_INTERVAL_MS = 10 \* 60 \* 1000/);
 assert.match(dashboardSource, /VISIBLE_TICK_MS = 1000/);
 
-console.log("task board schedule timing, separate time-sensitive dashboard, and live countdowns: ok");
+console.log("task board presentation, separate time-sensitive dashboard, and live countdowns: ok");

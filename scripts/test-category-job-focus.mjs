@@ -7,7 +7,7 @@ const character = {
     { code: "ALC", name_ja: "錬金術師", level: 91, role: "crafter" },
     { code: "BSM", name_ja: "鍛冶師", level: 95, role: "crafter" },
     { code: "MIN", name_ja: "採掘師", level: 81, role: "gatherer" },
-    { code: "BTN", name_ja: "園芸師", level: 90, role: "gatherer" }
+    { code: "BTN", name_ja: "園芸師", level: 87, role: "gatherer" }
   ]
 };
 
@@ -70,10 +70,14 @@ function base(mode) {
 
 {
   const plan = applyCategoryJobFocus(base("gather"), character, { focusGatherJobCode: "BTN", availableMinutes: 60 });
-  assert.equal(plan.session_complete, true);
+  assert.equal(plan.session_complete, false);
   assert.equal(plan.focus_job.code, "BTN");
-  assert.equal(plan.methods.length, 0);
-  assert.match(plan.notice, /別ジョブへ勝手に切り替えません/);
+  assert.equal(plan.methods.length, 3);
+  assert.ok(plan.methods.every(row => row.job_code === "BTN"));
+  assert.match(plan.methods[0].title, /サベネアンペリラ/);
+  assert.ok(plan.methods.some(row => /シューコン/.test(row.title)));
+  assert.ok(plan.methods.some(row => /ココナッツ/.test(row.title)));
+  assert.doesNotMatch(plan.notice, /未整備/);
 }
 
 console.log("category-job-focus OK");
