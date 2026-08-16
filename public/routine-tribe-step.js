@@ -3,10 +3,18 @@ import {
   alliedSocietyCategoryLabel,
   buildTribeDailyPlan
 } from "./tribe-leveling-data.js";
+import {
+  buildEffectiveTribeGroups,
+  canAllocateRankupExtra,
+  countCompletedTribeQuests,
+  countPlannedTribeQuests,
+  rankupBatchKey
+} from "./tribe-rankup-extra.js";
 
 const PROFILE_TOKEN_KEY = "ff14_today_profile_token_v1";
 const TRIBE_DAILY_DONE_PREFIX = "ff14_today_tribe_daily12_done_";
 const TRIBE_DAILY_DEFER_PREFIX = "ff14_today_tribe_daily12_defer_";
+const TRIBE_DAILY_RANKUP_PREFIX = "ff14_today_tribe_daily12_rankup_extra_";
 const FOCUS_KEYS = {
   combat: "ff14_today_combat_job_v1",
   craft: "ff14_today_craft_job_v1",
@@ -44,11 +52,31 @@ function saveDoneIds(done) {
   localStorage.setItem(key(TRIBE_DAILY_DONE_PREFIX), JSON.stringify([...done]));
 }
 
-function setGroupDone(societyId, done) {
+function setGroupDone(batchKey, done) {
   const ids = loadDoneIds();
-  if (done) ids.add(String(societyId));
-  else ids.delete(String(societyId));
+  if (done) ids.add(String(batchKey));
+  else ids.delete(String(batchKey));
   saveDoneIds(ids);
+}
+
+function loadRankupSocietyIds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key(TRIBE_DAILY_RANKUP_PREFIX)) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveRankupSocietyIds(ids) {
+  localStorage.setItem(key(TRIBE_DAILY_RANKUP_PREFIX), JSON.stringify([...ids]));
+}
+
+function setRankupExtra(societyId, enabled) {
+  const ids = loadRankupSocietyIds();
+  if (enabled) ids.add(String(societyId));
+  else ids.delete(String(societyId));
+  saveRankupSocietyIds(ids);
 }
 
 function isDeferred() {
@@ -60,18 +88,28 @@ function setDeferred(value) {
   else localStorage.removeItem(key(TRIBE_DAILY_DEFER_PREFIX));
 }
 
+function effectiveGroups() {
+  if (!currentPlan) return [];
+  return buildEffectiveTribeGroups(
+    currentPlan.groups,
+    [...loadRankupSocietyIds()],
+    [...loadDoneIds()],
+    ALLIED_SOCIETY_DAILY_LIMIT
+  );
+}
+
 function completedQuestCount() {
-  if (!currentPlan) return 0;
-  const done = loadDoneIds();
-  return currentPlan.groups
-    .filter(group => done.has(group.society_id))
-    .reduce((sum, group) => sum + Number(group.quests || 0), 0);
+  return countCompletedTribeQuests(effectiveGroups(), [...loadDoneIds()]);
+}
+
+function plannedQuestCount() {
+  return countPlannedTribeQuests(effectiveGroups(), ALLIED_SOCIETY_DAILY_LIMIT);
 }
 
 function tribeDone() {
   if (!currentPlan) return false;
   if (isDeferred()) return true;
-  return completedQuestCount() >= Number(currentPlan.planned_quests || 0);
+  return completedQuestCount() >= plannedQuestCount();
 }
 
 function gcDone() {
@@ -104,13 +142,15 @@ function injectStyles() {
     .tribe-routine-count{font-weight:950;color:var(--accent);white-space:nowrap;font-size:14px}
     .tribe-routine-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:4px}
     .tribe-routine-row{display:flex;min-width:0;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:15px;background:#fff;padding:13px 14px}
-    .tribe-routine-row.conditional{background:#fffaf2;border-color:#eadcbf}
+    .tribe-routine-row.conditional{background:#fffaf2;border-color:#eadcbf}.tribe-routine-row.rankup-extra{background:#f6fbff;border-color:#bdd8f2}
     .tribe-routine-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.tribe-routine-copy{min-width:0}.tribe-routine-copy strong{display:block;font-size:14px;line-height:1.45}.tribe-routine-copy small{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.5}
-    .tribe-routine-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.tribe-routine-badge{display:inline-flex;border-radius:999px;background:#edf4fc;color:#34628f;padding:3px 7px;font-size:10px;font-weight:900}.tribe-routine-row.conditional .tribe-routine-badge.kind{background:#f7ead2;color:#805d24}
+    .tribe-routine-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.tribe-routine-badge{display:inline-flex;border-radius:999px;background:#edf4fc;color:#34628f;padding:3px 7px;font-size:10px;font-weight:900}.tribe-routine-row.conditional .tribe-routine-badge.kind{background:#f7ead2;color:#805d24}.tribe-routine-row.rankup-extra .tribe-routine-badge.kind{background:#dceeff;color:#245f92}
     .tribe-routine-quests{flex:0 0 auto;border-radius:999px;background:var(--accent-soft);color:var(--accent);padding:4px 8px;font-size:11px;font-weight:950}
     .tribe-routine-reason{margin:0;color:#5f7890;font-size:11px;line-height:1.55}
     .tribe-routine-toggle{margin-top:auto;border:1px solid rgba(79,124,255,.38);border-radius:11px;background:var(--accent-soft);color:var(--accent);padding:8px 11px;font-weight:900;cursor:pointer}
     .tribe-routine-toggle.done{background:var(--accent);border-color:var(--accent);color:#fff}
+    .tribe-routine-rankup{border:1px solid #8fbce7;border-radius:11px;background:#fff;color:#245f92;padding:8px 11px;font-weight:900;cursor:pointer}.tribe-routine-rankup:hover{background:#eef7ff}
+    .tribe-routine-rankup-note{margin:0;color:#3373a8;font-size:10px;font-weight:850;line-height:1.5}
     .tribe-routine-footer{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap}.tribe-routine-progress{margin:0;color:var(--muted);font-size:12px;font-weight:800;line-height:1.5;flex:1;min-width:220px}
     .tribe-routine-defer{border:1px solid var(--line);border-radius:11px;background:#fff;color:#55718c;padding:8px 11px;font-weight:850;cursor:pointer}.tribe-routine-defer.active{background:#eef3f8}
     .tribe-routine-note{margin:9px 0 0;color:#8294a6;font-size:10px;line-height:1.5}
@@ -147,16 +187,16 @@ function setVisualStep(name) {
   }
 }
 
-function makeGroupCard(group, done) {
+function makeGroupCard(group, done, { canRankup = false, rankupAllocated = false } = {}) {
   const card = document.createElement("article");
-  card.className = `tribe-routine-row${group.conditional ? " conditional" : ""}`;
+  card.className = `tribe-routine-row${group.conditional ? " conditional" : ""}${group.rankup_extra ? " rankup-extra" : ""}`;
 
   const top = document.createElement("div");
   top.className = "tribe-routine-top";
   const copy = document.createElement("div");
   copy.className = "tribe-routine-copy";
   const title = document.createElement("strong");
-  title.textContent = `${group.priority_rank}. ${group.society_name}`;
+  title.textContent = `${group.priority_rank}. ${group.society_name}${group.rankup_extra ? "（追加3件）" : ""}`;
   const target = document.createElement("small");
   target.textContent = `${alliedSocietyCategoryLabel(group.category)} · ${group.target_job_name} Lv${group.target_job_level} · ${group.area}`;
   const badges = document.createElement("div");
@@ -166,7 +206,7 @@ function makeGroupCard(group, done) {
   range.textContent = group.range_label;
   const kind = document.createElement("span");
   kind.className = "tribe-routine-badge kind";
-  kind.textContent = group.conditional ? "余力・友好度枠" : group.focused ? "選択ジョブ優先" : "経験値適正";
+  kind.textContent = group.rankup_extra ? "ランクアップ追加" : group.conditional ? "余力・友好度枠" : group.focused ? "選択ジョブ優先" : "経験値適正";
   badges.append(range, kind);
   copy.append(title, target, badges);
 
@@ -182,11 +222,35 @@ function makeGroupCard(group, done) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = `tribe-routine-toggle${done ? " done" : ""}`;
-  button.dataset.tribeGroupToggle = group.society_id;
+  button.dataset.tribeGroupToggle = String(group.batch_key || group.society_id || "");
   button.setAttribute("aria-pressed", done ? "true" : "false");
   button.textContent = done ? `✓ ${group.quests}件完了` : `${group.quests}件終えた`;
 
   card.append(top, reason, button);
+
+  if (!group.rankup_extra && done && canRankup) {
+    const rankup = document.createElement("button");
+    rankup.type = "button";
+    rankup.className = "tribe-routine-rankup";
+    rankup.dataset.tribeRankupExtra = String(group.society_id || "");
+    rankup.textContent = "ランクアップしたので追加3件受注";
+    card.append(rankup);
+  } else if (!group.rankup_extra && done && rankupAllocated) {
+    const note = document.createElement("p");
+    note.className = "tribe-routine-rankup-note";
+    note.textContent = "追加3件を今日の12枠内へ反映済み";
+    card.append(note);
+  }
+
+  if (group.rankup_extra && !done) {
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "tribe-routine-rankup";
+    cancel.dataset.tribeRankupCancel = String(group.society_id || "");
+    cancel.textContent = "追加3件を取り消す";
+    card.append(cancel);
+  }
+
   return card;
 }
 
@@ -206,10 +270,16 @@ function renderPlan() {
     return;
   }
 
-  const completed = completedQuestCount();
+  const doneIds = loadDoneIds();
+  const rankupIds = loadRankupSocietyIds();
+  const groups = effectiveGroups();
+  const completed = countCompletedTribeQuests(groups, [...doneIds]);
   const deferred = isDeferred();
-  const planned = Number(currentPlan.planned_quests || 0);
-  const remaining = Number(currentPlan.remaining_quests || 0);
+  const planned = countPlannedTribeQuests(groups, ALLIED_SOCIETY_DAILY_LIMIT);
+  const remaining = Math.max(0, ALLIED_SOCIETY_DAILY_LIMIT - planned);
+  const rankupQuests = groups.filter(group => group.rankup_extra).reduce((sum, group) => sum + Number(group.quests || 0), 0);
+  const levelingQuests = groups.filter(group => !group.rankup_extra && group.kind === "leveling").reduce((sum, group) => sum + Number(group.quests || 0), 0);
+  const conditionalQuests = groups.filter(group => !group.rankup_extra && group.conditional).reduce((sum, group) => sum + Number(group.quests || 0), 0);
 
   if (summary) {
     summary.replaceChildren();
@@ -217,8 +287,9 @@ function renderPlan() {
     const strong = document.createElement("strong");
     strong.textContent = "友好部族 今日の12枠";
     const small = document.createElement("small");
-    const pieces = [`経験値優先 ${currentPlan.leveling_quests}件`];
-    if (currentPlan.conditional_quests) pieces.push(`余力 ${currentPlan.conditional_quests}件`);
+    const pieces = [`経験値優先 ${levelingQuests}件`];
+    if (conditionalQuests) pieces.push(`余力 ${conditionalQuests}件`);
+    if (rankupQuests) pieces.push(`ランクアップ追加 ${rankupQuests}件（12枠内）`);
     if (remaining) pieces.push(`未配分 ${remaining}件`);
     small.textContent = pieces.join(" · ");
     copy.append(strong, small);
@@ -228,10 +299,22 @@ function renderPlan() {
     summary.append(copy, count);
   }
 
-  const doneIds = loadDoneIds();
   if (list) {
-    if (currentPlan.groups.length) {
-      list.replaceChildren(...currentPlan.groups.map(group => makeGroupCard(group, doneIds.has(group.society_id))));
+    if (groups.length) {
+      list.replaceChildren(...groups.map(group => {
+        const batchKey = String(group.batch_key || group.society_id || "");
+        const canRankup = !group.rankup_extra && canAllocateRankupExtra({
+          baseGroups: currentPlan.groups,
+          rankupSocietyIds: [...rankupIds],
+          doneKeys: [...doneIds],
+          societyId: group.society_id,
+          dailyLimit: ALLIED_SOCIETY_DAILY_LIMIT
+        });
+        return makeGroupCard(group, doneIds.has(batchKey), {
+          canRankup,
+          rankupAllocated: rankupIds.has(String(group.society_id || ""))
+        });
+      }));
     } else {
       const empty = document.createElement("div");
       empty.className = "tribe-routine-loading";
@@ -244,9 +327,15 @@ function renderPlan() {
     if (!planned) progress.textContent = "今日ここで優先する友好部族はありません。今日のプランへ進めます。";
     else if (completed >= planned) progress.textContent = `今日の友好部族 ${completed}/${planned}件 完了。`;
     else if (deferred) progress.textContent = `${completed}/${planned}件まで完了。残りは今日は保留にしています。`;
-    else progress.textContent = `${completed}/${planned}件 完了。3件単位で終えた部族をチェックできます。`;
+    else if (rankupQuests) progress.textContent = `${completed}/${planned}件 完了。ランクアップ追加3件も1日合計12件の受注枠に含めています。`;
+    else progress.textContent = `${completed}/${planned}件 完了。3件単位で終えた部族をチェックできます。ランクアップした部族は追加3件へ振り替え可能です。`;
   }
-  if (note) note.textContent = currentPlan.note || "";
+  if (note) {
+    const baseNote = currentPlan.note || "";
+    note.textContent = rankupQuests
+      ? `${baseNote} ランクアップ追加は受注上限を増やさず、未完了の3枠と入れ替えています。`.trim()
+      : baseNote;
+  }
   if (deferButton) {
     deferButton.hidden = !planned || completed >= planned;
     deferButton.classList.toggle("active", deferred);
@@ -297,7 +386,7 @@ function ensureStep() {
       <div class="retainer-advice-head">
         <div>
           <div class="retainer-advice-title"><span class="retainer-advice-icon">T</span><span>友好部族デイリーを12枠で配分</span></div>
-          <p class="retainer-advice-sub">1日合計12件を上限に、LodestoneのジョブLvと選択中ジョブから3件単位で優先順を作ります。</p>
+          <p class="retainer-advice-sub">1日合計12件を上限に、LodestoneのジョブLvと選択中ジョブから3件単位で優先順を作ります。ランクアップ時の追加3件も12枠内で振り替えます。</p>
         </div>
       </div>
       <div class="tribe-routine-summary" data-tribe-summary></div>
@@ -333,10 +422,40 @@ function ensureStep() {
       if (button.matches("[data-tribe-group-toggle]")) {
         const id = String(button.dataset.tribeGroupToggle || "");
         const doneIds = loadDoneIds();
-        setGroupDone(id, !doneIds.has(id));
+        const nextDone = !doneIds.has(id);
+        setGroupDone(id, nextDone);
+        if (!nextDone && !id.startsWith("rankup:")) {
+          setRankupExtra(id, false);
+          setGroupDone(rankupBatchKey(id), false);
+        }
         setDeferred(false);
         renderPlan();
         if (tribeDone()) setVisualStep("plan");
+        return;
+      }
+      if (button.matches("[data-tribe-rankup-extra]")) {
+        const id = String(button.dataset.tribeRankupExtra || "");
+        const allowed = canAllocateRankupExtra({
+          baseGroups: currentPlan?.groups || [],
+          rankupSocietyIds: [...loadRankupSocietyIds()],
+          doneKeys: [...loadDoneIds()],
+          societyId: id,
+          dailyLimit: ALLIED_SOCIETY_DAILY_LIMIT
+        });
+        if (allowed) {
+          setRankupExtra(id, true);
+          setDeferred(false);
+          renderPlan();
+          setVisualStep("tribe");
+        }
+        return;
+      }
+      if (button.matches("[data-tribe-rankup-cancel]")) {
+        const id = String(button.dataset.tribeRankupCancel || "");
+        setRankupExtra(id, false);
+        setGroupDone(rankupBatchKey(id), false);
+        setDeferred(false);
+        renderPlan();
         return;
       }
       if (button.matches("[data-tribe-defer]")) {
