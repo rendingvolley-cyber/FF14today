@@ -52,9 +52,29 @@ const payloadB = {
     ]
   }
 };
+const recommendedOnlyPayload = {
+  market_age_minutes: 3,
+  advice: {
+    itemName: "完成品C",
+    requiredQuantity: 1,
+    recommendedKey: "buy_direct",
+    recommendationReason: "中間素材購入がおすすめです。",
+    routes: [{
+      key: "buy_direct",
+      label: "中間素材を買って作る",
+      available: true,
+      additionalGil: 8945,
+      purchases: [
+        { itemId: 3, itemName: "ジンセン材", quantity: 3, total: 5100 },
+        { itemId: 4, itemName: "レザー", quantity: 1, total: 2000 }
+      ]
+    }]
+  }
+};
 
 const a = procurementModel(payloadA);
 const b = procurementModel(payloadB);
+const recommendedOnly = procurementModel(recommendedOnlyPayload);
 assert.equal(a.buy_finished_gil, 10000);
 assert.equal(a.craft_raw_gil, 4000);
 assert.equal(a.recommended_label, "原材料から全部作る");
@@ -63,6 +83,10 @@ assert.deepEqual(a.materials, [
   { item_id: 1, item_name: "鉄鉱", quantity: 4, total_gil: 800 },
   { item_id: 2, item_name: "革", quantity: 1, total_gil: 500 }
 ]);
+assert.deepEqual(recommendedOnly.materials, [
+  { item_id: 3, item_name: "ジンセン材", quantity: 3, total_gil: 5100 },
+  { item_id: 4, item_name: "レザー", quantity: 1, total_gil: 2000 }
+], "craft_rawが無い場合はおすすめルートの購入素材を表へ使う");
 
 const combined = aggregateCraftProcurement([a, b]);
 assert.equal(combined.count, 2);

@@ -26,6 +26,7 @@ export function procurementModel(payload) {
   const buyFinished = route(advice, "buy_finished");
   const craftRaw = route(advice, "craft_raw");
   const recommended = route(advice, advice?.recommendedKey) || (advice?.routes || []).find(row => row?.available) || null;
+  const materialRoute = craftRaw?.purchases?.length ? craftRaw : recommended;
   return {
     item_name: advice.itemName || "製作品",
     required_quantity: Math.max(1, Number(advice.requiredQuantity) || 1),
@@ -36,7 +37,7 @@ export function procurementModel(payload) {
     recommended_gil: money(recommended?.additionalGil ?? recommended?.gil),
     recommendation_reason: advice?.recommendationReason || null,
     market_age_minutes: Number.isFinite(Number(payload?.market_age_minutes)) ? Math.max(0, Math.round(Number(payload.market_age_minutes))) : null,
-    materials: (craftRaw?.purchases || [])
+    materials: (materialRoute?.purchases || [])
       .map(row => ({
         item_id: row?.itemId || null,
         item_name: row?.itemName || "素材",

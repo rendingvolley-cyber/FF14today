@@ -1,5 +1,14 @@
 (() => {
   let observer = null;
+  let procurementModulesStarted = false;
+
+  function loadProcurementModules() {
+    if (procurementModulesStarted) return;
+    procurementModulesStarted = true;
+    void import("/craft-procurement-summary.js")
+      .then(() => import("/procurement-shopping-list.js"))
+      .catch(() => {});
+  }
 
   function apply() {
     const section = document.getElementById("timeSensitiveDashboard");
@@ -32,6 +41,7 @@
   }
 
   function boot() {
+    loadProcurementModules();
     if (!document.getElementById("timeSensitiveLayoutDirectStyle")) {
       const style = document.createElement("style");
       style.id = "timeSensitiveLayoutDirectStyle";
