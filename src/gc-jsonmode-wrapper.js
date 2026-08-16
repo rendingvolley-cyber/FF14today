@@ -1,5 +1,6 @@
 import app from "./gc-jsonmode-core-wrapper.js";
 import { chooseGrandCompanyDelivery, decorateGrandCompanyDelivery } from "./grand-company-deliveries.js";
+import { canonicalizeGrandCompanyDeliveries } from "./gc-item-name-canonicalizer.js";
 import {
   gcAnalysisBudgetToken,
   mergeGcPagePayloads,
@@ -90,6 +91,19 @@ async function readPages(env, hash) {
     } catch {}
   }
   return pages;
+}
+
+async function canonicalizePages(pages) {
+  const next = { crafting: pages?.crafting || null, gathering: pages?.gathering || null };
+  for (const kind of ["crafting", "gathering"]) {
+    const page = pages?.[kind];
+    if (!page) continue;
+    next[kind] = {
+      ...page,
+      deliveries: await canonicalizeGrandCompanyDeliveries(page.deliveries)
+    };
+  }
+  return next;
 }
 
 function statusFromPages(pages) {
@@ -194,7 +208,8 @@ async function handleGetDeliveries(request, env) {
   const hash = await profileHash(request);
   if (!hash) return app.fetch(request, env);
   const pages = await readPages(env, hash);
-  return json(deliveryResponse(pages));
+  const canonicalPages = await canonicalizePages(pages);
+  return json(deliveryResponse(canonicalPages));
 }
 
 async function handleGcImage(request, env) {
@@ -238,7 +253,7 @@ export default {
       let data;
       try { data = await response.clone().json(); }
       catch { return response; }
-      return json({ ...data, gc_two_page_delivery_context: true }, response.status);
+      return json({ ...data, gc_two_page_delivery_context: true, gc_item_name_canonicalization: true }, response.status);
     }
     return response;
   }

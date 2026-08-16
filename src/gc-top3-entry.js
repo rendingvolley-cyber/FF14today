@@ -12,6 +12,7 @@ const PROCUREMENT_UI_VERSION = "gc-procurement-v1-20260815";
 const CRAFT_PROCUREMENT_UI_VERSION = "craft-procurement-v2-20260816";
 const SHOPPING_LIST_UI_VERSION = "procurement-shopping-v1-20260815";
 const TASK_BOARD_NO_SCHEDULE_VERSION = "task-board-no-schedule-v1-20260816";
+const GC_ITEM_NAME_STATUS_VERSION = "gc-item-name-status-v1-20260816";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -96,6 +97,7 @@ function rewriteHtml(response) {
   const transformed = new HTMLRewriter()
     .on("head", {
       element(element) {
+        element.prepend(`<script src="/gc-item-name-status.js?v=${GC_ITEM_NAME_STATUS_VERSION}"></script>`, { html: true });
         element.prepend(`<script src="/task-board-no-schedule.js?v=${TASK_BOARD_NO_SCHEDULE_VERSION}"></script>`, { html: true });
         element.prepend(`<script type="module" src="/procurement-shopping-list.js?v=${SHOPPING_LIST_UI_VERSION}"></script>`, { html: true });
         element.prepend(`<script type="module" src="/craft-procurement-summary.js?v=${CRAFT_PROCUREMENT_UI_VERSION}"></script>`, { html: true });
@@ -128,6 +130,7 @@ export default {
     if ((url.pathname === "/time-sensitive-game-window-labels.js" ||
          url.pathname === "/task-board-focus-first.js" ||
          url.pathname === "/task-board-no-schedule.js" ||
+         url.pathname === "/gc-item-name-status.js" ||
          url.pathname === "/gc-procurement-summary.js" ||
          url.pathname === "/gc-procurement-summary-core.js" ||
          url.pathname === "/craft-procurement-summary.js" ||
@@ -151,6 +154,7 @@ export default {
         gc_seal_recommendation_limit: 3,
         gc_procurement_summary: true,
         gc_procurement_market_world: "Chocobo",
+        gc_item_name_status_ui: true,
         craft_leve_procurement_summary: true,
         craft_leve_reward_market_compare: true,
         procurement_shopping_list: true,
