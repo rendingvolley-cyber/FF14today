@@ -29,6 +29,7 @@ function ensureStyles() {
   style.id = "procurementShoppingListStyles";
   style.textContent = `
     .procurement-shopping{margin-top:9px;border:1px solid #dce7f2;border-radius:12px;background:#fff;padding:10px}
+    #taskBoardMaterials>.procurement-shopping{margin-top:0}
     .procurement-shopping-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}
     .procurement-shopping-head strong{font-size:.8rem;color:#355a7b}.procurement-shopping-head button{border:1px solid #cddbea;background:#f7fbff;color:#2b66a3;border-radius:8px;padding:5px 8px;font-size:.7rem;font-weight:800;cursor:pointer}
     .procurement-shopping-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.72rem;color:#536c86}
@@ -50,6 +51,10 @@ function sourceBlocks() {
   ];
 }
 
+function isCraftBlock(block) {
+  return block.classList.contains("craft-procurement-combined-materials");
+}
+
 function titleFor(block) {
   return block.classList.contains("gc-procurement-materials") ? "双蛇党｜マケボ購入リスト" : "生産｜マケボ購入リスト";
 }
@@ -66,13 +71,25 @@ function selectedCraftMarketAge() {
 function marketAgeFor(block) {
   const direct = Number(block.dataset.marketAgeMinutes);
   if (Number.isFinite(direct) && direct >= 0) return Math.round(direct);
-  if (block.classList.contains("craft-procurement-combined-materials")) return selectedCraftMarketAge();
+  if (isCraftBlock(block)) return selectedCraftMarketAge();
   return null;
 }
 
-function render(block) {
-  const rows = parseMaterialSummary(block.textContent || "");
-  const ageMinutes = marketAgeFor(block);
+function ensurePanel(block) {
+  if (isCraftBlock(block)) {
+    const host = document.getElementById("taskBoardMaterials");
+    if (host) {
+      let panel = host.querySelector(":scope > [data-procurement-shopping]");
+      if (!panel) {
+        panel = document.createElement("section");
+        panel.className = "procurement-shopping";
+        panel.setAttribute("data-procurement-shopping", "");
+        host.replaceChildren(panel);
+      }
+      return panel;
+    }
+  }
+
   let panel = block.nextElementSibling?.matches?.("[data-procurement-shopping]") ? block.nextElementSibling : null;
   if (!panel) {
     panel = document.createElement("section");
@@ -80,6 +97,13 @@ function render(block) {
     panel.setAttribute("data-procurement-shopping", "");
     block.insertAdjacentElement("afterend", panel);
   }
+  return panel;
+}
+
+function render(block) {
+  const rows = parseMaterialSummary(block.textContent || "");
+  const ageMinutes = marketAgeFor(block);
+  const panel = ensurePanel(block);
 
   const signature = hashText(JSON.stringify({ rows, ageMinutes }));
   if (panel.dataset.shoppingHash === signature) return;
