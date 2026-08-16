@@ -12,6 +12,7 @@ export function recipeIssueLabel(code) {
     case "xivapi_unreachable": return "XIVAPIへ接続できず";
     case "xivapi_http": return "XIVAPI取得エラー";
     case "xivapi_json": return "XIVAPI応答を読み取れず";
+    case "market_unavailable": return "現在の市場価格を取得できず";
     default: return "製作レシピを安全に特定できず";
   }
 }
@@ -70,7 +71,7 @@ export function buildMarketFallbackProcurement({
   if (marketCost?.available && Number.isFinite(Number(marketCost.gil))) {
     const route = {
       key: "buy_finished_fallback",
-      label: `完成品を買う（${issue}）`,
+      label: `完成品を買う（自作費は未比較）`,
       available: true,
       gil: Math.round(Number(marketCost.gil)),
       estimated_minutes: 2,
@@ -85,12 +86,12 @@ export function buildMarketFallbackProcurement({
       market_buy: route,
       craft_raw: null,
       recommended_route: route,
-      recommendation_reason: `完成品のマケボ価格は取得できました。製作費は「${issue}」のため未比較です。`,
+      recommendation_reason: `完成品のマケボ価格は取得できました。自作費は「${issue}」のため未比較です。`,
       comparison_issue: { code: recipeError || "recipe_unavailable", label: issue }
     };
   }
 
-  const label = `${issue}・現在の出品価格なし`;
+  const label = `${issue} / 現在出品なし`;
   return {
     quantity_to_acquire: required,
     quantity_basis: quantityBasis,
