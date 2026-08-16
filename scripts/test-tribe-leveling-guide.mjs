@@ -6,6 +6,13 @@ import {
   buildTribeDailyPlan,
   tribeGuideForJob
 } from "../public/tribe-leveling-data.js";
+import {
+  buildEffectiveTribeGroups,
+  canAllocateRankupExtra,
+  countCompletedTribeQuests,
+  countPlannedTribeQuests,
+  rankupBatchKey
+} from "../public/tribe-rankup-extra.js";
 
 const pixie = tribeGuideForJob({ code: "DRG", role: "melee", level: 70 });
 assert.equal(pixie.id, "pixie");
@@ -85,9 +92,36 @@ assert.equal(limitedOnly.planned_quests, 0);
 assert.equal(limitedOnly.remaining_quests, 12);
 assert.deepEqual(limitedOnly.groups, []);
 
+// A rank-up unlocks another batch of 3, but never increases the global daily total above 12.
+const rankupBase = [
+  { society_id: "a", society_name: "A族", quests: 3, priority_rank: 1, kind: "leveling" },
+  { society_id: "b", society_name: "B族", quests: 3, priority_rank: 2, kind: "leveling" },
+  { society_id: "c", society_name: "C族", quests: 3, priority_rank: 3, kind: "leveling" },
+  { society_id: "d", society_name: "D族", quests: 3, priority_rank: 4, kind: "leveling" }
+];
+assert.equal(canAllocateRankupExtra({ baseGroups: rankupBase, doneKeys: [], societyId: "a" }), false, "first three must be completed before the rank-up button is valid");
+assert.equal(canAllocateRankupExtra({ baseGroups: rankupBase, doneKeys: ["a"], societyId: "a" }), true);
+
+const rankupGroups = buildEffectiveTribeGroups(rankupBase, ["a"], ["a"], 12);
+assert.equal(rankupGroups.length, 4);
+assert.equal(countPlannedTribeQuests(rankupGroups, 12), 12);
+assert.ok(rankupGroups.some(group => group.batch_key === rankupBatchKey("a") && group.rankup_extra));
+assert.equal(rankupGroups.some(group => group.society_id === "d"), false, "lowest-priority unfinished batch is replaced, not added as a 13th-15th quest");
+assert.equal(countCompletedTribeQuests(rankupGroups, ["a"]), 3);
+assert.equal(countCompletedTribeQuests(rankupGroups, ["a", rankupBatchKey("a")]), 6);
+assert.equal(canAllocateRankupExtra({ baseGroups: rankupBase, rankupSocietyIds: ["a"], doneKeys: ["a"], societyId: "a" }), false, "same rank-up batch is not added twice");
+
+const shortPlan = rankupBase.slice(0, 2);
+const shortRankup = buildEffectiveTribeGroups(shortPlan, ["a"], ["a"], 12);
+assert.equal(shortRankup.length, 3);
+assert.equal(countPlannedTribeQuests(shortRankup, 12), 9, "unused daily allowance can be filled without displacing another batch");
+
 const routineUi = await readFile(new URL("../public/routine-tribe-step.js", import.meta.url), "utf8");
 assert.match(routineUi, /友好部族 今日の12枠/);
 assert.match(routineUi, /data-tribe-group-toggle/);
+assert.match(routineUi, /ランクアップしたので追加3件受注/);
+assert.match(routineUi, /12枠内へ反映済み/);
+assert.match(routineUi, /TRIBE_DAILY_RANKUP_PREFIX/);
 assert.match(routineUi, /0\/12/);
 assert.match(routineUi, /残りは今日はやらない/);
 assert.doesNotMatch(routineUi, /今日の友好部族 \$\{count\}\/2/);
