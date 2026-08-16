@@ -33,5 +33,11 @@ assert.match(uiSource, /<th>素材<\/th><th>必要数<\/th><th>相場目安\/個
 assert.match(uiSource, /最も古いもので約\$\{ageMinutes\}分前/, "craft table should expose market freshness");
 assert.match(uiSource, /block\.hidden = true/, "raw slash-separated material text should be hidden once the table is rendered");
 assert.match(uiSource, /escapeHtml\(row\.item_name\)/, "material names must be escaped before HTML rendering");
+assert.match(uiSource, /document\.getElementById\("taskBoardMaterials"\)/, "craft material table must replace the visible Task Board preparation panel, not an unused side panel");
+assert.match(uiSource, /host\.replaceChildren\(panel\)/, "legacy Task Board material rows should be replaced by the market table");
+
+const liveBootSource = readFileSync(new URL("../public/time-sensitive-layout-direct.js", import.meta.url), "utf8");
+assert.match(liveBootSource, /import\("\/craft-procurement-summary\.js"\)/, "live page must load craft procurement aggregation");
+assert.match(liveBootSource, /import\("\/procurement-shopping-list\.js"\)/, "live page must load the market table renderer");
 
 console.log("procurement shopping list tests: ok");
