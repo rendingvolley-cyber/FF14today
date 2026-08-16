@@ -1,3 +1,5 @@
+import { applyKnownGrandCompanyItemAlias } from "./gc-item-name-canonicalizer.js";
+
 function normalizeText(value, max = 200) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
@@ -16,17 +18,20 @@ function clampConfidence(value) {
 export function sanitizeGrandCompanyAnalysis(parsed, model = null) {
   const deliveries = (Array.isArray(parsed?.deliveries) ? parsed.deliveries : [])
     .slice(0, 50)
-    .map((entry, index) => ({
-      row_index: index,
-      class_or_job: entry?.class_or_job == null ? null : normalizeText(entry.class_or_job, 80),
-      item_name: normalizeText(entry?.item_name, 160),
-      requested_quantity: nullableInt(entry?.requested_quantity),
-      owned_quantity: nullableInt(entry?.owned_quantity),
-      starred: Boolean(entry?.starred),
-      bonus_text: entry?.bonus_text == null ? null : normalizeText(entry.bonus_text, 120),
-      reward_text: entry?.reward_text == null ? null : normalizeText(entry.reward_text, 160),
-      confidence: clampConfidence(entry?.confidence)
-    }))
+    .map((entry, index) => {
+      const itemName = applyKnownGrandCompanyItemAlias(normalizeText(entry?.item_name, 160));
+      return {
+        row_index: index,
+        class_or_job: entry?.class_or_job == null ? null : normalizeText(entry.class_or_job, 80),
+        ...itemName,
+        requested_quantity: nullableInt(entry?.requested_quantity),
+        owned_quantity: nullableInt(entry?.owned_quantity),
+        starred: Boolean(entry?.starred),
+        bonus_text: entry?.bonus_text == null ? null : normalizeText(entry.bonus_text, 120),
+        reward_text: entry?.reward_text == null ? null : normalizeText(entry.reward_text, 160),
+        confidence: clampConfidence(entry?.confidence)
+      };
+    })
     .filter(entry => entry.item_name && entry.confidence >= 0.65);
 
   const recognized = Boolean(parsed?.recognized) && deliveries.length > 0;
