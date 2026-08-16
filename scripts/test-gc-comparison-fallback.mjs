@@ -32,7 +32,8 @@ assert.equal(partial.status, "ok");
 assert.equal(partial.market_buy.gil, 2000);
 assert.equal(partial.craft_raw, null);
 assert.match(partial.recommended_route.label, /完成品を買う/);
-assert.match(partial.recommended_route.label, /自作費は未比較/);
+assert.match(partial.recommended_route.label, /自作費未比較/);
+assert.match(partial.recommended_route.label, /複数レシピ/);
 assert.doesNotMatch(partial.recommended_route.label, /比較できず/);
 assert.match(partial.recommendation_reason, /完成品のマケボ価格は取得できました/);
 
