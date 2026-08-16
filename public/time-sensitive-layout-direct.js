@@ -5,7 +5,8 @@
   function loadProcurementModules() {
     if (procurementModulesStarted) return;
     procurementModulesStarted = true;
-    void import("/craft-procurement-summary.js")
+    void import("/leve-cost-request-policy.js")
+      .then(() => import("/craft-procurement-summary.js"))
       .then(() => import("/procurement-shopping-list.js"))
       .catch(() => {});
   }
