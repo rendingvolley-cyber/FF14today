@@ -71,7 +71,7 @@ export function buildMarketFallbackProcurement({
   if (marketCost?.available && Number.isFinite(Number(marketCost.gil))) {
     const route = {
       key: "buy_finished_fallback",
-      label: `完成品を買う（自作費は未比較）`,
+      label: `完成品を買う（${issue} / 自作費未比較）`,
       available: true,
       gil: Math.round(Number(marketCost.gil)),
       estimated_minutes: 2,
