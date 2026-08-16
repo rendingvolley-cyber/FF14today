@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   chooseGrandCompanyDelivery,
   decorateGrandCompanyDelivery,
   sanitizeGrandCompanyAnalysis
 } from "../src/grand-company-deliveries.js";
+import {
+  canonicalizeGrandCompanyDeliveries,
+  canonicalizeGrandCompanyDelivery
+} from "../src/gc-item-name-canonicalizer.js";
 import { isGrandCompanyWorkflowContext } from "../src/grand-company-wrapper.js";
 import { priceSnapshot } from "../src/gc-delivery-cost-wrapper.js";
 import {
@@ -127,6 +132,59 @@ const analysis = sanitizeGrandCompanyAnalysis({
 assert.equal(analysis.page_type, "grand_company_deliveries");
 assert.equal(analysis.grand_company_deliveries.deliveries.length, 2, "low-confidence rows must be dropped");
 assert.equal(analysis.grand_company_deliveries.company_name, "双蛇党");
+
+// Known OCR/Vision mistakes are corrected synchronously so a broken external API
+// cannot keep a confirmed bad spelling in today's saved evidence.
+const correctedAnalysis = sanitizeGrandCompanyAnalysis({
+  recognized: true,
+  confidence: 0.95,
+  deliveries: [{
+    class_or_job: null,
+    item_name: "オルコロクロマイト",
+    requested_quantity: 20,
+    owned_quantity: 0,
+    starred: false,
+    bonus_text: null,
+    reward_text: null,
+    confidence: 0.9
+  }]
+}, "test-model");
+const correctedRow = correctedAnalysis.grand_company_deliveries.deliveries[0];
+assert.equal(correctedRow.item_name, "オルコクロマイト");
+assert.equal(correctedRow.item_name_raw, "オルコロクロマイト");
+assert.equal(correctedRow.item_name_verified, true);
+assert.equal(correctedRow.item_name_resolution, "known_alias");
+
+const exact = await canonicalizeGrandCompanyDelivery({ item_name: "シューコン" }, {
+  fetchImpl: async url => {
+    assert.match(String(url), /v2\.xivapi\.com\/api\/search/);
+    return new Response(JSON.stringify({
+      results: [{ row_id: 36172, fields: { Name: "Sykon", "Name@lang(ja)": "シューコン" } }]
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+});
+assert.equal(exact.item_name, "シューコン");
+assert.equal(exact.item_id, 36172);
+assert.equal(exact.item_name_verified, true);
+assert.equal(exact.item_name_resolution, "exact");
+
+const unavailable = await canonicalizeGrandCompanyDelivery({ item_name: "名称検証用テスト品" }, {
+  fetchImpl: async () => new Response("unavailable", { status: 503 })
+});
+assert.equal(unavailable.item_name, "名称検証用テスト品", "failed verification must preserve the screenshot evidence instead of guessing");
+assert.equal(unavailable.item_name_verified, false);
+assert.equal(unavailable.item_name_resolution, "unverified");
+
+const batch = await canonicalizeGrandCompanyDeliveries([
+  { item_name: "オルコロクロマイト" },
+  { item_name: "シューコン", item_id: 36172, item_name_verified: true, item_name_resolution: "exact" }
+], { fetchImpl: async () => { throw new Error("known/verified rows must not need the network"); } });
+assert.deepEqual(batch.map(row => row.item_name), ["オルコクロマイト", "シューコン"]);
+
+const jsonModeSource = readFileSync(new URL("../src/gc-jsonmode-wrapper.js", import.meta.url), "utf8");
+assert.match(jsonModeSource, /canonicalizeGrandCompanyDeliveries/);
+assert.match(jsonModeSource, /canonicalPages/);
+assert.match(jsonModeSource, /gc_item_name_canonicalization/);
 
 const ready = decorateGrandCompanyDelivery(analysis.grand_company_deliveries.deliveries[1]);
 assert.equal(ready.ready_now, true);
