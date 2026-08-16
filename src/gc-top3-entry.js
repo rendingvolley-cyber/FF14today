@@ -5,10 +5,11 @@ import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
 import { applyGameWindowPolicy } from "./time-sensitive-game-windows.js";
 import { addNearestTeleportHints } from "./time-sensitive-nearest-teleport.js";
 import { replaceCraftSocietyFallback } from "./craft-leve-focus-wrapper.js";
+import { augmentLeveRewardMarketResponse } from "./leve-reward-market-comparison.js";
 
 const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v3-20260815";
 const PROCUREMENT_UI_VERSION = "gc-procurement-v1-20260815";
-const CRAFT_PROCUREMENT_UI_VERSION = "craft-procurement-v1-20260815";
+const CRAFT_PROCUREMENT_UI_VERSION = "craft-procurement-v2-20260816";
 const SHOPPING_LIST_UI_VERSION = "procurement-shopping-v1-20260815";
 
 function json(data, status = 200) {
@@ -115,6 +116,10 @@ export default {
     if (url.pathname === "/api/grand-company/procurement-summary" && request.method === "GET") {
       return grandCompanyProcurementSummaryResponse(request, env, app);
     }
+    if (url.pathname === "/api/leve/cost-advice" && request.method === "GET") {
+      const response = await app.fetch(request, env);
+      return augmentLeveRewardMarketResponse(request, response);
+    }
 
     const response = await app.fetch(request, env);
 
@@ -144,6 +149,7 @@ export default {
         gc_procurement_summary: true,
         gc_procurement_market_world: "Chocobo",
         craft_leve_procurement_summary: true,
+        craft_leve_reward_market_compare: true,
         procurement_shopping_list: true,
         task_board_focus_first_request: true,
         task_board_live_catalog: true,
