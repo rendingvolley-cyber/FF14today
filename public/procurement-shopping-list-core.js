@@ -34,8 +34,11 @@ export function shoppingListText(rows, { title = "マケボ購入リスト" } = 
   if (!items.length) return `${title}\n追加購入素材なし`;
   const lines = items.map(row => {
     const qty = Math.round(Number(row.quantity));
-    const cost = knownPrice(row.total_gil) ? ` / 概算 ${Math.round(Number(row.total_gil)).toLocaleString("ja-JP")}G` : "";
-    return `${row.item_name} ×${qty}${cost}`;
+    const unit = knownPrice(row.estimated_unit_gil)
+      ? ` / 相場目安 ${Math.round(Number(row.estimated_unit_gil)).toLocaleString("ja-JP")}G/個`
+      : "";
+    const cost = knownPrice(row.total_gil) ? ` / 小計 約${Math.round(Number(row.total_gil)).toLocaleString("ja-JP")}G` : "";
+    return `${row.item_name} ×${qty}${unit}${cost}`;
   });
   const total = items.every(row => knownPrice(row.total_gil))
     ? items.reduce((sum, row) => sum + Number(row.total_gil), 0)
