@@ -44,6 +44,13 @@ function quantityBasis(row) {
     : "requested_quantity";
 }
 
+export function needsMarketFallback(row) {
+  if (row?.page_kind !== "crafting" || acquisitionQuantity(row) <= 0) return false;
+  const procurement = row?.procurement;
+  if (!procurement) return true;
+  return procurement.status === "recipe_unavailable" || procurement.status === "market_unavailable";
+}
+
 function currentItemMap(data) {
   if (data?.items && typeof data.items === "object") return data.items;
   if (data?.itemID) return { [String(data.itemID)]: data };
@@ -54,8 +61,8 @@ async function searchItemExact(itemName) {
   const clean = cleanText(itemName, 120);
   if (!clean) return { itemId: null, error: "item_not_found" };
   const queries = [
-    `Name=\"${queryEscape(clean)}\"`,
-    `Name@ja=\"${queryEscape(clean)}\"`
+    `Name@ja=\"${queryEscape(clean)}\"`,
+    `Name=\"${queryEscape(clean)}\"`
   ];
   const exact = new Map();
   let reachable = false;
@@ -132,9 +139,7 @@ async function enrichFallbackRows(data) {
   const rows = Array.isArray(data?.deliveries) ? data.deliveries : [];
   const targets = rows
     .map((row, index) => ({ row, index }))
-    .filter(({ row }) => row?.page_kind === "crafting"
-      && row?.procurement?.status === "recipe_unavailable"
-      && acquisitionQuantity(row) > 0)
+    .filter(({ row }) => needsMarketFallback(row))
     .slice(0, MAX_FALLBACK_ROWS);
   if (!targets.length) return data;
 
@@ -148,7 +153,7 @@ async function enrichFallbackRows(data) {
   for (const entry of resolutions) {
     const quantity = acquisitionQuantity(entry.row);
     const itemError = entry.item?.error || null;
-    const recipeError = entry.row?.recipe_error || "recipe_error";
+    const recipeError = entry.row?.recipe_error || (entry.row?.procurement?.status === "market_unavailable" ? "market_unavailable" : "recipe_error");
     const marketCost = entry.item?.itemId
       ? marketCostFromListings(market.listings[entry.item.itemId] || [], quantity)
       : null;
@@ -168,6 +173,8 @@ async function enrichFallbackRows(data) {
 
   return {
     ...data,
+    cost_advice: data?.cost_advice || byIndex.size > 0,
+    cost_advice_partial: !data?.cost_advice && byIndex.size > 0,
     deliveries,
     market_age_minutes: data?.market_age_minutes ?? market.ageMinutes,
     market_fallback: true,
@@ -184,7 +191,7 @@ export default {
         let data;
         try { data = await response.clone().json(); }
         catch { return response; }
-        return json({ ...data, gc_market_without_recipe_fallback: true }, response.status);
+        return json({ ...data, gc_market_without_recipe_fallback: true, gc_market_partial_cost_fallback: true }, response.status);
       }
       return response;
     }
@@ -194,7 +201,7 @@ export default {
     let data;
     try { data = await response.clone().json(); }
     catch { return response; }
-    if (!data?.cost_advice || !Array.isArray(data?.deliveries)) return response;
+    if (!Array.isArray(data?.deliveries)) return response;
     try {
       return json(await enrichFallbackRows(data), response.status);
     } catch {
