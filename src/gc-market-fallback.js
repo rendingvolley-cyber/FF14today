@@ -86,7 +86,7 @@ export function buildMarketFallbackProcurement({
       market_buy: route,
       craft_raw: null,
       recommended_route: route,
-      recommendation_reason: `完成品のマケボ価格は取得できました。自作費は「${issue}」のため未比較です。`,
+      recommendation_reason: `完成品のマケボ価格は取得できました。製作費は「${issue}」のため未比較です。`,
       comparison_issue: { code: recipeError || "recipe_unavailable", label: issue }
     };
   }
