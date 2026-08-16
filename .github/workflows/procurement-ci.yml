@@ -25,6 +25,7 @@ jobs:
           node --check src/procurement-market.js
           node --check src/gc-procurement-summary.js
           node --check src/gc-top3-entry.js
+          node --check src/leve-reward-market-comparison.js
           node --check public/gc-procurement-summary-core.js
           node --check public/gc-procurement-summary.js
           node --check public/craft-procurement-summary-core.js
@@ -37,6 +38,7 @@ jobs:
           node --check scripts/test-procurement-summary.mjs
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
+          node --check scripts/test-leve-reward-market-comparison.mjs
       - name: Craft leve policy
         run: node scripts/test-craft-leve-focus.mjs
       - name: Task board recovery mode guard
@@ -47,6 +49,8 @@ jobs:
         run: node scripts/test-procurement-summary.mjs
       - name: Craft procurement aggregation
         run: node scripts/test-craft-procurement-summary.mjs
+      - name: Leve reward market comparison
+        run: node scripts/test-leve-reward-market-comparison.mjs
       - name: Shopping list formatting
         run: node scripts/test-procurement-shopping-list.mjs
       - name: Wrangler dry run
