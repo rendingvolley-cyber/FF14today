@@ -13,6 +13,14 @@ assert.deepEqual(
   leveRewardForTask("craft:arm80:leve:high-durium-nugget"),
   { base_gil: 2450, hq_gil: 4900, base_exp: 724620, hq_exp: 1449240, hq_multiplier: 2 }
 );
+assert.deepEqual(
+  leveRewardForTask("craft:arm90:leve:mountain-chromite-ingot"),
+  { base_gil: 2530, hq_gil: 5060, base_exp: 1440660, hq_exp: 2881320, hq_multiplier: 2 }
+);
+assert.deepEqual(
+  leveRewardForTask("craft:arm98:leve:ra-kaznar-maiming-greaves"),
+  { base_gil: 5180, hq_gil: 10360, base_exp: 3459540, hq_exp: 6919080, hq_multiplier: 2 }
+);
 assert.equal(leveRewardForTask("craft:unknown"), null);
 
 const listings = [
@@ -55,5 +63,27 @@ assert.equal(comparison.craft_raw_gil, 4000);
 assert.equal(comparison.net_hq_craft_gil, 5800);
 assert.ok(comparison.market_age_minutes >= 4 && comparison.market_age_minutes <= 6);
 assert.equal(comparison.optional_item_rewards_included, false);
+
+const dawntrailComparison = buildLeveRewardMarketComparison(
+  "craft:arm90:leve:mountain-chromite-ingot",
+  {
+    itemId: 44003,
+    requiredQuantity: 3,
+    routes: [{ key: "craft_raw", available: true, additionalGil: 3000 }]
+  },
+  {
+    itemID: 44003,
+    lastUploadTime: now,
+    listings: [
+      { hq: false, quantity: 3, pricePerUnit: 700 },
+      { hq: true, quantity: 3, pricePerUnit: 900 }
+    ]
+  }
+);
+assert.equal(dawntrailComparison.base_gil, 2530);
+assert.equal(dawntrailComparison.market_nq_gil, 2100);
+assert.equal(dawntrailComparison.net_nq_buy_gil, 430);
+assert.equal(dawntrailComparison.market_hq_gil, 2700);
+assert.equal(dawntrailComparison.net_hq_buy_gil, 2360);
 
 console.log("leve reward market comparison tests: ok");
