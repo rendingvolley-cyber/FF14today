@@ -15,6 +15,25 @@ assert.doesNotMatch(methods[0].reason, /G。|ギル|Gil/i);
 assert.equal(methods[1].delivery_quantity, 3);
 assert.match(methods[1].title, /ハイダリウムナゲット/);
 
+const arm90 = armorerLeveMethods({ code: "ARM", name: "甲冑師", level: 90, role: "crafter" }, 60);
+assert.equal(arm90.length, 2, "ARM Lv90 must enter the Dawntrail leve catalog instead of becoming empty");
+assert.match(arm90[0].title, /オルコクロマイトインゴット/);
+assert.equal(arm90[0].delivery_quantity, 3);
+assert.equal(arm90[0].leve_reward_exp, 1440660);
+assert.equal(arm90[0].leve_location, "トライヨラ");
+assert.match(arm90[0].condition, /トライヨラ/);
+assert.match(arm90[1].title, /オルコクロマイト・タワーシールド/);
+
+const arm91 = armorerLeveMethods({ code: "ARM", name: "甲冑師", level: 91, role: "crafter" }, 60);
+assert.deepEqual(arm91.map(row => row.leve_level), [90, 90], "Lv91 must continue using the Lv90 leve band");
+
+const arm99 = armorerLeveMethods({ code: "ARM", name: "甲冑師", level: 99, role: "crafter" }, 60);
+assert.equal(arm99.length, 2);
+assert.deepEqual(arm99.map(row => row.leve_level), [98, 98]);
+assert.match(arm99[0].title, /カザナル・スカウトグローブ/);
+assert.match(arm99[1].title, /カザナル・スレイヤーグリーヴ/);
+assert.deepEqual(armorerLeveMethods({ code: "ARM", name: "甲冑師", level: 100, role: "crafter" }), [], "max-level ARM should not receive leveling leves from this catalog");
+
 const armguardsTarget = leveTarget(methods[0].task_key);
 const nuggetTarget = leveTarget(methods[1].task_key);
 assert.equal(armguardsTarget?.itemId, 34107, "ARM Lv80 armguards leve must use the verified static material graph");
@@ -83,6 +102,20 @@ assert.equal(replaced.plan.planner_kind, "craft-leve-procurement-v1");
 assert.equal(replaced.plan.methods.length, 2);
 assert.ok(replaced.plan.methods.every(row => row.task_key.includes(":leve:")));
 assert.doesNotMatch(replaced.plan.methods.map(row => row.title).join(" "), /レポリット|友好部族/);
+
+const level90Data = {
+  plan: {
+    selected_mode: "craft",
+    focus_job: { code: "ARM", name: "甲冑師", level: 90, role: "crafter" },
+    methods: [{ task_key: "craft:arm:society:placeholder", badge: "友好部族・3件", job_code: "ARM", job_name: "甲冑師", job_level: 90 }],
+    remaining_minutes: 60
+  }
+};
+const replaced90 = replaceCraftSocietyFallback(structuredClone(level90Data), { availableMinutes: 60 });
+assert.equal(replaced90.plan.methods.length, 2);
+assert.equal(replaced90.plan.session_complete, false);
+assert.match(replaced90.plan.methods[0].title, /オルコクロマイト/);
+assert.ok(replaced90.plan.methods.every(row => row.leve_location === "トライヨラ"));
 
 const alcConcrete = {
   plan: {
