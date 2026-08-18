@@ -1,19 +1,30 @@
 import app from "./category-job-focus-wrapper.js";
 
-// First grounded catalog: Endwalker ARM leve rows for the user's current 80-89 band.
+// Grounded ARM leve catalog for Endwalker 80-89 and Dawntrail 90-99.
 // EXP and delivery requirements are stable catalog data; market/recipe costs stay live.
-// Fixed Gil reward is intentionally not embedded because public references disagree by small amounts.
 const ARMORER_LEVES = [
-  { level: 80, key: "armguards-maiming", item: "ハイダリウム・スレイヤーアームガード", quantity: 1, exp: 935000 },
-  { level: 80, key: "high-durium-nugget", item: "ハイダリウムナゲット", quantity: 3, exp: 724620 },
-  { level: 82, key: "gauntlets-fending", item: "ハイダリウム・ディフェンダーガントレット", quantity: 1, exp: 1051810 },
-  { level: 82, key: "armor-fending", item: "ハイダリウム・ディフェンダーアーマー", quantity: 1, exp: 1582910 },
-  { level: 84, key: "bismuth-ingot", item: "ビスマスインゴット", quantity: 3, exp: 933280 },
-  { level: 84, key: "bismuth-alembic", item: "ビスマス・アレンビック", quantity: 1, exp: 1255600 },
-  { level: 86, key: "falling-dragon-helm", item: "マンガン・ディセンドドラゴンヘルム", quantity: 1, exp: 1503270 },
-  { level: 86, key: "chocobo-frypan", item: "マンガン・チョコボフライパン", quantity: 1, exp: 1443780 },
-  { level: 88, key: "casting-gloves", item: "コンドライト・キャスターグローブ", quantity: 1, exp: 1703250 },
-  { level: 88, key: "maiming-top", item: "コンドライト・スレイヤートップス", quantity: 1, exp: 2257300 }
+  { level: 80, key: "armguards-maiming", item: "ハイダリウム・スレイヤーアームガード", quantity: 1, exp: 935000, location: "オールド・シャーレアン" },
+  { level: 80, key: "high-durium-nugget", item: "ハイダリウムナゲット", quantity: 3, exp: 724620, location: "オールド・シャーレアン" },
+  { level: 82, key: "gauntlets-fending", item: "ハイダリウム・ディフェンダーガントレット", quantity: 1, exp: 1051810, location: "オールド・シャーレアン" },
+  { level: 82, key: "armor-fending", item: "ハイダリウム・ディフェンダーアーマー", quantity: 1, exp: 1582910, location: "オールド・シャーレアン" },
+  { level: 84, key: "bismuth-ingot", item: "ビスマスインゴット", quantity: 3, exp: 933280, location: "オールド・シャーレアン" },
+  { level: 84, key: "bismuth-alembic", item: "ビスマス・アレンビック", quantity: 1, exp: 1255600, location: "オールド・シャーレアン" },
+  { level: 86, key: "falling-dragon-helm", item: "マンガン・ディセンドドラゴンヘルム", quantity: 1, exp: 1503270, location: "オールド・シャーレアン" },
+  { level: 86, key: "chocobo-frypan", item: "マンガン・チョコボフライパン", quantity: 1, exp: 1443780, location: "オールド・シャーレアン" },
+  { level: 88, key: "casting-gloves", item: "コンドライト・キャスターグローブ", quantity: 1, exp: 1703250, location: "オールド・シャーレアン" },
+  { level: 88, key: "maiming-top", item: "コンドライト・スレイヤートップス", quantity: 1, exp: 2257300, location: "オールド・シャーレアン" },
+
+  // Dawntrail / Tuliyollal leves. Level 91 uses the Lv90 band, 93 uses Lv92, etc.
+  { level: 90, key: "mountain-chromite-ingot", item: "オルコクロマイトインゴット", quantity: 3, exp: 1440660, location: "トライヨラ" },
+  { level: 90, key: "mountain-chromite-tower-shield", item: "オルコクロマイト・タワーシールド", quantity: 1, exp: 1440660, location: "トライヨラ" },
+  { level: 92, key: "ruthenium-vambraces-maiming", item: "ルテニウム・スレイヤーヴァンブレイス", quantity: 1, exp: 2148720, location: "トライヨラ" },
+  { level: 92, key: "ruthenium-sabatons-fending", item: "ルテニウム・ディフェンダーサバトン", quantity: 1, exp: 2148720, location: "トライヨラ" },
+  { level: 94, key: "cobalt-tungsten-ingot", item: "コバルトタングステンインゴット", quantity: 3, exp: 1902430, location: "トライヨラ" },
+  { level: 94, key: "cobalt-tungsten-alembic", item: "コバルトタングステン・アレンビック", quantity: 1, exp: 2454760, location: "トライヨラ" },
+  { level: 96, key: "gold-titanium-caster-helm", item: "ゴールドチタン・キャスターヘルム", quantity: 1, exp: 3059520, location: "トライヨラ" },
+  { level: 96, key: "gold-titanium-fending-spike-armor", item: "ゴールドチタン・ディフェンダースパイクアーマー", quantity: 1, exp: 4554260, location: "トライヨラ" },
+  { level: 98, key: "ra-kaznar-scouting-gloves", item: "カザナル・スカウトグローブ", quantity: 1, exp: 3459540, location: "トライヨラ" },
+  { level: 98, key: "ra-kaznar-maiming-greaves", item: "カザナル・スレイヤーグリーヴ", quantity: 1, exp: 3459540, location: "トライヨラ" }
 ];
 
 function normalizeCode(value) {
@@ -35,8 +46,8 @@ function focusedJob(data) {
 
 function highestEligibleBand(level) {
   const n = Math.floor(Number(level));
-  if (!Number.isFinite(n) || n < 80 || n > 89) return null;
-  return [88, 86, 84, 82, 80].find(candidate => candidate <= n) ?? null;
+  if (!Number.isFinite(n) || n < 80 || n > 99) return null;
+  return [98, 96, 94, 92, 90, 88, 86, 84, 82, 80].find(candidate => candidate <= n) ?? null;
 }
 
 export function armorerLeveMethods(job, availableMinutes = 60) {
@@ -52,10 +63,10 @@ export function armorerLeveMethods(job, availableMinutes = 60) {
       title: `甲冑師リーヴ「${row.item}」${row.quantity}個納品`,
       minutes: Math.min(15, minutesBudget),
       reason: `甲冑師Lv${job.level}向け。基本報酬 EXP ${formatNumber(row.exp)}。完成品購入と原材料からの製作費はChocobo相場で比較します。`,
-      condition: "リーヴ受注権を1消費。オールド・シャーレアンで受注・納品。友好部族はログイン直後ルーチン側で扱うため、この候補には含めません。",
+      condition: `リーヴ受注権を1消費。${row.location}で受注・納品。友好部族はログイン直後ルーチン側で扱うため、この候補には含めません。`,
       steps: [
         `甲冑師（Lv${job.level}）へジョブチェンジ`,
-        "オールド・シャーレアンで対象リーヴを受注",
+        `${row.location}で対象リーヴを受注`,
         `${row.item}を${row.quantity}個用意`,
         "納品して報酬を受け取る",
         "終わったら「✓ 完了！」"
@@ -69,6 +80,7 @@ export function armorerLeveMethods(job, availableMinutes = 60) {
       leve_allowance_cost: 1,
       leve_reward_exp: row.exp,
       leve_reward_gil: null,
+      leve_location: row.location,
       delivery_item_name: row.item,
       delivery_quantity: row.quantity
     }));
