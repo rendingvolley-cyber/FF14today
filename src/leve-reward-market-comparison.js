@@ -11,7 +11,17 @@ const REWARD_BY_TASK = Object.freeze({
   "craft:arm86:leve:falling-dragon-helm": Object.freeze({ baseGil: 4980, baseExp: 1503270 }),
   "craft:arm86:leve:chocobo-frypan": Object.freeze({ baseGil: 5000, baseExp: 1443780 }),
   "craft:arm88:leve:casting-gloves": Object.freeze({ baseGil: 5020, baseExp: 1703250 }),
-  "craft:arm88:leve:maiming-top": Object.freeze({ baseGil: 5040, baseExp: 2257300 })
+  "craft:arm88:leve:maiming-top": Object.freeze({ baseGil: 5040, baseExp: 2257300 }),
+  "craft:arm90:leve:mountain-chromite-ingot": Object.freeze({ baseGil: 2530, baseExp: 1440660 }),
+  "craft:arm90:leve:mountain-chromite-tower-shield": Object.freeze({ baseGil: 2530, baseExp: 1440660 }),
+  "craft:arm92:leve:ruthenium-vambraces-maiming": Object.freeze({ baseGil: 5070, baseExp: 2148720 }),
+  "craft:arm92:leve:ruthenium-sabatons-fending": Object.freeze({ baseGil: 5070, baseExp: 2148720 }),
+  "craft:arm94:leve:cobalt-tungsten-ingot": Object.freeze({ baseGil: 2550, baseExp: 1902430 }),
+  "craft:arm94:leve:cobalt-tungsten-alembic": Object.freeze({ baseGil: 5100, baseExp: 2454760 }),
+  "craft:arm96:leve:gold-titanium-caster-helm": Object.freeze({ baseGil: 5140, baseExp: 3059520 }),
+  "craft:arm96:leve:gold-titanium-fending-spike-armor": Object.freeze({ baseGil: 5140, baseExp: 4554260 }),
+  "craft:arm98:leve:ra-kaznar-scouting-gloves": Object.freeze({ baseGil: 5180, baseExp: 3459540 }),
+  "craft:arm98:leve:ra-kaznar-maiming-greaves": Object.freeze({ baseGil: 5180, baseExp: 3459540 })
 });
 
 function positiveInt(value) {
