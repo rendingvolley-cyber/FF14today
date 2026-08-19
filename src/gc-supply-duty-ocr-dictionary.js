@@ -3,7 +3,7 @@ import {
   relevantGrandCompanySupplyLevels
 } from "./gc-supply-duty-band-validator.js";
 
-export const GC_SUPPLY_DUTY_OCR_PARSER_VERSION = "supply-duty-v3-item-dictionary";
+export const GC_SUPPLY_DUTY_OCR_PARSER_VERSION = "supply-duty-v4-item-index-dictionary";
 
 const XIVAPI_BASE = "https://v2.xivapi.com/api";
 const VERIFY_TIMEOUT_MS = 4000;
@@ -170,25 +170,23 @@ export function buildSupplyDutyOcrPrompt(dictionary) {
   const itemNames = uniqueSorted(Array.isArray(dictionary?.item_names) ? dictionary.item_names : []);
   const levels = Array.isArray(dictionary?.levels) ? dictionary.levels : [];
   const pageKind = normalizePageKind(dictionary?.page_kind) || "unknown";
-  const dictionaryText = itemNames.map(name => `- ${name}`).join("\n");
+  const dictionaryText = itemNames.map((name, index) => `${index}: ${name}`).join("\n");
 
   return [
     "FINAL FANTASY XIV日本語クライアントのグランドカンパニー『調達任務』一覧をOCRしてください。",
     `今回の対象タブ: ${pageKind}。Lodestone同期済みジョブLv: ${levels.join(", ") || "不明"}。`,
-    "最重要ルール: item_name は自由記述ではありません。各行の表示文字を下のFF14公式データ由来候補と照合し、視覚的に一致する候補を1つだけ選び、その日本語名を完全一致で返してください。",
+    "最重要ルール: 品名を自由記述してはいけません。各行の表示文字を下のFF14公式データ由来候補と照合し、最も視覚的に一致する候補の item_index だけを返してください。",
     "候補にない文字列をOCR結果として作らないでください。英語への翻訳、Item 12345 のような内部ID風文字列、途中までの品名、推測した品名は禁止です。",
     "どの候補とも十分に一致しない行は、候補を無理に当てはめず deliveries から省略してください。",
     "候補は現在のジョブLvでFF14のGCSupplyDutyに登録されている調達品です。OCRではこの候補集合を文字辞書として使ってください。",
-    "--- item_name 候補ここから ---",
+    "--- item_index 候補ここから ---",
     dictionaryText,
-    "--- item_name 候補ここまで ---",
+    "--- item_index 候補ここまで ---",
     "画面上部に『SUPPLY DUTY』または『調達任務』があり、『軍需品調達』『補給品調達』『希少品調達』のタブ、または『調達依頼品』『調達単位』『報酬経験値』『報酬軍票』『所持数』の列が見える画面は recognized=true としてください。",
-    "company_name は画面に見えている時だけ記録し、見えなければ null にしてください。会社名が見えないだけで recognized=false にしないでください。",
     "deliveries は現在選択中のタブに見えている納品行だけを上から順番に抽出してください。",
     "requested_quantity は同じ行の『調達単位』の数値です。",
     "owned_quantity は『所持数』欄で現在所持している個数が1つの整数として明確に読める時だけ入れてください。曖昧なら null にし、合算や推測をしないでください。",
-    "class_or_job は文字で明示されている時だけ入れてください。アイコンだけからジョブ名を推測しないでください。",
-    "starred は金色の★が明確に見える行だけ true。bonus_text と reward_text も実際に読める文字だけ記録してください。",
+    "starred は金色の★が明確に見える行だけ true。",
     "『SUPPLY DUTY / 調達任務』ではない別画面、または候補辞書と照合して読める納品行が1件もない場合だけ recognized=false、deliveries=[] としてください。"
   ].join("\n");
 }
@@ -202,37 +200,53 @@ export function grandCompanyDictionarySchema(dictionary) {
     properties: {
       recognized: { type: "boolean" },
       confidence: { type: "number", minimum: 0, maximum: 1 },
-      company_name: { type: ["string", "null"] },
       deliveries: {
         type: "array",
-        maxItems: 50,
+        maxItems: 20,
         items: {
           type: "object",
           additionalProperties: false,
           properties: {
-            class_or_job: { type: ["string", "null"] },
-            item_name: { type: "string", enum: itemNames },
+            item_index: { type: "integer", minimum: 0, maximum: itemNames.length - 1 },
             requested_quantity: { type: ["integer", "null"] },
             owned_quantity: { type: ["integer", "null"] },
             starred: { type: "boolean" },
-            bonus_text: { type: ["string", "null"] },
-            reward_text: { type: ["string", "null"] },
             confidence: { type: "number", minimum: 0, maximum: 1 }
           },
           required: [
-            "class_or_job",
-            "item_name",
+            "item_index",
             "requested_quantity",
             "owned_quantity",
             "starred",
-            "bonus_text",
-            "reward_text",
             "confidence"
           ]
         }
       }
     },
-    required: ["recognized", "confidence", "company_name", "deliveries"]
+    required: ["recognized", "confidence", "deliveries"]
+  };
+}
+
+export function materializeSupplyDutyDictionaryNames(parsed, dictionary) {
+  const itemNames = uniqueSorted(Array.isArray(dictionary?.item_names) ? dictionary.item_names : []);
+  const deliveries = (Array.isArray(parsed?.deliveries) ? parsed.deliveries : [])
+    .map(entry => {
+      const index = Number(entry?.item_index);
+      if (!Number.isInteger(index) || index < 0 || index >= itemNames.length) return null;
+      return {
+        ...entry,
+        item_name: itemNames[index],
+        class_or_job: null,
+        bonus_text: null,
+        reward_text: null
+      };
+    })
+    .filter(Boolean);
+  return {
+    recognized: Boolean(parsed?.recognized) && deliveries.length > 0,
+    confidence: parsed?.confidence,
+    company_name: null,
+    deliveries
   };
 }
 
