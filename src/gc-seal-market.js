@@ -89,27 +89,24 @@ function sortRankedRows(rows) {
     || b.average_sale_price - a.average_sale_price);
 }
 
-function candidateKey(row) {
-  return row.item_id || row.item_name || row.item_name_en;
+function recommendationStrength(row) {
+  if (row.efficiency_floor_pass) return "strong";
+  return "velocity_first";
 }
 
 export function rankSealExchangeRows(rows, limit = 5) {
   const max = Math.max(1, Number(limit) || 5);
   const scored = (Array.isArray(rows) ? rows : []).map(row => ({ ...row, ...scoreSealExchangeCandidate(row) }));
-  const strong = sortRankedRows(scored.filter(row => row.velocity_floor_pass && row.price_floor_pass && row.efficiency_floor_pass))
-    .map(row => ({ ...row, recommendation_strength: "strong" }));
-  const strongKeys = new Set(strong.map(candidateKey));
-  const secondary = sortRankedRows(scored.filter(row => {
-    const key = candidateKey(row);
-    return !strongKeys.has(key) && row.price_floor_pass && row.efficiency_floor_pass && row.daily_sale_velocity > 0;
-  })).map(row => ({ ...row, recommendation_strength: "secondary" }));
-  const selectedKeys = new Set([...strong, ...secondary].map(candidateKey));
-  const fallback = sortRankedRows(scored.filter(row => {
-    const key = candidateKey(row);
-    return !selectedKeys.has(key) && row.daily_sale_velocity > 0 && row.average_sale_price > 0;
-  })).map(row => ({ ...row, recommendation_strength: "fallback" }));
 
-  return [...strong, ...secondary, ...fallback]
+  // 300個を短期間で現金化する用途では、売れる速さを最優先のハード条件にする。
+  // 単価や軍票効率が高くても、300個を3日以内に吸収できない品はランキングへ入れない。
+  const liquid = scored.filter(row => row.velocity_floor_pass && row.price_floor_pass);
+
+  return sortRankedRows(liquid)
     .slice(0, max)
-    .map((row, index) => ({ ...row, rank: index + 1 }));
+    .map((row, index) => ({
+      ...row,
+      recommendation_strength: recommendationStrength(row),
+      rank: index + 1
+    }));
 }
