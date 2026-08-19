@@ -69,9 +69,9 @@ test("GC recipe material panel renders under today's delivery list", async ({ pa
   });
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.evaluate(() => {
-    const gc = document.querySelector("[data-gc-content]");
-    if (!gc) throw new Error("GC root missing");
+  const gcRoot = page.locator("[data-gc-content]");
+  await expect(gcRoot).toBeAttached({ timeout: 5000 });
+  await gcRoot.evaluate(gc => {
     gc.hidden = false;
     gc.innerHTML = `
       <div data-gc-two-page-lists>
