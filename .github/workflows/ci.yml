@@ -60,6 +60,8 @@ jobs:
           node --check src/gc-jsonmode-wrapper.js
           node --check src/gc-supply-duty-entry.js
           node --check src/gc-top3-entry.js
+          node --check src/hunt-service.js
+          node --check src/hunt-entry.js
           node --check public/app.js
           node --check public/choice-reasons.js
           node --check public/task-board.js
@@ -79,6 +81,7 @@ jobs:
           node --check public/focus-flow.js
           node --check public/leve-cost-advice.js
           node --check public/time-sensitive-game-window-labels.js
+          node --check public/hunt-section.js
           node --check scripts/test-grand-company-deliveries.mjs
           node --check scripts/test-gc-jsonmode.mjs
           node --check scripts/test-gc-seal-market.mjs
@@ -89,6 +92,7 @@ jobs:
           node --check scripts/test-task-board-schedule.mjs
           node --check scripts/test-category-job-focus.mjs
           node --check scripts/test-task-board-live-catalog.mjs
+          node --check scripts/test-hunt-section.mjs
           node --check scripts/playwright.config.mjs
           node --check scripts/e2e/focus-flow-boot.spec.mjs
           node --check scripts/e2e/dynamic-leve-cost.spec.mjs
@@ -110,6 +114,8 @@ jobs:
         run: node scripts/test-category-job-focus.mjs
       - name: Task board live catalog rules
         run: node scripts/test-task-board-live-catalog.mjs
+      - name: Daily hunt section rules
+        run: node scripts/test-hunt-section.mjs
       - name: Tribe leveling guide rules
         run: node scripts/test-tribe-leveling-guide.mjs
       - name: Focus flow rules

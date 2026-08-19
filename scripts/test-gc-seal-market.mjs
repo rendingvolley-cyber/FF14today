@@ -62,8 +62,6 @@ const sparse = rankSealExchangeRows([
 assert.equal(sparse.length, 1, "do not invent a top three when only one item meets the sell-through policy");
 assert.equal(sparse[0].item_name, "本命");
 
-// Regression from the real UI: a 3.7/day high-efficiency item must never outrank
-// items selling thousands per day just because its gil-per-seal is better.
 const realRegression = rankSealExchangeRows([
   { item_name: "カシミヤフリース", seal_cost: 1500, exchange_quantity: 1, average_sale_price: 2300, daily_sale_velocity: 3.7, listed_quantity: 18 },
   { item_name: "コークス", seal_cost: 200, exchange_quantity: 1, average_sale_price: 160, daily_sale_velocity: 3857.9, listed_quantity: 9600 },
@@ -80,6 +78,7 @@ const retainerBandWrapper = readFileSync(new URL("../src/retainer-level-band-wra
 const recoveryWrapper = readFileSync(new URL("../src/task-board-recovery-wrapper.js", import.meta.url), "utf8");
 const sealWrapper = readFileSync(new URL("../src/gc-seal-market-wrapper.js", import.meta.url), "utf8");
 const topThreeEntry = readFileSync(new URL("../src/gc-top3-entry.js", import.meta.url), "utf8");
+const huntEntry = readFileSync(new URL("../src/hunt-entry.js", import.meta.url), "utf8");
 const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
 const wrangler = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
 assert.match(costWrapper, /\/api\/grand-company\/delivery-costs/);
@@ -100,7 +99,8 @@ assert.match(topThreeEntry, /recommendations\.slice\(0, 3\)/);
 assert.match(topThreeEntry, /recommendation_limit:\s*3/);
 assert.match(topThreeEntry, /gc_seal_velocity_hard_gate:\s*true/);
 assert.doesNotMatch(topThreeEntry, /条件を満たさない次点/);
-assert.equal(wrangler.main, "src/gc-top3-entry.js");
+assert.equal(wrangler.main, "src/hunt-entry.js");
+assert.match(huntEntry, /import app from "\.\/gc-top3-entry\.js"/, "the new outer wrapper must preserve the GC production entry chain");
 
 const gcCss = readFileSync(new URL("../public/grand-company-routine.css", import.meta.url), "utf8");
 const gcUi = readFileSync(new URL("../public/gc-seal-market.js", import.meta.url), "utf8");
@@ -111,4 +111,4 @@ assert.match(gcUi, /300個出す前提で、売れ筋順に比較/);
 assert.match(gcUi, /data-gc-delivery-item/);
 assert.match(gcUi, /button\.textContent = "詳細"/);
 
-console.log("GC table UI, task board recovery, market fallback, and velocity-gated top-three seal ranking: ok");
+console.log("GC table UI, task board recovery, market fallback, velocity-gated seal ranking, and outer hunt wrapper: ok");
