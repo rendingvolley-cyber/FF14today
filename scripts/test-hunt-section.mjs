@@ -5,11 +5,13 @@ const wrangler = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.met
 const entry = readFileSync(new URL("../src/hunt-entry.js", import.meta.url), "utf8");
 const service = readFileSync(new URL("../src/hunt-service.js", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../public/hunt-section.js", import.meta.url), "utf8");
+const nativePicker = readFileSync(new URL("../public/hunt-native-file-picker.js", import.meta.url), "utf8");
 const dailyRoutine = readFileSync(new URL("../public/daily-routine.js", import.meta.url), "utf8");
 
 assert.equal(wrangler.main, "src/hunt-entry.js", "hunt wrapper must remain the deployed Worker entrypoint for hunt APIs");
 assert.equal(wrangler.assets?.run_worker_first, undefined, "the normal app shell must remain static-asset-first so unrelated Worker wrappers cannot rewrite it");
 assert.match(dailyRoutine, /import "\.\/hunt-section\.js";/, "the existing static app must load the hunt UI directly");
+assert.match(dailyRoutine, /import "\.\/hunt-native-file-picker\.js";/, "the hunt upload trigger must use the native picker compatibility layer");
 assert.match(entry, /import app from "\.\/gc-top3-entry\.js"/, "hunt integration must wrap, not replace, the existing production entry");
 assert.match(entry, /\/api\/hunts\/today/);
 assert.match(entry, /\/api\/hunts\/recognize/);
@@ -40,4 +42,10 @@ assert.match(ui, /\/api\/hunts\/progress/);
 assert.match(ui, /data-open-hunt/);
 assert.match(ui, /MutationObserver\(decorateTaskBoard\)/);
 
-console.log("Daily hunt section loads without changing the existing static app shell");
+assert.match(nativePicker, /htmlFor = INPUT_ID/);
+assert.match(nativePicker, /trigger\.replaceWith\(label\)/);
+assert.match(nativePicker, /input\.hidden = false/);
+assert.match(nativePicker, /huntBillFileInput/);
+assert.match(nativePicker, /MutationObserver/);
+
+console.log("Daily hunt section loads without changing the existing static app shell and uses a native file picker trigger");
