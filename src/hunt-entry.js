@@ -9,6 +9,8 @@ import {
   updateHuntProgress
 } from "./hunt-service.js";
 
+const HUNT_UI_VERSION = "hunt-mvp-v1-20260819";
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -18,6 +20,26 @@ function json(data, status = 200) {
       "x-content-type-options": "nosniff"
     }
   });
+}
+
+function noStore(response) {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store, max-age=0");
+  headers.set("pragma", "no-cache");
+  headers.set("expires", "0");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+function injectHuntUi(response) {
+  if (!response.ok || !(response.headers.get("content-type") || "").includes("text/html")) return response;
+  const transformed = new HTMLRewriter()
+    .on("head", {
+      element(element) {
+        element.prepend(`<script type="module" src="/hunt-section.js?v=${HUNT_UI_VERSION}"></script>`, { html: true });
+      }
+    })
+    .transform(response);
+  return noStore(transformed);
 }
 
 export default {
@@ -56,9 +78,12 @@ export default {
         daily_hunt_section: true,
         daily_hunt_image_recognition: true,
         daily_hunt_progress: true,
-        daily_hunt_task_board_bridge: true
+        daily_hunt_task_board_bridge: true,
+        daily_hunt_ui_version: HUNT_UI_VERSION
       }, response.status);
     }
+    if (url.pathname === "/hunt-section.js" && request.method === "GET") return noStore(response);
+    if (request.method === "GET") return injectHuntUi(response);
     return response;
   }
 };
