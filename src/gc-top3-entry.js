@@ -97,7 +97,6 @@ function rewriteHtml(response) {
         element.prepend(`<script type="module" src="/procurement-shopping-list.js?v=${SHOPPING_LIST_UI_VERSION}"></script>`, { html: true });
         element.prepend(`<script type="module" src="/craft-procurement-summary.js?v=${CRAFT_PROCUREMENT_UI_VERSION}"></script>`, { html: true });
         element.prepend(`<script type="module" src="/gc-procurement-summary.js?v=${PROCUREMENT_UI_VERSION}"></script>`, { html: true });
-        element.prepend(`<script type="module" src="/gc-material-requirements.js?v=${GC_MATERIAL_UI_VERSION}"></script>`, { html: true });
         element.prepend(`<script src="/time-sensitive-game-window-labels.js?v=${TIME_SENSITIVE_LAYOUT_VERSION}"></script>`, { html: true });
         element.prepend('<script src="/task-board-focus-first.js"></script>', { html: true });
       }
