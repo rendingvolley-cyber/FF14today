@@ -1,4 +1,4 @@
-import app from "./task-board-recovery-wrapper.js";
+import app from "./gc-jsonmode-core-wrapper.js";
 import { sanitizeGrandCompanyAnalysis } from "./grand-company-deliveries.js";
 import {
   GC_SUPPLY_DUTY_OCR_PARSER_VERSION,
@@ -9,6 +9,7 @@ import {
 } from "./gc-supply-duty-ocr-dictionary.js";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const OWNER_LODESTONE_ID = "3091607";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_PROFILE_ANALYSES_PER_DAY = 12;
 const MAX_GLOBAL_ANALYSES_PER_DAY = 50;
@@ -96,16 +97,14 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
-async function latestProfileJobs(env, profileHash) {
+async function latestProfileJobs(env) {
   try {
     const row = await env.DB.prepare(`
-      SELECT cs.jobs_json
-      FROM profile_characters pc
-      JOIN character_state cs ON cs.lodestone_id=pc.lodestone_id
-      WHERE pc.profile_hash=?
-      ORDER BY pc.last_seen_at DESC
+      SELECT jobs_json
+      FROM character_state
+      WHERE lodestone_id=?
       LIMIT 1
-    `).bind(profileHash).first();
+    `).bind(OWNER_LODESTONE_ID).first();
     if (!row?.jobs_json) return [];
     const jobs = JSON.parse(row.jobs_json);
     return Array.isArray(jobs) ? jobs : [];
@@ -300,7 +299,7 @@ export default {
     if (!input) return app.fetch(request, env);
     if (input.error) return input.error;
 
-    const jobs = await latestProfileJobs(env, input.profileHash);
+    const jobs = await latestProfileJobs(env);
     const dictionary = await buildSupplyDutyOcrDictionary(jobs, input.pageKind);
     if (!dictionary.ok) return dictionaryFailure(dictionary);
 
