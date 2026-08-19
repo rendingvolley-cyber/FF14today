@@ -28,3 +28,5 @@ APIキーはGitHubやブラウザへ配信しません。
 ## Deploy
 
 CloudflareとGitHub `main` が接続済みなら、mainへのpushで自動deployします。
+
+<!-- redeploy-trigger: 2026-08-19T16:14:00+09:00 -->
