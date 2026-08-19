@@ -43,6 +43,7 @@ jobs:
           node --check scripts/test-procurement-summary.mjs
           node --check scripts/test-gc-material-requirements.mjs
           node --check scripts/test-gc-supply-duty-band.mjs
+          node --check scripts/test-gc-supply-duty-wiring.mjs
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
           node --check scripts/test-leve-reward-market-comparison.mjs
@@ -59,6 +60,8 @@ jobs:
         run: node scripts/test-gc-material-requirements.mjs
       - name: Grand Company supply-duty level bands
         run: node scripts/test-gc-supply-duty-band.mjs
+      - name: Grand Company supply-duty wiring
+        run: node scripts/test-gc-supply-duty-wiring.mjs
       - name: Grand Company comparison fallback
         run: node scripts/test-gc-comparison-fallback.mjs
       - name: Craft procurement aggregation
