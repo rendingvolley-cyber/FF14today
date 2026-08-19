@@ -24,15 +24,18 @@ const entry = readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta
 const contextWrapper = readFileSync(new URL("../public/context-inbox.js", import.meta.url), "utf8");
 const twoPageUi = readFileSync(new URL("../public/gc-two-page-ui.js", import.meta.url), "utf8");
 
-assert.match(source, /responseMimeType:\s*"application\/json"/, "GC image analysis must request JSON output");
+assert.match(source, /responseMimeType:\s*"application\/json"/, "legacy GC parser must retain its JSON fallback contract");
 assert.doesNotMatch(source, /responseJsonSchema/, "legacy GC JSON parser must not grow a large unconstrained serving-state schema");
 assert.match(source, /SUPPLY DUTY/);
 assert.match(source, /軍需品調達/);
 assert.match(source, /調達依頼品/);
 assert.match(source, /supply-duty-json-v3/);
 assert.match(source, /画像解析側で一時的なエラー/);
-assert.match(entry, /gc-supply-duty-dictionary-recognition-wrapper\.js/, "production entry must put the FF14 item dictionary gate before legacy GC OCR");
-assert.match(dictionaryOcrWrapper, /task-board-recovery-wrapper\.js/, "dictionary OCR gate must preserve task-board recovery underneath it");
+assert.match(entry, /task-board-recovery-wrapper\.js/, "production entry must preserve task-board recovery as the outer API layer");
+assert.match(pageWrapper, /import app from "\.\/gc-supply-duty-dictionary-recognition-wrapper\.js";/, "two-page GC router must invoke dictionary OCR after choosing the page budget namespace");
+assert.match(pageWrapper, /app\.fetch\(requestWithGcBudgetToken\(request, kind\), env\)/, "dictionary OCR must receive the per-page GC budget token rather than the generic profile token");
+assert.match(dictionaryOcrWrapper, /import app from "\.\/gc-jsonmode-core-wrapper\.js";/, "dictionary OCR must sit directly before the legacy free-form parser");
+assert.match(dictionaryOcrWrapper, /OWNER_LODESTONE_ID/);
 assert.match(recoveryWrapper, /retainer-level-band-wrapper\.js/, "task-board recovery must preserve retainer level-band recommendations underneath it");
 assert.match(retainerBandWrapper, /category-job-focus-wrapper\.js/, "retainer level-band layer must preserve category job focus underneath it");
 assert.match(categoryJobWrapper, /gc-market-fallback-wrapper\.js/, "category job focus must preserve the market fallback wrapper underneath it");
@@ -132,4 +135,4 @@ assert.equal(unresolved.market_buy, null);
 assert.equal(unresolved.recommended_route.available, false);
 assert.match(unresolved.recommended_route.label, /品名をXIVAPIで特定できず/);
 
-console.log("GC JSON-mode, two-page storage, dictionary OCR gate, market fallback, retainer-level-band, and task-board recovery chain regression: ok");
+console.log("GC JSON-mode, two-page storage, per-page dictionary OCR gate, market fallback, retainer-level-band, and task-board recovery chain regression: ok");
