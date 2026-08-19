@@ -121,17 +121,26 @@ assert.equal(gatherDictionary.ok, true);
 assert.deepEqual(gatherDictionary.levels, [84, 94, 96]);
 
 const entrySource = fs.readFileSync(new URL("../src/gc-supply-duty-entry.js", import.meta.url), "utf8");
-assert.match(
-  entrySource,
-  /import app from "\.\/gc-supply-duty-dictionary-recognition-wrapper\.js";/,
-  "the dictionary-constrained recognizer must sit outside the legacy GC OCR chain"
-);
-
+const pageWrapperSource = fs.readFileSync(new URL("../src/gc-jsonmode-wrapper.js", import.meta.url), "utf8");
 const wrapperSource = fs.readFileSync(new URL("../src/gc-supply-duty-dictionary-recognition-wrapper.js", import.meta.url), "utf8");
+assert.match(entrySource, /import app from "\.\/task-board-recovery-wrapper\.js";/);
+assert.match(
+  pageWrapperSource,
+  /import app from "\.\/gc-supply-duty-dictionary-recognition-wrapper\.js";/,
+  "the page router must send the already page-scoped request through dictionary OCR"
+);
+assert.match(pageWrapperSource, /app\.fetch\(requestWithGcBudgetToken\(request, kind\), env\)/);
+assert.match(
+  wrapperSource,
+  /import app from "\.\/gc-jsonmode-core-wrapper\.js";/,
+  "the dictionary-constrained recognizer must sit directly before the legacy free-form GC parser"
+);
 assert.match(wrapperSource, /responseJsonSchema: grandCompanyDictionarySchema\(dictionary\)/);
 assert.match(wrapperSource, /temperature: 0/);
 assert.match(wrapperSource, /gc_ocr_dictionary_required: true/);
 assert.match(wrapperSource, /shouldReuseDictionaryOcrCache/);
+assert.match(wrapperSource, /FROM character_state/);
+assert.match(wrapperSource, /OWNER_LODESTONE_ID/);
 assert.doesNotMatch(wrapperSource, /item_name:\s*\{\s*type:\s*"string"\s*\}/, "free-form item_name schema must not return");
 
-console.log("GC supply-duty OCR is constrained by the current FF14 item dictionary");
+console.log("GC supply-duty OCR is constrained by the current FF14 item dictionary before legacy OCR can run");
