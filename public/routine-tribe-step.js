@@ -290,12 +290,12 @@ function renderPlan() {
     const pieces = [`経験値優先 ${levelingQuests}件`];
     if (conditionalQuests) pieces.push(`余力 ${conditionalQuests}件`);
     if (rankupQuests) pieces.push(`ランクアップ追加 ${rankupQuests}件（12枠内）`);
-    if (remaining) pieces.push(`未配分 ${remaining}件`);
+    if (remaining) pieces.push(`適正帯で未配分 ${remaining}件`);
     small.textContent = pieces.join(" · ");
     copy.append(strong, small);
     const count = document.createElement("span");
     count.className = "tribe-routine-count";
-    count.textContent = `${completed}/${planned || ALLIED_SOCIETY_DAILY_LIMIT}件完了`;
+    count.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}件完了`;
     summary.append(copy, count);
   }
 
@@ -318,17 +318,18 @@ function renderPlan() {
     } else {
       const empty = document.createElement("div");
       empty.className = "tribe-routine-loading";
-      empty.textContent = "Lv50〜99で経験値の適正帯に入る友好部族候補がありません。";
+      empty.textContent = "現在のジョブLvで経験値の適正帯に入る友好部族候補がありません。";
       list.replaceChildren(empty);
     }
   }
 
   if (progress) {
-    if (!planned) progress.textContent = "今日ここで優先する友好部族はありません。今日のプランへ進めます。";
-    else if (completed >= planned) progress.textContent = `今日の友好部族 ${completed}/${planned}件 完了。`;
-    else if (deferred) progress.textContent = `${completed}/${planned}件まで完了。残りは今日は保留にしています。`;
-    else if (rankupQuests) progress.textContent = `${completed}/${planned}件 完了。ランクアップ追加3件も1日合計12件の受注枠に含めています。`;
-    else progress.textContent = `${completed}/${planned}件 完了。3件単位で終えた部族をチェックできます。ランクアップした部族は追加3件へ振り替え可能です。`;
+    if (!planned) progress.textContent = "今日ここで優先する友好部族はありません。12件の受注上限は残っていますが、適正帯外の旧友好部族では穴埋めしません。";
+    else if (completed >= planned && planned < ALLIED_SOCIETY_DAILY_LIMIT) progress.textContent = `推奨分 ${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}件 完了。残り${ALLIED_SOCIETY_DAILY_LIMIT - completed}件の受注枠は、適正帯外の旧友好部族で自動補充しません。`;
+    else if (completed >= planned) progress.textContent = `今日の友好部族 ${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}件 完了。`;
+    else if (deferred) progress.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}件まで完了。残りは今日は保留にしています。`;
+    else if (rankupQuests) progress.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}件 完了。ランクアップ追加3件も1日合計12件の受注枠に含めています。`;
+    else progress.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}件 完了。3件単位で終えた部族をチェックできます。ランクアップした部族は追加3件へ振り替え可能です。`;
   }
   if (note) {
     const baseNote = currentPlan.note || "";
@@ -344,9 +345,11 @@ function renderPlan() {
 
   const status = panel?.querySelector("[data-tribe-tab-status]");
   if (status) {
-    if (!planned || completed >= planned) status.textContent = "✓ 完了";
-    else if (deferred) status.textContent = `${completed}/${planned} 保留`;
-    else status.textContent = `${completed}/${planned}`;
+    if (!planned) status.textContent = `0/${ALLIED_SOCIETY_DAILY_LIMIT}`;
+    else if (completed >= ALLIED_SOCIETY_DAILY_LIMIT) status.textContent = `✓ ${ALLIED_SOCIETY_DAILY_LIMIT}/${ALLIED_SOCIETY_DAILY_LIMIT}`;
+    else if (completed >= planned) status.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT} 推奨分完了`;
+    else if (deferred) status.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT} 保留`;
+    else status.textContent = `${completed}/${ALLIED_SOCIETY_DAILY_LIMIT}`;
   }
 }
 
@@ -518,14 +521,11 @@ function boot() {
   for (const delay of [0, 100, 350, 900, 1800]) {
     setTimeout(() => {
       ensureStep();
-      enforceAutomaticStep();
+      void refreshTribePlan();
+      setTimeout(enforceAutomaticStep, 80);
     }, delay);
   }
-  void refreshTribePlan();
-
-  for (const eventName of ["ff14today:context-saved", "ff14today:context-updated", "ff14today:inventory-evidence-updated"]) {
-    window.addEventListener(eventName, () => setTimeout(() => void refreshTribePlan(), 300));
-  }
+  window.addEventListener("ff14today:focus-changed", () => void refreshTribePlan());
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });

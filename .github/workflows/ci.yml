@@ -139,8 +139,9 @@ jobs:
       - name: Task board schedule rules
         run: node scripts/test-task-board-schedule.mjs
       - name: Browser boot regression
+        timeout-minutes: 8
         run: |
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
           npm run test:e2e
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"

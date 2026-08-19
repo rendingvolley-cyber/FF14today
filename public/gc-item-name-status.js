@@ -9,7 +9,7 @@
     style.textContent = `
       .gc-item-name-status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 5px;font-size:8px;font-weight:900;white-space:nowrap}
       .gc-item-name-status.corrected{background:#eaf6ef;color:#2e7251}
-      .gc-item-name-status.unverified{background:#fff3df;color:#8a6122}
+      .gc-item-name-status.unverified,.gc-item-name-status.level-band{background:#fff3df;color:#8a6122}
     `;
     document.head.append(style);
   }
@@ -31,7 +31,8 @@
       statusByName.set(name, {
         verified: row?.item_name_verified,
         resolution: String(row?.item_name_resolution || ""),
-        raw: String(row?.item_name_raw || "").trim()
+        raw: String(row?.item_name_raw || "").trim(),
+        levels: Array.isArray(row?.gc_supply_levels) ? row.gc_supply_levels.filter(Number.isFinite) : []
       });
     }
     queueApply();
@@ -50,7 +51,14 @@
       let text = "";
       let kind = "";
       let title = "";
-      if (status.raw && status.raw !== name) {
+      if (status.resolution === "gc_supply_level_unverified") {
+        text = "レベル帯未照合";
+        kind = "level-band";
+        const levelText = status.levels.length ? `（現在Lv: ${status.levels.join(" / ")}）` : "";
+        title = status.raw
+          ? `画像読取「${status.raw}」は、現在のジョブLvに対応するFF14の調達品候補と安全に一致しませんでした${levelText}。誤った品名は確定表示していません。`
+          : `現在のジョブLvに対応するFF14の調達品候補と照合できませんでした${levelText}。`;
+      } else if (status.raw && status.raw !== name) {
         text = "名称補正";
         kind = "corrected";
         title = `画像読取「${status.raw}」をFF14の確認済み名称「${name}」へ補正しました。`;

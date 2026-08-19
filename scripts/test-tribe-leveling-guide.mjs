@@ -29,9 +29,9 @@ const pelupelu = tribeGuideForJob({ code: "RDM", role: "caster", level: 92 });
 assert.equal(pelupelu.id, "pelupelu");
 assert.match(pelupelu.first_step, /新事業！ トラル旅行公司/);
 assert.match(pelupelu.first_step, /X:13\.6 Y:12\.9/);
+assert.equal(tribeGuideForJob({ code: "WAR", role: "tank", level: 100 })?.id, "pelupelu");
 
 assert.equal(tribeGuideForJob({ code: "BLU", role: "limited", level: 70 }), null);
-assert.equal(tribeGuideForJob({ code: "WAR", role: "tank", level: 100 }), null);
 assert.equal(tribeGuideForJob({ code: "ALC", role: "crafter", level: 90 }), null);
 
 const jobs = [
@@ -47,28 +47,26 @@ const jobs = [
 const daily = buildTribeDailyPlan({ jobs }, {
   focus: { combat: "RPR", craft: "ALC", gather: "BTN" }
 });
-assert.match(daily.version, /low-level-catchup/);
+assert.match(daily.version, /level-band-strict/);
 assert.equal(daily.daily_limit, ALLIED_SOCIETY_DAILY_LIMIT);
 assert.equal(daily.quests_per_society, ALLIED_SOCIETY_QUESTS_PER_GROUP);
 assert.equal(daily.planned_quests, 12);
 assert.equal(daily.remaining_quests, 0);
 assert.equal(daily.groups.length, 4);
 assert.ok(daily.groups.every(group => group.quests === 3));
-assert.equal(daily.groups.reduce((sum, group) => sum + group.quests, 0), daily.planned_quests);
+assert.ok(daily.groups.every(group => group.kind === "leveling" && group.conditional === false));
 assert.equal(new Set(daily.groups.map(group => group.society_id)).size, daily.groups.length);
 
-// Low-level catch-up wins over the currently selected higher-level jobs.
+// Combat/craft still catch up low jobs, but gathering follows the selected gathering job.
 assert.ok(daily.groups.some(group => ["kojin", "ananta"].includes(group.society_id) && group.target_job_code === "BLM" && group.target_job_level === 66));
 assert.ok(daily.groups.some(group => group.society_id === "dwarf" && group.target_job_code === "CRP" && group.target_job_level === 75));
-assert.ok(daily.groups.some(group => group.society_id === "qitari" && group.target_job_code === "FSH" && group.target_job_level === 72));
-assert.equal(daily.groups.some(group => group.target_job_code === "RPR"), false);
-assert.equal(daily.groups.some(group => group.target_job_code === "ALC"), false);
-assert.equal(daily.groups.some(group => group.target_job_code === "BTN"), false);
-assert.equal(daily.leveling_quests, 12);
+assert.ok(daily.groups.some(group => group.society_id === "mamool_ja" && group.target_job_code === "BTN" && group.target_job_level === 95));
+assert.equal(daily.groups.some(group => group.society_id === "omicron"), false);
+assert.equal(daily.groups.some(group => group.target_job_code === "FSH"), false);
 assert.equal(daily.conditional_quests, 0);
-assert.match(daily.note, /低いジョブ/);
+assert.match(daily.note, /適正帯外の旧友好部族/);
 
-// Focus remains only a tie-break when two eligible jobs are at the same level.
+// Focus remains a tie-break for combat when two eligible jobs share a level.
 const sameLevel = buildTribeDailyPlan({
   jobs: [
     { code: "DRG", name_ja: "竜騎士", role: "melee", level: 73 },
@@ -77,13 +75,56 @@ const sameLevel = buildTribeDailyPlan({
 }, { focus: { combat: "RPR" } });
 assert.ok(sameLevel.groups.some(group => group.society_id === "pixie" && group.target_job_code === "RPR"));
 
+// Old societies are never resurrected merely to fill 12 allowances.
 const onlyCombat = buildTribeDailyPlan({
   jobs: [{ code: "RPR", name_ja: "リーパー", role: "melee", level: 73 }]
 }, { focus: { combat: "RPR" } });
-assert.ok(onlyCombat.groups.some(group => group.society_id === "pixie" && group.kind === "leveling"));
-assert.ok(onlyCombat.groups.filter(group => group.conditional).every(group => group.kind === "progression"));
-assert.ok(onlyCombat.conditional_quests > 0);
-assert.ok(onlyCombat.planned_quests <= 12);
+assert.deepEqual(onlyCombat.groups.map(group => group.society_id), ["pixie"]);
+assert.equal(onlyCombat.planned_quests, 3);
+assert.equal(onlyCombat.remaining_quests, 9);
+assert.equal(onlyCombat.conditional_quests, 0);
+
+// MIN/BTN above 90 must use the current gathering society even when Fisher is still in the 80s.
+const gatherHigh = buildTribeDailyPlan({
+  jobs: [
+    { code: "MIN", name_ja: "採掘師", role: "gatherer", level: 91 },
+    { code: "BTN", name_ja: "園芸師", role: "gatherer", level: 95 },
+    { code: "FSH", name_ja: "漁師", role: "gatherer", level: 84 }
+  ]
+}, { focus: { gather: "BTN" } });
+assert.ok(gatherHigh.groups.some(group => group.society_id === "mamool_ja" && group.target_job_code === "BTN"));
+assert.equal(gatherHigh.groups.some(group => group.society_id === "omicron"), false);
+
+// Without an explicit gathering focus, MIN/BTN are the default basis and a low Fisher does not drag the plan backwards.
+const gatherDefault = buildTribeDailyPlan({
+  jobs: [
+    { code: "MIN", name_ja: "採掘師", role: "gatherer", level: 91 },
+    { code: "BTN", name_ja: "園芸師", role: "gatherer", level: 95 },
+    { code: "FSH", name_ja: "漁師", role: "gatherer", level: 84 }
+  ]
+});
+assert.ok(gatherDefault.groups.some(group => group.society_id === "mamool_ja" && group.target_job_code === "MIN"));
+assert.equal(gatherDefault.groups.some(group => group.society_id === "omicron"), false);
+
+// Fisher can still intentionally use Omicron when Fisher itself is selected and in the 80s.
+const fisherFocused = buildTribeDailyPlan({
+  jobs: [
+    { code: "MIN", name_ja: "採掘師", role: "gatherer", level: 91 },
+    { code: "BTN", name_ja: "園芸師", role: "gatherer", level: 95 },
+    { code: "FSH", name_ja: "漁師", role: "gatherer", level: 84 }
+  ]
+}, { focus: { gather: "FSH" } });
+assert.ok(fisherFocused.groups.some(group => group.society_id === "omicron" && group.target_job_code === "FSH"));
+assert.equal(fisherFocused.groups.some(group => group.society_id === "mamool_ja"), false);
+
+const gatherCap = buildTribeDailyPlan({
+  jobs: [
+    { code: "MIN", name_ja: "採掘師", role: "gatherer", level: 100 },
+    { code: "BTN", name_ja: "園芸師", role: "gatherer", level: 100 }
+  ]
+}, { focus: { gather: "MIN" } });
+assert.ok(gatherCap.groups.some(group => group.society_id === "mamool_ja"));
+assert.equal(gatherCap.groups.some(group => group.society_id === "omicron"), false);
 
 const limitedOnly = buildTribeDailyPlan({
   jobs: [{ code: "BLU", name_ja: "青魔道士", role: "limited", level: 80 }]

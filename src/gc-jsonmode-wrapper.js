@@ -1,6 +1,7 @@
 import app from "./gc-jsonmode-core-wrapper.js";
 import { chooseGrandCompanyDelivery, decorateGrandCompanyDelivery } from "./grand-company-deliveries.js";
 import { canonicalizeGrandCompanyDeliveries } from "./gc-item-name-canonicalizer.js";
+import { validateGrandCompanySupplyDutyDeliveries } from "./gc-supply-duty-band-validator.js";
 import {
   gcAnalysisBudgetToken,
   mergeGcPagePayloads,
@@ -8,6 +9,7 @@ import {
   normalizeGcPageKind
 } from "./gc-two-page.js";
 
+const LODESTONE_ID = "3091607";
 let schemaReady = null;
 
 function json(data, status = 200) {
@@ -93,14 +95,35 @@ async function readPages(env, hash) {
   return pages;
 }
 
-async function canonicalizePages(pages) {
+async function loadCurrentJobs(request, env) {
+  try {
+    const stateUrl = new URL("/api/state", request.url);
+    stateUrl.searchParams.set("lodestone_id", LODESTONE_ID);
+    stateUrl.searchParams.set("planner_mode", "efficient");
+    const headers = new Headers();
+    const token = request.headers.get("x-profile-token");
+    if (token) headers.set("x-profile-token", token);
+    const response = await app.fetch(new Request(stateUrl, { method: "GET", headers }), env);
+    if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return [];
+    const data = await response.json();
+    return Array.isArray(data?.character?.jobs) ? data.character.jobs : [];
+  } catch {
+    return [];
+  }
+}
+
+async function canonicalizePages(pages, jobs) {
   const next = { crafting: pages?.crafting || null, gathering: pages?.gathering || null };
   for (const kind of ["crafting", "gathering"]) {
     const page = pages?.[kind];
     if (!page) continue;
+    const canonical = await canonicalizeGrandCompanyDeliveries(page.deliveries);
     next[kind] = {
       ...page,
-      deliveries: await canonicalizeGrandCompanyDeliveries(page.deliveries)
+      deliveries: await validateGrandCompanySupplyDutyDeliveries(canonical, {
+        jobs,
+        pageKind: kind
+      })
     };
   }
   return next;
@@ -183,6 +206,8 @@ function deliveryResponse(pages) {
   ];
   const observed = [pages?.crafting?.observed_at, pages?.gathering?.observed_at].filter(Boolean).sort().at(-1) || null;
   const company = pages?.crafting?.company_name || pages?.gathering?.company_name || null;
+  const verified = decorated.filter(row => row.gc_supply_level_verified === true);
+  const unverifiedCount = decorated.length - verified.length;
   return {
     ok: true,
     setup_required: decorated.length === 0,
@@ -190,6 +215,8 @@ function deliveryResponse(pages) {
     observed_at: observed,
     page_status: pageStatus,
     missing_pages: missingPages,
+    gc_supply_level_validation: true,
+    gc_supply_level_unverified_count: unverifiedCount,
     pages: {
       crafting: pages?.crafting ? { page_kind: "crafting", observed_at: pages.crafting.observed_at, count: crafting.length } : null,
       gathering: pages?.gathering ? { page_kind: "gathering", observed_at: pages.gathering.observed_at, count: gathering.length } : null
@@ -197,18 +224,23 @@ function deliveryResponse(pages) {
     crafting_deliveries: crafting,
     gathering_deliveries: gathering,
     deliveries: decorated,
-    recommended: chooseGrandCompanyDelivery(decorated),
-    message: missingPages.length
-      ? `未登録のページがあります：${missingPages.includes("crafting") ? "製作" : ""}${missingPages.length === 2 ? "・" : ""}${missingPages.includes("gathering") ? "採集" : ""}`
-      : "製作ページと採集ページを登録済みです。"
+    recommended: chooseGrandCompanyDelivery(verified),
+    message: unverifiedCount
+      ? `${unverifiedCount}件は現在のジョブLvに対応するFF14調達品データと一致しないため、品名を確定表示していません。`
+      : missingPages.length
+        ? `未登録のページがあります：${missingPages.includes("crafting") ? "製作" : ""}${missingPages.length === 2 ? "・" : ""}${missingPages.includes("gathering") ? "採集" : ""}`
+        : "製作ページと採集ページを登録済みです。表示品名は現在のジョブLvのFF14調達品データと照合済みです。"
   };
 }
 
 async function handleGetDeliveries(request, env) {
   const hash = await profileHash(request);
   if (!hash) return app.fetch(request, env);
-  const pages = await readPages(env, hash);
-  const canonicalPages = await canonicalizePages(pages);
+  const [pages, jobs] = await Promise.all([
+    readPages(env, hash),
+    loadCurrentJobs(request, env)
+  ]);
+  const canonicalPages = await canonicalizePages(pages, jobs);
   return json(deliveryResponse(canonicalPages));
 }
 
@@ -253,7 +285,13 @@ export default {
       let data;
       try { data = await response.clone().json(); }
       catch { return response; }
-      return json({ ...data, gc_two_page_delivery_context: true, gc_item_name_canonicalization: true }, response.status);
+      return json({
+        ...data,
+        gc_two_page_delivery_context: true,
+        gc_item_name_canonicalization: true,
+        gc_supply_level_validation: true,
+        gc_supply_level_source: "XIVAPI GCSupplyDuty"
+      }, response.status);
     }
     return response;
   }
