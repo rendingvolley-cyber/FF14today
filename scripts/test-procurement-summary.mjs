@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { marketSnapshot } from "../src/procurement-market.js";
 import { aggregateSelectedDeliveries, deliveryKey, marketLine } from "../public/gc-procurement-summary-core.js";
 
@@ -65,8 +66,17 @@ assert.equal(summary.finished_buy_gil, 20000);
 assert.equal(summary.craft_raw_gil, 7000);
 assert.equal(summary.recommended_gil, 7000);
 assert.deepEqual(summary.materials, [
-  { item_id: 2, item_name: "革", quantity: 1, total_gil: 500, priced: true },
-  { item_id: 1, item_name: "鉄鉱", quantity: 10, total_gil: 2000, priced: true }
+  { item_id: 2, item_name: "革", quantity: 1, total_gil: 500, priced: true, unit_gil: 500 },
+  { item_id: 1, item_name: "鉄鉱", quantity: 10, total_gil: 2000, priced: true, unit_gil: 200 }
 ]);
+
+const ui = readFileSync(new URL("../public/gc-procurement-summary.js", import.meta.url), "utf8");
+assert.match(ui, /製作に必要な素材一覧/);
+assert.match(ui, /合計必要数/);
+assert.match(ui, /目安単価/);
+assert.match(ui, /小計/);
+assert.match(ui, /製作を全選択/);
+assert.match(ui, /summary\.crafting_selected_count/);
+assert.doesNotMatch(ui, /必要素材 合算：/);
 
 console.log("procurement summary tests: ok");
