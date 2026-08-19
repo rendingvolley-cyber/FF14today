@@ -52,11 +52,14 @@ assert.deepEqual(aggregateMaterialRequirements(deliveries, "raw_materials"), [
   { item_id: 500, item_name: "原料E", quantity: 5 }
 ]);
 
-const entry = readFileSync(new URL("../src/hunt-entry.js", import.meta.url), "utf8");
+const entry = readFileSync(new URL("../src/gc-top3-entry.js", import.meta.url), "utf8");
+const outerEntry = readFileSync(new URL("../src/hunt-entry.js", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../public/gc-material-requirements.js", import.meta.url), "utf8");
 assert.match(entry, /\/api\/grand-company\/recipe-materials/);
 assert.match(entry, /gc-material-requirements-v2-20260819/);
+assert.match(entry, /gc-material-requirements\.js\?v=/);
 assert.match(entry, /gc_recipe_material_price_independent:\s*true/);
+assert.doesNotMatch(outerEntry, /grandCompanyMaterialRequirements/);
 assert.match(ui, /製作に必要な素材一覧/);
 assert.match(ui, /相場が取れなくても素材数は残します/);
 assert.match(ui, /レシピ素材/);
