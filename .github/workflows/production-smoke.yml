@@ -92,6 +92,14 @@ jobs:
           if (!snapshot.hasPlanner) throw new Error('#planner is missing');
           if (!snapshot.hasHunt || !snapshot.huntText.includes('今日のモブハント')) throw new Error('hunt section is not rendered in browser');
           if (pageErrors.length) throw new Error(`pageerror: ${pageErrors.join(' | ')}`);
+
+          const uploadButton = page.locator('[data-hunt-file-open]');
+          await uploadButton.waitFor({ state: 'visible', timeout: 5000 });
+          const chooserPromise = page.waitForEvent('filechooser', { timeout: 5000 });
+          await uploadButton.click();
+          await chooserPromise;
+          console.log('hunt upload button opened file chooser');
+
           await page.screenshot({ path: 'production-smoke.png', fullPage: true });
           await browser.close();
           NODE
@@ -114,7 +122,7 @@ jobs:
         run: |
           if [[ "$HTTP_OUTCOME" == "success" && "$BROWSER_OUTCOME" == "success" ]]; then
             state="success"
-            description="Production HTTP + browser smoke passed"
+            description="Production HTTP + browser + hunt upload smoke passed"
           else
             state="failure"
             description="Production HTTP/browser smoke failed"
