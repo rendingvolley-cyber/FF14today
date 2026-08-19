@@ -54,6 +54,7 @@ assert.deepEqual(aggregateMaterialRequirements(deliveries, "raw_materials"), [
 
 const entry = readFileSync(new URL("../src/gc-top3-entry.js", import.meta.url), "utf8");
 const outerEntry = readFileSync(new URL("../src/hunt-entry.js", import.meta.url), "utf8");
+const server = readFileSync(new URL("../src/gc-material-requirements.js", import.meta.url), "utf8");
 const index = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../public/gc-material-requirements.js", import.meta.url), "utf8");
 assert.match(entry, /\/api\/grand-company\/recipe-materials/);
@@ -67,5 +68,11 @@ assert.match(ui, /相場が取れなくても素材数は残します/);
 assert.match(ui, /レシピ素材/);
 assert.match(ui, /原材料まで展開/);
 assert.match(ui, /data-gc-material-requirements-panel/);
+assert.match(server, /Name@lang\(ja\)/, "material names must be explicitly requested in Japanese from XIVAPI");
+assert.match(server, /japanese_item_names_required:\s*true/);
+assert.match(server, /素材名取得失敗/);
+assert.doesNotMatch(server, /`Item \$\{Number\(itemId\)\}`/, "server must not fabricate raw Item IDs as material labels");
+assert.doesNotMatch(ui, /`Item \$\{row\.item_id\}`/, "UI must never display raw XIVAPI item IDs as material names");
+assert.match(ui, /英語名や内部IDは表示せず/);
 
 console.log("GC recipe material requirements: ok");
