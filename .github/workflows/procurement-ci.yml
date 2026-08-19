@@ -24,12 +24,14 @@ jobs:
           node --check src/task-board-recovery.js
           node --check src/procurement-market.js
           node --check src/gc-procurement-summary.js
+          node --check src/gc-material-requirements.js
           node --check src/gc-market-fallback.js
           node --check src/gc-market-fallback-wrapper.js
           node --check src/gc-top3-entry.js
           node --check src/leve-reward-market-comparison.js
           node --check public/gc-procurement-summary-core.js
           node --check public/gc-procurement-summary.js
+          node --check public/gc-material-requirements.js
           node --check public/craft-procurement-summary-core.js
           node --check public/craft-procurement-summary.js
           node --check public/procurement-shopping-list-core.js
@@ -38,6 +40,7 @@ jobs:
           node --check scripts/test-task-board-recovery-mode-guard.mjs
           node --check scripts/test-live-craft-outer-policy.mjs
           node --check scripts/test-procurement-summary.mjs
+          node --check scripts/test-gc-material-requirements.mjs
           node --check scripts/test-craft-procurement-summary.mjs
           node --check scripts/test-procurement-shopping-list.mjs
           node --check scripts/test-leve-reward-market-comparison.mjs
@@ -50,6 +53,8 @@ jobs:
         run: node scripts/test-live-craft-outer-policy.mjs
       - name: Grand Company procurement aggregation
         run: node scripts/test-procurement-summary.mjs
+      - name: Grand Company recipe material quantities
+        run: node scripts/test-gc-material-requirements.mjs
       - name: Grand Company comparison fallback
         run: node scripts/test-gc-comparison-fallback.mjs
       - name: Craft procurement aggregation
