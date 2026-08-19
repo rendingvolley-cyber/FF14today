@@ -5,6 +5,7 @@ import {
   buildSupplyDutyOcrDictionary,
   buildSupplyDutyOcrPrompt,
   grandCompanyDictionarySchema,
+  materializeSupplyDutyDictionaryNames,
   shouldReuseDictionaryOcrCache
 } from "../src/gc-supply-duty-ocr-dictionary.js";
 
@@ -68,26 +69,57 @@ assert.match(decodeURIComponent(requestedUrl), /rows=90,91/);
 assert.doesNotMatch(requestedUrl, /96/);
 
 const prompt = buildSupplyDutyOcrPrompt(dictionary);
-assert.match(prompt, /item_name は自由記述ではありません/);
+assert.match(prompt, /品名を自由記述してはいけません/);
 assert.match(prompt, /FF14公式データ由来候補/);
+assert.match(prompt, /item_index/);
 assert.match(prompt, /候補にない文字列をOCR結果として作らない/);
 assert.match(prompt, /英語への翻訳/);
 assert.match(prompt, /Item 12345/);
-assert.match(prompt, /コンドライトインゴット/);
+assert.match(prompt, /2: コンドライトインゴット/);
 
 const schema = grandCompanyDictionarySchema(dictionary);
-const itemEnum = schema.properties.deliveries.items.properties.item_name.enum;
-assert.deepEqual(itemEnum, dictionary.item_names);
-assert.equal(itemEnum.includes("Item 36210"), false);
-assert.equal(itemEnum.includes("Ambrosial Water"), false);
-assert.equal(itemEnum.includes("Water Crystal"), false);
+const itemIndex = schema.properties.deliveries.items.properties.item_index;
+assert.equal(itemIndex.type, "integer");
+assert.equal(itemIndex.minimum, 0);
+assert.equal(itemIndex.maximum, dictionary.item_names.length - 1);
+assert.equal(schema.properties.deliveries.maxItems, 20);
+assert.equal("item_name" in schema.properties.deliveries.items.properties, false, "Gemini schema must never accept a free-form item name");
+const schemaText = JSON.stringify(schema);
+assert.doesNotMatch(schemaText, /コンドライトインゴット|Ambrosial Water|Item 36210/, "candidate names must stay in the prompt, not explode schema serving states");
+
+const materialized = materializeSupplyDutyDictionaryNames({
+  recognized: true,
+  confidence: 0.94,
+  deliveries: [
+    {
+      item_index: 2,
+      requested_quantity: 1,
+      owned_quantity: 0,
+      starred: false,
+      confidence: 0.95
+    },
+    {
+      item_index: 999,
+      requested_quantity: 1,
+      owned_quantity: 0,
+      starred: false,
+      confidence: 0.99
+    }
+  ]
+}, dictionary);
+assert.equal(materialized.recognized, true);
+assert.equal(materialized.deliveries.length, 1, "out-of-range indexes must fail closed");
+assert.equal(materialized.deliveries[0].item_name, "コンドライトインゴット");
+assert.equal(materialized.deliveries[0].class_or_job, null);
+assert.equal(materialized.deliveries[0].bonus_text, null);
+assert.equal(materialized.deliveries[0].reward_text, null);
 
 const signature = "dictionary-signature";
 assert.equal(shouldReuseDictionaryOcrCache({
   page_type: "grand_company_deliveries",
-  parser_version: "supply-duty-v2",
+  parser_version: "supply-duty-v3-item-dictionary",
   ocr_dictionary_signature: signature
-}, signature), false, "old free-OCR cache must be invalidated");
+}, signature), false, "old enum-schema cache must be invalidated");
 assert.equal(shouldReuseDictionaryOcrCache({
   page_type: "grand_company_deliveries",
   parser_version: GC_SUPPLY_DUTY_OCR_PARSER_VERSION,
@@ -136,11 +168,13 @@ assert.match(
   "the dictionary-constrained recognizer must sit directly before the legacy free-form GC parser"
 );
 assert.match(wrapperSource, /responseJsonSchema: grandCompanyDictionarySchema\(dictionary\)/);
+assert.match(wrapperSource, /materializeSupplyDutyDictionaryNames\(parsed, dictionary\)/);
+assert.match(wrapperSource, /ocr_dictionary_transport: "item_index"/);
 assert.match(wrapperSource, /temperature: 0/);
 assert.match(wrapperSource, /gc_ocr_dictionary_required: true/);
 assert.match(wrapperSource, /shouldReuseDictionaryOcrCache/);
 assert.match(wrapperSource, /FROM character_state/);
 assert.match(wrapperSource, /OWNER_LODESTONE_ID/);
-assert.doesNotMatch(wrapperSource, /item_name:\s*\{\s*type:\s*"string"\s*\}/, "free-form item_name schema must not return");
+assert.doesNotMatch(wrapperSource, /item_name:\s*\{\s*type:\s*"string"/, "free-form item_name schema must not return");
 
-console.log("GC supply-duty OCR is constrained by the current FF14 item dictionary before legacy OCR can run");
+console.log("GC supply-duty OCR uses FF14 candidate indexes without a large serving-state enum");
