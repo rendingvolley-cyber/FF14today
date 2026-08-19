@@ -5,6 +5,7 @@ import {
   buildSupplyDutyOcrDictionary,
   buildSupplyDutyOcrPrompt,
   grandCompanyDictionarySchema,
+  materializeSupplyDutyDictionaryNames,
   shouldReuseDictionaryOcrCache
 } from "./gc-supply-duty-ocr-dictionary.js";
 
@@ -276,7 +277,8 @@ async function analyzeWithDictionary(file, bytes, env, dictionary, dictionarySig
     throw error;
   }
 
-  const analysis = sanitizeGrandCompanyAnalysis(parsed, model);
+  const materialized = materializeSupplyDutyDictionaryNames(parsed, dictionary);
+  const analysis = sanitizeGrandCompanyAnalysis(materialized, model);
   return {
     ...analysis,
     parser_version: GC_SUPPLY_DUTY_OCR_PARSER_VERSION,
@@ -284,7 +286,8 @@ async function analyzeWithDictionary(file, bytes, env, dictionary, dictionarySig
     ocr_dictionary_page_kind: dictionary.page_kind,
     ocr_dictionary_levels: dictionary.levels,
     ocr_dictionary_candidate_count: dictionary.item_names.length,
-    ocr_dictionary_constrained: true
+    ocr_dictionary_constrained: true,
+    ocr_dictionary_transport: "item_index"
   };
 }
 
