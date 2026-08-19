@@ -37,13 +37,6 @@ function noStore(response) {
   });
 }
 
-function displayName(row) {
-  const base = row?.item_name || row?.item_name_en || "交換品";
-  if (row?.recommendation_strength === "fallback") return `${base}（条件弱め）`;
-  if (row?.recommendation_strength === "secondary") return `${base}（次点）`;
-  return base;
-}
-
 async function topThreeResponse(response) {
   if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) return response;
   let data;
@@ -52,7 +45,7 @@ async function topThreeResponse(response) {
   const recommendations = Array.isArray(data?.recommendations)
     ? data.recommendations.slice(0, 3).map((row, index) => ({
       ...row,
-      item_name: displayName(row),
+      item_name: row?.item_name || row?.item_name_en || "交換品",
       rank: index + 1
     }))
     : [];
@@ -61,7 +54,7 @@ async function topThreeResponse(response) {
     recommendations,
     recommendation_limit: 3,
     message: recommendations.length
-      ? `軍票交換は市場データのある上位${recommendations.length}件を表示しています。条件を満たさない次点は明示しています。`
+      ? `軍票交換は、300個を3日以内に捌ける実売速度を満たす候補だけを1日実売数順で上位${recommendations.length}件表示しています。`
       : data?.message
   }, response.status);
 }
@@ -152,6 +145,7 @@ export default {
       return json({
         ...data,
         gc_seal_recommendation_limit: 3,
+        gc_seal_velocity_hard_gate: true,
         gc_procurement_summary: true,
         gc_procurement_market_world: "Chocobo",
         gc_item_name_status_ui: true,
