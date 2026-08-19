@@ -1,4 +1,4 @@
-import app from "./task-board-recovery-wrapper.js";
+import app from "./gc-supply-duty-dictionary-recognition-wrapper.js";
 import { localizeGuildlevePlan } from "./plan-japanese-wrapper.js";
 
 function json(data, status = 200) {
