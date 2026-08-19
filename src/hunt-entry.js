@@ -82,7 +82,9 @@ export default {
         daily_hunt_ui_version: HUNT_UI_VERSION
       }, response.status);
     }
-    if (url.pathname === "/hunt-section.js" && request.method === "GET") return noStore(response);
+    if (url.pathname === "/hunt-section.js" && request.method === "GET") {
+      return noStore(response);
+    }
     if (request.method === "GET") return injectHuntUi(response);
     return response;
   }

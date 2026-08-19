@@ -1,4 +1,5 @@
 import app from "./gc-supply-duty-entry.js";
+import { grandCompanyMaterialRequirements } from "./gc-material-requirements.js";
 import { grandCompanyProcurementSummaryResponse } from "./gc-procurement-summary.js";
 import { augmentStateResponse, liveFeedResponse } from "./task-board-live-catalog.js";
 import { seedCatalogPlan } from "./task-board-null-plan-recovery.js";
@@ -9,6 +10,7 @@ import { augmentLeveRewardMarketResponse } from "./leve-reward-market-comparison
 
 const TIME_SENSITIVE_LAYOUT_VERSION = "stacked-v3-20260815";
 const PROCUREMENT_UI_VERSION = "gc-procurement-v1-20260815";
+const GC_MATERIAL_UI_VERSION = "gc-material-requirements-v2-20260819";
 const CRAFT_PROCUREMENT_UI_VERSION = "craft-procurement-v2-20260816";
 const SHOPPING_LIST_UI_VERSION = "procurement-shopping-v1-20260815";
 const TASK_BOARD_NO_SCHEDULE_VERSION = "task-board-no-schedule-v1-20260816";
@@ -113,6 +115,10 @@ export default {
     if (url.pathname === "/api/grand-company/procurement-summary" && request.method === "GET") {
       return grandCompanyProcurementSummaryResponse(request, env, app);
     }
+    if (url.pathname === "/api/grand-company/recipe-materials" && request.method === "GET") {
+      const result = await grandCompanyMaterialRequirements(request, env, app);
+      return json(result.data, result.status);
+    }
     if (url.pathname === "/api/leve/cost-advice" && request.method === "GET") {
       const response = await app.fetch(request, env);
       return augmentLeveRewardMarketResponse(request, response);
@@ -126,6 +132,7 @@ export default {
          url.pathname === "/gc-item-name-status.js" ||
          url.pathname === "/gc-procurement-summary.js" ||
          url.pathname === "/gc-procurement-summary-core.js" ||
+         url.pathname === "/gc-material-requirements.js" ||
          url.pathname === "/craft-procurement-summary.js" ||
          url.pathname === "/craft-procurement-summary-core.js" ||
          url.pathname === "/procurement-shopping-list.js" ||
@@ -149,6 +156,9 @@ export default {
         gc_procurement_summary: true,
         gc_procurement_market_world: "Chocobo",
         gc_item_name_status_ui: true,
+        gc_recipe_material_requirements: true,
+        gc_recipe_material_price_independent: true,
+        gc_recipe_material_ui_version: GC_MATERIAL_UI_VERSION,
         craft_leve_procurement_summary: true,
         craft_leve_reward_market_compare: true,
         procurement_shopping_list: true,
