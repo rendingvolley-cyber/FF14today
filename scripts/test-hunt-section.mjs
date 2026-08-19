@@ -7,6 +7,7 @@ const service = readFileSync(new URL("../src/hunt-service.js", import.meta.url),
 const ui = readFileSync(new URL("../public/hunt-section.js", import.meta.url), "utf8");
 
 assert.equal(wrangler.main, "src/hunt-entry.js", "hunt wrapper must remain the deployed Worker entrypoint");
+assert.deepEqual(wrangler.assets?.run_worker_first, ["/", "/index.html"], "the app shell must pass through the hunt wrapper before static asset serving");
 assert.match(entry, /import app from "\.\/gc-top3-entry\.js"/, "hunt integration must wrap, not replace, the existing production entry");
 assert.match(entry, /\/api\/hunts\/today/);
 assert.match(entry, /\/api\/hunts\/recognize/);
