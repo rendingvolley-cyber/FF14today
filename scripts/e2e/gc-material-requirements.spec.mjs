@@ -1,34 +1,70 @@
 import { test, expect } from "@playwright/test";
 
+const materialFixture = {
+  ok: true,
+  company_name: "双蛇党",
+  crafting_count: 2,
+  actionable_count: 2,
+  resolved_count: 2,
+  unresolved_count: 0,
+  unresolved: [],
+  deliveries: [],
+  aggregate: {
+    direct_materials: [
+      { item_id: 1, item_name: "オルコクロマイトインゴット", quantity: 5 },
+      { item_id: 2, item_name: "ガルガンチュアレザー", quantity: 2 }
+    ],
+    raw_materials: [
+      { item_id: 3, item_name: "オルコクロマイト", quantity: 15 },
+      { item_id: 4, item_name: "獣皮", quantity: 4 }
+    ]
+  },
+  market_price_independent: true
+};
+
+function apiFixture(pathname) {
+  if (pathname === "/api/grand-company/recipe-materials") return materialFixture;
+  if (pathname === "/api/state") return { character: null, preferences: {}, plan: null };
+  if (pathname === "/api/achievements") return {};
+  if (pathname === "/api/activity/today") return { count: 0 };
+  if (pathname === "/api/hunts/today") return {
+    ok: true,
+    today: { total_count: 0, completed_count: 0, remaining_count: 0, remaining_areas: 0, estimated_minutes: 0, total_exp_reward: 0, groups: [] }
+  };
+  if (pathname === "/api/grand-company/deliveries") return {
+    ok: true,
+    setup_required: false,
+    company_name: "双蛇党",
+    deliveries: [],
+    crafting_deliveries: [],
+    gathering_deliveries: [],
+    page_status: { crafting: false, gathering: false }
+  };
+  if (pathname === "/api/grand-company/delivery-costs" || pathname === "/api/grand-company/procurement-summary") {
+    return { ok: true, deliveries: [], recommendation: null };
+  }
+  return null;
+}
+
 test("GC recipe material panel renders under today's delivery list", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
-  await page.route("**/api/grand-company/recipe-materials", async route => {
+  await page.route("**/api/**", async route => {
+    const url = new URL(route.request().url());
+    const fixture = apiFixture(url.pathname);
+    if (fixture !== null) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify(fixture)
+      });
+      return;
+    }
     await route.fulfill({
-      status: 200,
+      status: 503,
       contentType: "application/json; charset=utf-8",
-      body: JSON.stringify({
-        ok: true,
-        company_name: "双蛇党",
-        crafting_count: 2,
-        actionable_count: 2,
-        resolved_count: 2,
-        unresolved_count: 0,
-        unresolved: [],
-        deliveries: [],
-        aggregate: {
-          direct_materials: [
-            { item_id: 1, item_name: "オルコクロマイトインゴット", quantity: 5 },
-            { item_id: 2, item_name: "ガルガンチュアレザー", quantity: 2 }
-          ],
-          raw_materials: [
-            { item_id: 3, item_name: "オルコクロマイト", quantity: 15 },
-            { item_id: 4, item_name: "獣皮", quantity: 4 }
-          ]
-        },
-        market_price_independent: true
-      })
+      body: JSON.stringify({ error: "e2e_external_api_blocked" })
     });
   });
 
