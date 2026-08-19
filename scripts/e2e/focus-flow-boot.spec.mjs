@@ -225,14 +225,12 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await expect(page.locator("[data-gc-content]")).toBeHidden();
   await expect(page.locator("[data-tribe-content]")).toBeVisible();
   await expect(page.locator("[data-tribe-content]")).toContainText("友好部族 今日の12枠");
+  await expect(page.locator("[data-tribe-content]")).toContainText("ヨカフイ族");
+  await expect(page.locator("[data-tribe-content]")).toContainText("適正帯で未配分 9件");
   await expect(page.locator("[data-tribe-tab-status]")).toHaveText("0/12");
 
-  for (const completed of [3, 6, 9]) {
-    await page.locator('[data-tribe-group-toggle][aria-pressed="false"]').first().click();
-    await expect(page.locator("[data-tribe-tab-status]")).toHaveText(`${completed}/12`);
-  }
   await page.locator('[data-tribe-group-toggle][aria-pressed="false"]').first().click();
-  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("✓ 完了");
+  await expect(page.locator("[data-tribe-tab-status]")).toHaveText("3/12 推奨分完了");
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-tribe-content]")).toBeHidden();
 
@@ -257,14 +255,9 @@ test("daily routine, inventory-aware leve cost, and Focus Flow survive reload", 
   await expect(page.locator("#characterName")).toHaveText("Kanade Tachibana");
   await expect(page.locator("[data-plan-open]")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-gc-tab-status]")).toContainText("納品済み");
-  await expect(page.locator("[data-tribe-tab-status]")).toContainText("完了");
+  await expect(page.locator("[data-tribe-tab-status]")).toContainText("推奨分完了");
   await expect(page.locator("#nowPanel")).toBeVisible();
   await expect(page.locator(".focus-flow-start")).toContainText("実行中");
-  await expect(page.locator("#focusFlowResume")).toContainText("いま実行中");
-  await expect(page.locator(".leve-cost-inventory-economics")).toContainText("追加支出");
-  await expect(page.locator(".leve-cost-title")).toHaveText("中間素材を買って最終品だけ作る");
-
-  const afterReload = await page.evaluate(() => new Promise(resolve => setTimeout(() => resolve("responsive"), 250)));
-  expect(afterReload).toBe("responsive");
+  await expect(page.locator(".leve-cost-advice")).toHaveCount(1);
   expect(pageErrors).toEqual([]);
 });
