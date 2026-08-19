@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { sanitizeGrandCompanyAnalysis } from "../src/grand-company-deliveries.js";
 import {
   GC_SUPPLY_DUTY_OCR_PARSER_VERSION,
   buildSupplyDutyOcrDictionary,
@@ -76,6 +77,9 @@ assert.match(prompt, /候補にない文字列をOCR結果として作らない/
 assert.match(prompt, /英語への翻訳/);
 assert.match(prompt, /Item 12345/);
 assert.match(prompt, /2: コンドライトインゴット/);
+assert.match(prompt, /1行も省略せず/);
+assert.match(prompt, /自信が低い行も省略しない/);
+assert.doesNotMatch(prompt, /deliveries から省略/);
 
 const schema = grandCompanyDictionarySchema(dictionary);
 const itemIndex = schema.properties.deliveries.items.properties.item_index;
@@ -108,13 +112,55 @@ const materialized = materializeSupplyDutyDictionaryNames({
   ]
 }, dictionary);
 assert.equal(materialized.recognized, true);
+assert.equal(materialized.dictionary_constrained, true);
 assert.equal(materialized.deliveries.length, 1, "out-of-range indexes must fail closed");
 assert.equal(materialized.deliveries[0].item_name, "コンドライトインゴット");
 assert.equal(materialized.deliveries[0].class_or_job, null);
 assert.equal(materialized.deliveries[0].bonus_text, null);
 assert.equal(materialized.deliveries[0].reward_text, null);
 
+const almastyDictionary = {
+  page_kind: "crafting",
+  levels: [82],
+  item_names: ["アルマスティ・ストライカーヘッドバンド"]
+};
+const lowConfidenceAlmasty = materializeSupplyDutyDictionaryNames({
+  recognized: true,
+  confidence: 0.91,
+  deliveries: [{
+    item_index: 0,
+    requested_quantity: 1,
+    owned_quantity: 0,
+    starred: false,
+    confidence: 0.42
+  }]
+}, almastyDictionary);
+const preservedAlmasty = sanitizeGrandCompanyAnalysis(lowConfidenceAlmasty, "test-model");
+assert.equal(preservedAlmasty.page_type, "grand_company_deliveries");
+assert.equal(preservedAlmasty.grand_company_deliveries.deliveries.length, 1, "dictionary-constrained visible rows must not disappear only because confidence is below 0.65");
+assert.equal(preservedAlmasty.grand_company_deliveries.deliveries[0].item_name, "アルマスティ・ストライカーヘッドバンド");
+assert.equal(preservedAlmasty.grand_company_deliveries.deliveries[0].confidence, 0.42);
+
+const genericLowConfidence = sanitizeGrandCompanyAnalysis({
+  recognized: true,
+  confidence: 0.91,
+  deliveries: [{
+    item_name: "アルマスティ・ストライカーヘッドバンド",
+    requested_quantity: 1,
+    owned_quantity: 0,
+    starred: false,
+    confidence: 0.42
+  }]
+}, "test-model");
+assert.equal(genericLowConfidence.page_type, "unknown", "non-dictionary OCR must retain the existing confidence safety gate");
+
 const signature = "dictionary-signature";
+assert.equal(GC_SUPPLY_DUTY_OCR_PARSER_VERSION, "supply-duty-v5-preserve-visible-rows");
+assert.equal(shouldReuseDictionaryOcrCache({
+  page_type: "grand_company_deliveries",
+  parser_version: "supply-duty-v4-item-index-dictionary",
+  ocr_dictionary_signature: signature
+}, signature), false, "old v4 cache that may have omitted a visible row must be invalidated");
 assert.equal(shouldReuseDictionaryOcrCache({
   page_type: "grand_company_deliveries",
   parser_version: "supply-duty-v3-item-dictionary",
@@ -177,4 +223,4 @@ assert.match(wrapperSource, /FROM character_state/);
 assert.match(wrapperSource, /OWNER_LODESTONE_ID/);
 assert.doesNotMatch(wrapperSource, /item_name:\s*\{\s*type:\s*"string"/, "free-form item_name schema must not return");
 
-console.log("GC supply-duty OCR uses FF14 candidate indexes without a large serving-state enum");
+console.log("GC supply-duty OCR preserves all visible FF14 dictionary rows without free-form item names");

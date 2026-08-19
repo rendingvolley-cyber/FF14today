@@ -16,6 +16,7 @@ function clampConfidence(value) {
 }
 
 export function sanitizeGrandCompanyAnalysis(parsed, model = null) {
+  const dictionaryConstrained = parsed?.dictionary_constrained === true;
   const deliveries = (Array.isArray(parsed?.deliveries) ? parsed.deliveries : [])
     .slice(0, 50)
     .map((entry, index) => {
@@ -32,7 +33,7 @@ export function sanitizeGrandCompanyAnalysis(parsed, model = null) {
         confidence: clampConfidence(entry?.confidence)
       };
     })
-    .filter(entry => entry.item_name && entry.confidence >= 0.65);
+    .filter(entry => entry.item_name && (dictionaryConstrained || entry.confidence >= 0.65));
 
   const recognized = Boolean(parsed?.recognized) && deliveries.length > 0;
   return {

@@ -3,7 +3,7 @@ import {
   relevantGrandCompanySupplyLevels
 } from "./gc-supply-duty-band-validator.js";
 
-export const GC_SUPPLY_DUTY_OCR_PARSER_VERSION = "supply-duty-v4-item-index-dictionary";
+export const GC_SUPPLY_DUTY_OCR_PARSER_VERSION = "supply-duty-v5-preserve-visible-rows";
 
 const XIVAPI_BASE = "https://v2.xivapi.com/api";
 const VERIFY_TIMEOUT_MS = 4000;
@@ -177,7 +177,8 @@ export function buildSupplyDutyOcrPrompt(dictionary) {
     `今回の対象タブ: ${pageKind}。Lodestone同期済みジョブLv: ${levels.join(", ") || "不明"}。`,
     "最重要ルール: 品名を自由記述してはいけません。各行の表示文字を下のFF14公式データ由来候補と照合し、最も視覚的に一致する候補の item_index だけを返してください。",
     "候補にない文字列をOCR結果として作らないでください。英語への翻訳、Item 12345 のような内部ID風文字列、途中までの品名、推測した品名は禁止です。",
-    "どの候補とも十分に一致しない行は、候補を無理に当てはめず deliveries から省略してください。",
+    "現在選択中のタブで画面に見えている納品行は、上から順に1行も省略せず deliveries に含めてください。",
+    "候補照合に自信が低い行も省略しないでください。FF14公式候補の中から画像の文字列に最も視覚的に近い item_index を選び、その行の confidence を低くしてください。画面に見えていない行を追加してはいけません。",
     "候補は現在のジョブLvでFF14のGCSupplyDutyに登録されている調達品です。OCRではこの候補集合を文字辞書として使ってください。",
     "--- item_index 候補ここから ---",
     dictionaryText,
@@ -187,7 +188,7 @@ export function buildSupplyDutyOcrPrompt(dictionary) {
     "requested_quantity は同じ行の『調達単位』の数値です。",
     "owned_quantity は『所持数』欄で現在所持している個数が1つの整数として明確に読める時だけ入れてください。曖昧なら null にし、合算や推測をしないでください。",
     "starred は金色の★が明確に見える行だけ true。",
-    "『SUPPLY DUTY / 調達任務』ではない別画面、または候補辞書と照合して読める納品行が1件もない場合だけ recognized=false、deliveries=[] としてください。"
+    "『SUPPLY DUTY / 調達任務』ではない別画面、または候補辞書と照合できる納品行が画面に1件も見えていない場合だけ recognized=false、deliveries=[] としてください。"
   ].join("\n");
 }
 
@@ -246,6 +247,7 @@ export function materializeSupplyDutyDictionaryNames(parsed, dictionary) {
     recognized: Boolean(parsed?.recognized) && deliveries.length > 0,
     confidence: parsed?.confidence,
     company_name: null,
+    dictionary_constrained: true,
     deliveries
   };
 }
