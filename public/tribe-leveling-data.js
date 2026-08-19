@@ -1,5 +1,6 @@
 const NORMAL_ROLES = new Set(["tank", "healer", "melee", "ranged", "caster"]);
 const CATEGORY_ORDER = ["combat", "craft", "gather"];
+const PRIMARY_GATHER_CODES = new Set(["MIN", "BTN"]);
 
 export const ALLIED_SOCIETY_DAILY_LIMIT = 12;
 export const ALLIED_SOCIETY_QUESTS_PER_GROUP = 3;
@@ -17,9 +18,9 @@ export const ALLIED_SOCIETY_DAILY_GUIDES = [
   { id: "arkasodara", name: "アルカソーダラ族", categories: ["combat"], min_level: 80, max_level: 89, area: "サベネア島" },
   { id: "omicron", name: "オミクロン族", categories: ["gather"], min_level: 80, max_level: 89, area: "ウルティマ・トゥーレ" },
   { id: "loporrit", name: "レポリット族", categories: ["craft"], min_level: 80, max_level: 89, area: "嘆きの海" },
-  { id: "pelupelu", name: "ペルペル族", categories: ["combat"], min_level: 90, max_level: 99, area: "コザマル・カ" },
-  { id: "mamool_ja", name: "マムージャ族", categories: ["gather"], min_level: 90, max_level: 99, area: "ヤクテル樹海" },
-  { id: "yok_huy", name: "ヨカフイ族", categories: ["craft"], min_level: 90, max_level: 99, area: "オルコ・パチャ" }
+  { id: "pelupelu", name: "ペルペル族", categories: ["combat"], min_level: 90, max_level: 100, area: "コザマル・カ" },
+  { id: "mamool_ja", name: "マムージャ族", categories: ["gather"], min_level: 90, max_level: 100, area: "ヤクテル樹海" },
+  { id: "yok_huy", name: "ヨカフイ族", categories: ["craft"], min_level: 90, max_level: 100, area: "オルコ・パチャ" }
 ];
 
 export const TRIBE_LEVELING_GUIDES = [
@@ -63,9 +64,9 @@ export const TRIBE_LEVELING_GUIDES = [
   {
     id: "pelupelu",
     min_level: 90,
-    max_level: 99,
+    max_level: 100,
     name: "ペルペル族",
-    range_label: "Lv90〜99",
+    range_label: "Lv90〜100",
     unlock_quest: "新事業！ トラル旅行公司",
     start_location: "トライヨラ X:13.6 Y:12.9",
     npc: "空色衣装のペルペル族",
@@ -108,36 +109,43 @@ function jobsForCategory(jobs, category) {
   });
 }
 
-function pickTargetJob(jobs, society, category, focus, progression = false) {
-  const candidates = jobsForCategory(jobs, category).filter(job => {
+function preferredCategoryJobs(jobs, category, focus) {
+  const candidates = jobsForCategory(jobs, category);
+  if (category !== "gather") return candidates;
+
+  const focusCode = focus.gather || "";
+  const focused = focusCode ? candidates.find(job => normalizeCode(job.code) === focusCode) : null;
+  if (focused) return [focused];
+
+  const primaryGatherers = candidates.filter(job => PRIMARY_GATHER_CODES.has(normalizeCode(job.code)));
+  return primaryGatherers.length ? primaryGatherers : candidates;
+}
+
+function pickTargetJob(jobs, society, category, focus) {
+  const candidates = preferredCategoryJobs(jobs, category, focus).filter(job => {
     const level = Number(job.level);
-    return progression
-      ? level > society.max_level
-      : level >= society.min_level && level <= society.max_level;
+    return level >= society.min_level && level <= society.max_level;
   });
   if (!candidates.length) return null;
   const focusCode = focus[category] || "";
   return candidates.sort((a, b) => {
-    const levelDiff = Number(a.level) - Number(b.level);
-    if (levelDiff !== 0) return levelDiff;
     const aFocus = normalizeCode(a.code) === focusCode ? 1 : 0;
     const bFocus = normalizeCode(b.code) === focusCode ? 1 : 0;
-    return bFocus - aFocus;
+    if (aFocus !== bFocus) return bFocus - aFocus;
+    return Number(a.level) - Number(b.level);
   })[0];
 }
 
 function candidateScore(candidate) {
-  const levelingBonus = candidate.kind === "leveling" ? 1000000 : 0;
   const catchupBonus = Math.max(0, 100 - Number(candidate.target_job_level || 100)) * 1000;
   const lowerBandBonus = Math.max(0, 100 - Number(candidate.min_level || 100)) * 10;
   const focusTieBreak = candidate.focused ? 1 : 0;
-  return levelingBonus + catchupBonus + lowerBandBonus + focusTieBreak;
+  return catchupBonus + lowerBandBonus + focusTieBreak;
 }
 
-function makeCandidate(society, category, job, focus, kind) {
+function makeCandidate(society, category, job, focus) {
   const code = normalizeCode(job.code);
   const focused = Boolean(focus[category] && focus[category] === code);
-  const leveling = kind === "leveling";
   return {
     society_id: society.id,
     society_name: society.name,
@@ -150,22 +158,20 @@ function makeCandidate(society, category, job, focus, kind) {
     target_job_code: code,
     target_job_name: String(job.name_ja || job.name || code),
     target_job_level: Number(job.level),
-    kind,
-    conditional: !leveling,
+    kind: "leveling",
+    conditional: false,
     focused,
-    reason: leveling
-      ? `${String(job.name_ja || job.name || code)} Lv${job.level}が${society.name}の適正帯（Lv${society.min_level}〜${society.max_level}）。高Lvを先に100へ押し切るより、低Lv側を追いつかせて装備帯を揃えるための底上げ3件として優先します。`
-      : `経験値の適正帯は超えています。${society.name}の友好度・通貨・報酬を進める余力3枠として提案します。友好度MAXならここは使わなくてOKです。`
+    reason: `${String(job.name_ja || job.name || code)} Lv${job.level}が${society.name}の現在の適正帯（Lv${society.min_level}〜${society.max_level}）です。適正帯を外れた旧友好部族は自動候補へ戻しません。`
   };
 }
 
-function buildCandidates(jobs, focus, progression = false) {
+function buildCandidates(jobs, focus) {
   const rows = [];
   for (const society of ALLIED_SOCIETY_DAILY_GUIDES) {
     for (const category of society.categories) {
-      const job = pickTargetJob(jobs, society, category, focus, progression);
+      const job = pickTargetJob(jobs, society, category, focus);
       if (!job) continue;
-      rows.push(makeCandidate(society, category, job, focus, progression ? "progression" : "leveling"));
+      rows.push(makeCandidate(society, category, job, focus));
     }
   }
   return rows.sort((a, b) => candidateScore(b) - candidateScore(a));
@@ -182,47 +188,34 @@ export function buildTribeDailyPlan(characterOrJobs, options = {}) {
   const jobs = Array.isArray(characterOrJobs) ? characterOrJobs : characterOrJobs?.jobs || [];
   const focus = normalizeFocus(options.focus || options);
   const maxGroups = Math.floor(ALLIED_SOCIETY_DAILY_LIMIT / ALLIED_SOCIETY_QUESTS_PER_GROUP);
-  const levelingCandidates = buildCandidates(jobs, focus, false);
+  const levelingCandidates = buildCandidates(jobs, focus);
   const groups = [];
   const usedSocieties = new Set();
 
-  // Reserve one catch-up block per available play category, always starting from its lowest eligible job.
   for (const category of CATEGORY_ORDER) {
     const candidate = levelingCandidates.find(row => row.category === category && !usedSocieties.has(row.society_id));
     addUniqueGroup(groups, usedSocieties, candidate);
   }
 
-  // Fill the remaining daily allowance from the lowest-level eligible jobs before reputation-only overflow.
   for (const candidate of levelingCandidates) {
     if (groups.length >= maxGroups) break;
     addUniqueGroup(groups, usedSocieties, candidate);
   }
 
-  if (groups.length < maxGroups) {
-    const progressionCandidates = buildCandidates(jobs, focus, true);
-    for (const candidate of progressionCandidates) {
-      if (groups.length >= maxGroups) break;
-      addUniqueGroup(groups, usedSocieties, candidate);
-    }
-  }
-
   const ranked = groups.slice(0, maxGroups).map((group, index) => ({ ...group, priority_rank: index + 1 }));
   const plannedQuests = ranked.reduce((sum, group) => sum + Number(group.quests || 0), 0);
-  const levelingQuests = ranked.filter(group => group.kind === "leveling").reduce((sum, group) => sum + group.quests, 0);
-  const conditionalQuests = ranked.filter(group => group.conditional).reduce((sum, group) => sum + group.quests, 0);
+  const levelingQuests = ranked.reduce((sum, group) => sum + Number(group.quests || 0), 0);
 
   return {
-    version: "allied-society-daily-plan-v2-low-level-catchup",
+    version: "allied-society-daily-plan-v3-level-band-strict",
     daily_limit: ALLIED_SOCIETY_DAILY_LIMIT,
     quests_per_society: ALLIED_SOCIETY_QUESTS_PER_GROUP,
     planned_quests: Math.min(ALLIED_SOCIETY_DAILY_LIMIT, plannedQuests),
     remaining_quests: Math.max(0, ALLIED_SOCIETY_DAILY_LIMIT - plannedQuests),
     leveling_quests: levelingQuests,
-    conditional_quests: conditionalQuests,
+    conditional_quests: 0,
     groups: ranked,
-    note: conditionalQuests
-      ? "低Lvジョブの底上げを先に配分しています。余力枠は経験値目的ではなく、解放状況・友好度MAXはLodestoneから判別できないため不要なら空けてOKです。"
-      : "高Lvを100へ押し切るより、Lodestone上で低いジョブを適正帯の友好部族で追いつかせる配分です。"
+    note: "現在のジョブLvの適正帯に一致する友好部族だけを表示します。採集は選択中ギャザラーを優先し、未選択時は採掘師・園芸師を基準にします。適正帯外の旧友好部族で12枠を穴埋めしません。"
   };
 }
 
