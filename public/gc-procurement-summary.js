@@ -45,10 +45,13 @@ function ensureStyles() {
     .gc-procurement-actions button{border:1px solid var(--line);background:#fff;color:var(--accent);border-radius:8px;padding:5px 7px;font-size:9px;font-weight:900;cursor:pointer}
     .gc-procurement-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.gc-procurement-total{background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px}
     .gc-procurement-total small{display:block;color:var(--muted);font-size:8px}.gc-procurement-total strong{display:block;margin-top:2px;font-size:11px}
-    .gc-procurement-materials{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:9px;line-height:1.65;color:#4f5b70}
+    .gc-procurement-materials{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+    .gc-procurement-materials-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:6px}.gc-procurement-materials-head strong{font-size:10px}.gc-procurement-materials-head span{font-size:8px;color:var(--muted)}
+    .gc-material-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:#fff}.gc-material-table{width:100%;border-collapse:collapse;min-width:420px;font-size:9px}
+    .gc-material-table th,.gc-material-table td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}.gc-material-table th{background:#f3f6fb;color:var(--muted);font-size:8px}.gc-material-table th:first-child,.gc-material-table td:first-child{text-align:left;white-space:normal}.gc-material-table tbody tr:last-child td{border-bottom:0}.gc-material-table td:nth-child(2){font-weight:900;color:#22334b}.gc-material-empty{padding:9px;border:1px dashed var(--line);border-radius:9px;background:#fff;color:var(--muted);font-size:9px;line-height:1.55}
     .gc-procurement-market{display:block;margin-top:3px;color:var(--muted);font-size:8px;font-weight:700;line-height:1.45}
     .gc-procurement-check{width:15px;height:15px;flex:0 0 auto;margin:0 2px 0 0}
-    @media(max-width:600px){.gc-procurement-totals{grid-template-columns:1fr}.gc-procurement-head{align-items:flex-start;flex-direction:column}}
+    @media(max-width:600px){.gc-procurement-totals{grid-template-columns:1fr}.gc-procurement-head{align-items:flex-start;flex-direction:column}.gc-procurement-materials-head{align-items:flex-start;flex-direction:column}}
   `;
   document.head.append(style);
 }
@@ -91,6 +94,30 @@ function bindPanelActions(panel, data, selected) {
   });
 }
 
+function materialTable(summary) {
+  if (!summary.materials.length) {
+    return `<div class="gc-material-empty">製作納品をチェックすると、選んだ品を全部作るための素材数をここで合算します。「製作を全選択」で今日の製作納品ぶんを一括計算できます。</div>`;
+  }
+  const rows = summary.materials.map(row => `
+    <tr>
+      <td>${escapeHtml(row.item_name || "素材")}</td>
+      <td>×${Number(row.quantity || 0).toLocaleString("ja-JP")}</td>
+      <td>${gil(row.unit_gil)}</td>
+      <td>${gil(row.total_gil)}</td>
+    </tr>`).join("");
+  return `
+    <div class="gc-material-table-wrap">
+      <table class="gc-material-table">
+        <thead><tr><th>素材</th><th>合計必要数</th><th>目安単価</th><th>小計</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+}
+
 function renderPanel(container, data, selected) {
   let panel = container.querySelector("[data-gc-procurement-panel]");
   if (!panel) {
@@ -102,9 +129,6 @@ function renderPanel(container, data, selected) {
     else container.prepend(panel);
   }
   const summary = aggregateSelectedDeliveries(data?.deliveries || [], selected);
-  const materials = summary.materials.length
-    ? summary.materials.map(row => `${row.item_name} ×${row.quantity}${row.total_gil == null ? "" : `（約${gil(row.total_gil)}）`}`).join(" / ")
-    : "製作納品を選ぶと、原材料から作る場合の必要素材をここで合算します。";
   const html = `
     <div class="gc-procurement-head">
       <strong>今日の納品準備｜選択 ${summary.selected_count}件</strong>
@@ -119,7 +143,10 @@ function renderPanel(container, data, selected) {
       <div class="gc-procurement-total"><small>原材料から作る（製作のみ）</small><strong>${gil(summary.craft_raw_gil)}</strong></div>
       <div class="gc-procurement-total"><small>各品のおすすめルート合計</small><strong>${gil(summary.recommended_gil)}</strong></div>
     </div>
-    <div class="gc-procurement-materials"><strong>必要素材 合算：</strong>${materials}</div>
+    <div class="gc-procurement-materials">
+      <div class="gc-procurement-materials-head"><strong>製作に必要な素材一覧</strong><span>製作 ${summary.crafting_selected_count}件ぶんを合算</span></div>
+      ${materialTable(summary)}
+    </div>
   `;
   const signature = hashText(html);
   if (panel.dataset.renderHash === signature) return;

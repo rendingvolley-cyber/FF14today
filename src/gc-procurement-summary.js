@@ -82,7 +82,16 @@ export function aggregateProcurement(deliveries, selectedKeys) {
     craft_raw_gil: craftRawKnown === rows.length && rows.length ? Math.round(craftRawGil) : null,
     recommended_gil: recommendedKnown === rows.length && rows.length ? Math.round(recommendedGil) : null,
     materials: [...materials.values()]
-      .map(row => ({ ...row, quantity: Math.round(row.quantity), total_gil: row.priced ? Math.round(row.total_gil) : null }))
+      .map(row => {
+        const quantity = Math.round(row.quantity);
+        const totalGil = row.priced ? Math.round(row.total_gil) : null;
+        return {
+          ...row,
+          quantity,
+          total_gil: totalGil,
+          unit_gil: totalGil == null || quantity <= 0 ? null : Math.round(totalGil / quantity)
+        };
+      })
       .sort((a, b) => String(a.item_name).localeCompare(String(b.item_name), "ja"))
   };
 }
