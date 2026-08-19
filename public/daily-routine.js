@@ -1,3 +1,5 @@
+import "./hunt-section.js";
+
 let panel = null;
 
 function setPlanSelected({ scroll = false } = {}) {
