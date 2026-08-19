@@ -97,7 +97,7 @@ function renderTable(host, rows) {
   for (const row of rows) {
     const tr = document.createElement("tr");
     const name = document.createElement("td");
-    name.textContent = row.item_name || `Item ${row.item_id}`;
+    name.textContent = row.item_name || "素材名取得失敗";
     const qty = document.createElement("td");
     qty.textContent = `×${number(row.quantity)}`;
     tr.append(name, qty);
@@ -160,6 +160,12 @@ function render(panel, data) {
     const warning = document.createElement("div");
     warning.className = "gc-material-requirements-warning";
     warning.textContent = `レシピ未取得 ${data.unresolved.length}件：${data.unresolved.map(row => row.item_name).join(" / ")}。この品は推測せず合計から除外しています。`;
+    panel.append(warning);
+  }
+  if (Number(data?.japanese_item_name_unresolved_count || 0) > 0) {
+    const warning = document.createElement("div");
+    warning.className = "gc-material-requirements-warning";
+    warning.textContent = "一部素材のFF14日本語名を取得できませんでした。英語名や内部IDは表示せず、再取得できるまで素材名取得失敗として表示します。";
     panel.append(warning);
   }
 
