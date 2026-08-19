@@ -7,6 +7,17 @@ function nonNegative(value) {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+function withUnitPrice(row) {
+  const quantity = Math.max(0, Number(row?.quantity) || 0);
+  const totalGil = nonNegative(row?.total_gil);
+  return {
+    ...row,
+    quantity: Math.round(quantity),
+    total_gil: totalGil == null ? null : Math.round(totalGil),
+    unit_gil: totalGil == null || quantity <= 0 ? null : Math.round(totalGil / quantity)
+  };
+}
+
 export function aggregateSelectedDeliveries(deliveries, selectedKeys) {
   const selected = new Set((selectedKeys || []).map(String));
   const rows = (deliveries || []).filter(row => selected.has(deliveryKey(row)));
@@ -60,11 +71,7 @@ export function aggregateSelectedDeliveries(deliveries, selectedKeys) {
     craft_raw_gil: total("craftRaw"),
     recommended_gil: total("recommended"),
     materials: [...materials.values()]
-      .map(row => ({
-        ...row,
-        quantity: Math.round(row.quantity),
-        total_gil: row.priced ? Math.round(row.total_gil) : null
-      }))
+      .map(row => withUnitPrice({ ...row, total_gil: row.priced ? row.total_gil : null }))
       .sort((a, b) => String(a.item_name).localeCompare(String(b.item_name), "ja"))
   };
 }
