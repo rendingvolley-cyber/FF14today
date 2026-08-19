@@ -115,6 +115,25 @@ function putCache(key, value, ok) {
   });
 }
 
+async function fetchWithDeadline(fetchImpl, url, options = {}) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort("gc_supply_timeout");
+      reject(new Error("gc_supply_timeout"));
+    }, VERIFY_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      fetchImpl(url, { ...options, signal: controller.signal }),
+      timeout
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchSupplyDutyBand(levels, fetchImpl) {
   const key = levels.join(",");
   const existing = cached(key);
@@ -132,9 +151,7 @@ async function fetchSupplyDutyBand(levels, fetchImpl) {
   });
   let response;
   try {
-    response = await fetchImpl(`${XIVAPI_BASE}/sheet/GCSupplyDuty?${params.toString()}`, {
-      headers: { "user-agent": "FF14Today/gc-supply-duty-band-validator" },
-      signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
+    response = await fetchWithDeadline(fetchImpl, `${XIVAPI_BASE}/sheet/GCSupplyDuty?${params.toString()}`, {
       cf: { cacheEverything: true, cacheTtl: 21600 }
     });
   } catch {
