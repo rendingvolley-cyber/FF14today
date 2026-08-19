@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify-production:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - name: Mark production smoke pending
         shell: bash
@@ -26,8 +26,8 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -d "{\"state\":\"pending\",\"context\":\"production-smoke\",\"description\":\"Waiting for Cloudflare production convergence\",\"target_url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}"
 
-      - name: Wait for Cloudflare deployment and verify live app
-        id: smoke
+      - name: Wait for Cloudflare deployment and verify live HTTP surface
+        id: http_smoke
         continue-on-error: true
         shell: bash
         run: |
@@ -35,7 +35,7 @@ jobs:
           BASE="https://ff14-today.ff14-today.workers.dev"
           ok=0
           for attempt in $(seq 1 24); do
-            echo "production smoke attempt ${attempt}/24"
+            echo "production HTTP smoke attempt ${attempt}/24"
             root="$(curl -fsS --max-time 15 "${BASE}/" || true)"
             hunt_js="$(curl -fsS --max-time 15 "${BASE}/hunt-section.js" || true)"
             health="$(curl -fsS --max-time 15 "${BASE}/api/health" || true)"
@@ -53,25 +53,86 @@ jobs:
           done
 
           if [[ "$ok" -ne 1 ]]; then
-            echo "Production did not converge to the expected DAILY ROUTINE + hunt integration."
+            echo "Production HTTP surface did not converge."
             exit 1
           fi
 
-          echo "Production smoke passed: static DAILY ROUTINE shell preserved and hunt integration is live."
+      - name: Checkout
+        if: steps.http_smoke.outcome == 'success'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.http_smoke.outcome == 'success'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.http_smoke.outcome == 'success'
+        run: npm ci
+
+      - name: Install Chromium
+        if: steps.http_smoke.outcome == 'success'
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify production in a real browser
+        id: browser_smoke
+        if: steps.http_smoke.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+          const pageErrors = [];
+          const consoleErrors = [];
+          page.on('pageerror', err => pageErrors.push(String(err?.stack || err)));
+          page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+          const response = await page.goto('https://ff14-today.ff14-today.workers.dev/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+          if (!response || !response.ok()) throw new Error(`navigation failed: ${response?.status()}`);
+          await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+          const snapshot = await page.evaluate(() => ({
+            title: document.title,
+            readyState: document.readyState,
+            bodyText: document.body?.innerText || '',
+            hasPlanner: Boolean(document.getElementById('planner')),
+            hasHunt: Boolean(document.getElementById('huntSection')),
+            huntText: document.getElementById('huntSection')?.innerText || ''
+          }));
+          console.log(JSON.stringify({ snapshot, pageErrors, consoleErrors }, null, 2));
+          if (!snapshot.bodyText.includes('FF14 Today')) throw new Error('FF14 Today shell is not rendered');
+          if (!snapshot.hasPlanner) throw new Error('#planner is missing');
+          if (!snapshot.hasHunt || !snapshot.huntText.includes('今日のモブハント')) throw new Error('hunt section is not rendered in browser');
+          if (pageErrors.length) throw new Error(`pageerror: ${pageErrors.join(' | ')}`);
+          await page.screenshot({ path: 'production-smoke.png', fullPage: true });
+          await browser.close();
+          NODE
+
+      - name: Upload browser smoke screenshot
+        if: always() && steps.browser_smoke.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-browser-smoke
+          path: production-smoke.png
+          if-no-files-found: ignore
 
       - name: Publish production smoke status
         if: always()
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          HTTP_OUTCOME: ${{ steps.http_smoke.outcome }}
+          BROWSER_OUTCOME: ${{ steps.browser_smoke.outcome }}
         run: |
-          if [[ "$SMOKE_OUTCOME" == "success" ]]; then
+          if [[ "$HTTP_OUTCOME" == "success" && "$BROWSER_OUTCOME" == "success" ]]; then
             state="success"
-            description="Production DAILY ROUTINE + hunt smoke passed"
+            description="Production HTTP + browser smoke passed"
           else
             state="failure"
-            description="Production smoke failed"
+            description="Production HTTP/browser smoke failed"
           fi
           curl -fsS -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -81,5 +142,5 @@ jobs:
             -d "{\"state\":\"${state}\",\"context\":\"production-smoke\",\"description\":\"${description}\",\"target_url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}"
 
       - name: Fail when production smoke failed
-        if: steps.smoke.outcome != 'success'
+        if: steps.http_smoke.outcome != 'success' || steps.browser_smoke.outcome != 'success'
         run: exit 1
