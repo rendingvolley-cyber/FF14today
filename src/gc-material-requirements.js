@@ -3,6 +3,7 @@ import { DynamicRecipeError, resolveDynamicCraftTarget } from "./dynamic-recipe-
 const XIVAPI_BASE = "https://v2.xivapi.com/api";
 const MAX_CRAFTING_DELIVERIES = 12;
 const RESOLVE_CONCURRENCY = 3;
+const NAME_FETCH_ATTEMPTS = 2;
 
 function positiveInt(value) {
   const n = Math.floor(Number(value) || 0);
@@ -11,6 +12,10 @@ function positiveInt(value) {
 
 function cleanText(value, max = 180) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function containsJapanese(value) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(String(value || ""));
 }
 
 function quantityToCraft(row) {
@@ -25,19 +30,24 @@ function graphRecipe(resolved, itemId) {
 }
 
 function itemName(resolved, itemId) {
-  return cleanText(resolved?.itemNames?.[Number(itemId)] || resolved?.itemNames?.[String(itemId)] || `Item ${Number(itemId)}`);
+  return cleanText(resolved?.itemNames?.[Number(itemId)] || resolved?.itemNames?.[String(itemId)] || "");
+}
+
+function safeMaterialName(value) {
+  const name = cleanText(value);
+  return containsJapanese(name) ? name : "素材名取得失敗";
 }
 
 function mergeRows(rows) {
   const merged = new Map();
   for (const row of rows || []) {
     const id = positiveInt(row?.item_id);
-    const name = cleanText(row?.item_name) || `Item ${id}`;
+    const name = cleanText(row?.item_name);
     const quantity = positiveInt(row?.quantity);
     if (!id || !quantity) continue;
     const current = merged.get(id) || { item_id: id, item_name: name, quantity: 0 };
     current.quantity += quantity;
-    if ((!current.item_name || /^Item \d+$/.test(current.item_name)) && name) current.item_name = name;
+    if ((!current.item_name || !containsJapanese(current.item_name)) && containsJapanese(name)) current.item_name = name;
     merged.set(id, current);
   }
   return [...merged.values()].sort((a, b) => String(a.item_name).localeCompare(String(b.item_name), "ja"));
@@ -108,29 +118,47 @@ async function fetchJapaneseNames(itemIds) {
   const ids = [...new Set((itemIds || []).map(positiveInt).filter(Boolean))];
   const names = {};
   for (const batch of chunk(ids, 100)) {
-    const params = new URLSearchParams({ fields: "Name", language: "ja", rows: batch.join(",") });
-    try {
-      const response = await fetch(`${XIVAPI_BASE}/sheet/Item?${params.toString()}`, {
-        headers: { "user-agent": "FF14Today/gc-material-requirements" },
-        cf: { cacheEverything: true, cacheTtl: 604800 }
-      });
-      if (!response.ok) continue;
-      const data = await response.json();
-      for (const row of data?.rows || []) {
-        const id = positiveInt(row?.row_id);
-        const name = cleanText(row?.fields?.Name);
-        if (id && name) names[id] = name;
+    const params = new URLSearchParams({ fields: "Name,Name@lang(ja)", language: "ja", rows: batch.join(",") });
+    for (let attempt = 0; attempt < NAME_FETCH_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetch(`${XIVAPI_BASE}/sheet/Item?${params.toString()}`, {
+          headers: { "user-agent": "FF14Today/gc-material-requirements" },
+          cf: { cacheEverything: true, cacheTtl: 604800 }
+        });
+        if (!response.ok) {
+          if (attempt + 1 < NAME_FETCH_ATTEMPTS) continue;
+          break;
+        }
+        const data = await response.json();
+        for (const row of data?.rows || []) {
+          const id = positiveInt(row?.row_id);
+          const decorated = cleanText(row?.fields?.["Name@lang(ja)"]);
+          const defaultName = cleanText(row?.fields?.Name);
+          const name = containsJapanese(decorated)
+            ? decorated
+            : containsJapanese(defaultName)
+              ? defaultName
+              : "";
+          if (id && name) names[id] = name;
+        }
+        break;
+      } catch {
+        if (attempt + 1 >= NAME_FETCH_ATTEMPTS) break;
       }
-    } catch {}
+    }
   }
   return names;
 }
 
 function localizeMaterials(rows, names) {
-  return (rows || []).map(row => ({
-    ...row,
-    item_name: names[row.item_id] || row.item_name
-  })).sort((a, b) => String(a.item_name).localeCompare(String(b.item_name), "ja"));
+  return (rows || []).map(row => {
+    const canonical = names[row.item_id] || (containsJapanese(row.item_name) ? cleanText(row.item_name) : "");
+    return {
+      ...row,
+      item_name: canonical || "素材名取得失敗",
+      item_name_ja_verified: Boolean(canonical)
+    };
+  }).sort((a, b) => String(a.item_name).localeCompare(String(b.item_name), "ja"));
 }
 
 async function baseDeliveries(request, env, app) {
@@ -216,6 +244,10 @@ export async function grandCompanyMaterialRequirements(request, env, app) {
     item_name: row.item_name,
     error: row.recipe_error || "recipe_unavailable"
   }));
+  const japaneseNameUnresolvedCount = deliveries
+    .flatMap(row => [...row.direct_materials, ...row.raw_materials])
+    .filter(row => !row.item_name_ja_verified)
+    .length;
 
   return {
     status: 200,
@@ -230,10 +262,12 @@ export async function grandCompanyMaterialRequirements(request, env, app) {
       unresolved,
       deliveries,
       aggregate: {
-        direct_materials: aggregateMaterialRequirements(deliveries, "direct_materials"),
-        raw_materials: aggregateMaterialRequirements(deliveries, "raw_materials")
+        direct_materials: localizeMaterials(aggregateMaterialRequirements(deliveries, "direct_materials"), japaneseNames),
+        raw_materials: localizeMaterials(aggregateMaterialRequirements(deliveries, "raw_materials"), japaneseNames)
       },
-      source: "FFXIV recipe data",
+      japanese_item_names_required: true,
+      japanese_item_name_unresolved_count: japaneseNameUnresolvedCount,
+      source: "FFXIV recipe data + XIVAPI Japanese Item names",
       market_price_independent: true
     }
   };
