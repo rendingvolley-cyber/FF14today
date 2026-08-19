@@ -5,16 +5,17 @@ const wrangler = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.met
 const entry = readFileSync(new URL("../src/hunt-entry.js", import.meta.url), "utf8");
 const service = readFileSync(new URL("../src/hunt-service.js", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../public/hunt-section.js", import.meta.url), "utf8");
+const dailyRoutine = readFileSync(new URL("../public/daily-routine.js", import.meta.url), "utf8");
 
-assert.equal(wrangler.main, "src/hunt-entry.js", "hunt wrapper must remain the deployed Worker entrypoint");
-assert.deepEqual(wrangler.assets?.run_worker_first, ["/", "/index.html"], "the app shell must pass through the hunt wrapper before static asset serving");
+assert.equal(wrangler.main, "src/hunt-entry.js", "hunt wrapper must remain the deployed Worker entrypoint for hunt APIs");
+assert.equal(wrangler.assets?.run_worker_first, undefined, "the normal app shell must remain static-asset-first so unrelated Worker wrappers cannot rewrite it");
+assert.match(dailyRoutine, /import "\.\/hunt-section\.js";/, "the existing static app must load the hunt UI directly");
 assert.match(entry, /import app from "\.\/gc-top3-entry\.js"/, "hunt integration must wrap, not replace, the existing production entry");
 assert.match(entry, /\/api\/hunts\/today/);
 assert.match(entry, /\/api\/hunts\/recognize/);
 assert.match(entry, /\/api\/hunts\/progress/);
 assert.match(entry, /\/api\/hunts\/complete-all/);
 assert.match(entry, /augmentPlanWithHunts/);
-assert.match(entry, /hunt-section\.js/);
 assert.match(entry, /daily_hunt_task_board_bridge:\s*true/);
 
 assert.match(service, /CREATE TABLE IF NOT EXISTS daily_hunt_targets/);
@@ -39,4 +40,4 @@ assert.match(ui, /\/api\/hunts\/progress/);
 assert.match(ui, /data-open-hunt/);
 assert.match(ui, /MutationObserver\(decorateTaskBoard\)/);
 
-console.log("Daily hunt section MVP wiring OK");
+console.log("Daily hunt section loads without changing the existing static app shell");

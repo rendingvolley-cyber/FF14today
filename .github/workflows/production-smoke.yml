@@ -1,0 +1,42 @@
+name: Production Smoke
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for Cloudflare deployment and verify live app
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://ff14-today.ff14-today.workers.dev"
+          ok=0
+          for attempt in $(seq 1 24); do
+            echo "production smoke attempt ${attempt}/24"
+            root="$(curl -fsS --max-time 15 "${BASE}/" || true)"
+            hunt_js="$(curl -fsS --max-time 15 "${BASE}/hunt-section.js" || true)"
+            health="$(curl -fsS --max-time 15 "${BASE}/api/health" || true)"
+
+            if [[ "$root" == *"PICK A VIBE"* ]] \
+              && [[ "$root" == *"スクショを判断材料に追加"* ]] \
+              && [[ "$root" != *"TODAY TASK BOARD"* ]] \
+              && [[ "$hunt_js" == *"TODAY'S HUNT"* ]] \
+              && [[ "$hunt_js" == *"/api/hunts/today"* ]] \
+              && [[ "$health" == *"daily_hunt_section"* ]]; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ "$ok" -ne 1 ]]; then
+            echo "Production did not converge to the expected DAILY ROUTINE + hunt integration."
+            exit 1
+          fi
+
+          echo "Production smoke passed: static DAILY ROUTINE shell preserved and hunt integration is live."
