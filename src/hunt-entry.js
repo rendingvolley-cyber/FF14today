@@ -1,5 +1,4 @@
 import app from "./gc-top3-entry.js";
-import { grandCompanyMaterialRequirements } from "./gc-material-requirements.js";
 import {
   augmentPlanWithHunts,
   completeAllHunts,
@@ -11,7 +10,6 @@ import {
 } from "./hunt-service.js";
 
 const HUNT_UI_VERSION = "hunt-mvp-v1-20260819";
-const GC_MATERIAL_UI_VERSION = "gc-material-requirements-v2-20260819";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -37,7 +35,6 @@ function injectHuntUi(response) {
   const transformed = new HTMLRewriter()
     .on("head", {
       element(element) {
-        element.prepend(`<script type="module" src="/gc-material-requirements.js?v=${GC_MATERIAL_UI_VERSION}"></script>`, { html: true });
         element.prepend(`<script type="module" src="/hunt-section.js?v=${HUNT_UI_VERSION}"></script>`, { html: true });
       }
     })
@@ -62,10 +59,6 @@ export default {
       if (url.pathname === "/api/hunts/complete-all" && request.method === "POST") {
         return json(await completeAllHunts(request, env));
       }
-      if (url.pathname === "/api/grand-company/recipe-materials" && request.method === "GET") {
-        const result = await grandCompanyMaterialRequirements(request, env, app);
-        return json(result.data, result.status);
-      }
     } catch (error) {
       return errorResponse(error);
     }
@@ -86,13 +79,10 @@ export default {
         daily_hunt_image_recognition: true,
         daily_hunt_progress: true,
         daily_hunt_task_board_bridge: true,
-        daily_hunt_ui_version: HUNT_UI_VERSION,
-        gc_recipe_material_requirements: true,
-        gc_recipe_material_price_independent: true,
-        gc_recipe_material_ui_version: GC_MATERIAL_UI_VERSION
+        daily_hunt_ui_version: HUNT_UI_VERSION
       }, response.status);
     }
-    if ((url.pathname === "/hunt-section.js" || url.pathname === "/gc-material-requirements.js") && request.method === "GET") {
+    if (url.pathname === "/hunt-section.js" && request.method === "GET") {
       return noStore(response);
     }
     if (request.method === "GET") return injectHuntUi(response);
