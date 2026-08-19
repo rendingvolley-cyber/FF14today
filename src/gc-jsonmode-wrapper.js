@@ -1,4 +1,4 @@
-import app from "./gc-jsonmode-core-wrapper.js";
+import app from "./gc-supply-duty-dictionary-recognition-wrapper.js";
 import { chooseGrandCompanyDelivery, decorateGrandCompanyDelivery } from "./grand-company-deliveries.js";
 import { canonicalizeGrandCompanyDeliveries } from "./gc-item-name-canonicalizer.js";
 import { validateGrandCompanySupplyDutyDeliveries } from "./gc-supply-duty-band-validator.js";
