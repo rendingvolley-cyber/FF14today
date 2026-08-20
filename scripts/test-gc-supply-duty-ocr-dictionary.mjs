@@ -188,7 +188,7 @@ const gatherDictionary = await buildSupplyDutyOcrDictionary(jobs, "gathering", {
           rows: [
             { row_id: 84, fields: { SupplyData: [{ Item: [{ fields: { Name: "採集候補A" } }] }] } },
             { row_id: 94, fields: { SupplyData: [{ Item: [{ fields: { Name: "採集候補B" } }] }] } },
-            { row_id: 96, fields: { SupplyData: [{ Item: [{ fields: { Name: "採集候補C" } }] }] }
+            { row_id: 96, fields: { SupplyData: [{ Item: [{ fields: { Name: "採集候補C" } }] }] } }
           ]
         };
       }
