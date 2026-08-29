@@ -1,0 +1,23 @@
+.island-sanctuary{display:grid;gap:14px}
+.island-head{gap:18px;align-items:flex-start}
+.island-head-controls{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.island-head-controls label{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;font-weight:850;white-space:nowrap}
+.island-head-controls select{min-height:34px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#24496f;padding:0 9px;font-weight:900}
+.island-animal-pill,.island-workshop-pill,.island-rank-priority{display:inline-flex;align-items:center;min-height:30px;border-radius:999px;padding:0 9px;font-size:10px;font-weight:950;white-space:nowrap}
+.island-animal-pill{background:#eef8f3;color:#287557;border:1px solid #c9e8d9}
+.island-workshop-pill{background:#eef5ff;color:#315f8d;border:1px solid #cbdcf0}
+.island-rank-priority{background:#fff8e9;color:#8a6423;border:1px solid #eadbb7}
+.island-15min-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.island-daily-card{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:11px;cursor:pointer;min-width:0}
+.island-daily-card input{width:18px;height:18px;flex:0 0 auto;margin:2px 0 0;accent-color:var(--accent)}
+.island-daily-card span{min-width:0}.island-daily-card b{display:block;color:#254b70;font-size:12px;line-height:1.4}.island-daily-card small{display:block;margin-top:3px;color:var(--muted);font-size:10px;line-height:1.45}
+.island-daily-card:has(input:checked){background:#f3f8ff;border-color:#bdd3eb}.island-daily-card:has(input:checked) b{color:#66819b;text-decoration:line-through}
+.island-columns{display:grid;grid-template-columns:1.05fr .95fr;gap:12px}
+.island-block{border:1px solid var(--line);border-radius:15px;background:#fff;padding:14px}
+.island-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.island-section-head h3{margin:2px 0 0;color:#193f67;font-size:16px;line-height:1.35}.island-section-head .label{margin:0}
+.island-rank-tasks{display:grid;gap:7px}.island-rank-task{display:flex;align-items:flex-start;gap:8px;border:1px solid #e1e9f2;border-radius:11px;background:#f9fbfe;padding:9px 10px;color:#365673;font-size:12px;line-height:1.5;cursor:pointer}.island-rank-task input{width:17px;height:17px;flex:0 0 auto;margin:1px 0 0;accent-color:var(--accent)}.island-rank-task:has(input:checked){background:#f4f7fa}.island-rank-task:has(input:checked) span{color:#8a99a8;text-decoration:line-through}
+.island-workshop-block{background:#f8fbff}.island-workshop-route{margin:0;color:#476884;font-size:11px;line-height:1.6}.island-workshop-mats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:10px}.island-workshop-mats div{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:72px;border:1px solid #d4e0ec;border-radius:11px;background:#fff;text-align:center}.island-workshop-mats strong{color:var(--accent);font-size:24px;line-height:1}.island-workshop-mats span{margin-top:5px;color:#627d96;font-size:9px;font-weight:800;line-height:1.3}.island-fineprint{margin:9px 0 0;color:#8293a5;font-size:9px;line-height:1.5}
+.island-material-details{border:1px solid var(--line);border-radius:13px;background:#fbfcfe;padding:0 12px}.island-material-details summary{padding:10px 0;color:#476783;font-size:11px;font-weight:900;cursor:pointer}.island-material-list{display:flex;flex-wrap:wrap;gap:6px;padding:2px 0 10px}.island-material-chip{display:inline-flex;border-radius:999px;background:#edf4fc;color:#35638e;padding:4px 8px;font-size:10px;font-weight:850}.island-tool{margin:0 0 11px;padding-top:9px;border-top:1px dashed #d5dfeb;color:#6c8297;font-size:10px;line-height:1.55}
+@media(min-width:601px){.retainer-flow-tabs:has([data-island-open]){display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch}.retainer-flow-tabs:has([data-island-open]) .retainer-flow-tab{min-width:0;justify-content:flex-start}}
+@media(max-width:920px){.island-15min-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.island-columns{grid-template-columns:1fr}}
+@media(max-width:620px){.island-head{flex-direction:column}.island-head-controls{justify-content:flex-start}.island-15min-grid{grid-template-columns:1fr}.island-workshop-mats{grid-template-columns:repeat(3,minmax(0,1fr))}.island-section-head{align-items:flex-start;flex-direction:column}.island-rank-priority{white-space:normal}}

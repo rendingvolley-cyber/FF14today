@@ -1,13 +1,22 @@
 import "./hunt-section.js";
 import "./hunt-native-file-picker.js";
+import "./island-sanctuary-v3.js";
+
+if (!document.querySelector('link[data-island-sanctuary-style]')) {
+  const islandStyle = document.createElement("link");
+  islandStyle.rel = "stylesheet";
+  islandStyle.href = "/island-sanctuary.css";
+  islandStyle.setAttribute("data-island-sanctuary-style", "");
+  document.head.append(islandStyle);
+}
 
 let panel = null;
 
 function setPlanSelected({ scroll = false } = {}) {
   const root = ensurePanel();
   if (!root) return;
-  root.querySelectorAll("[data-gc-content],[data-tribe-content]").forEach(node => { node.hidden = true; });
-  root.querySelectorAll("[data-gc-open],[data-tribe-open],[data-plan-open]").forEach(tab => {
+  root.querySelectorAll("[data-gc-content],[data-tribe-content],[data-island-content]").forEach(node => { node.hidden = true; });
+  root.querySelectorAll("[data-gc-open],[data-tribe-open],[data-island-open],[data-plan-open]").forEach(tab => {
     const active = tab.matches("[data-plan-open]");
     tab.classList.toggle("active", active);
     tab.setAttribute("aria-selected", active ? "true" : "false");
