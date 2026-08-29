@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#070b16">
   <title>ポケモン総当たり戦</title>
-  <link rel="stylesheet" href="/pokemon-round-robin.css?v=8">
+  <link rel="stylesheet" href="/pokemon-round-robin.css?v=9">
 </head>
 <body>
 <main class="app">
@@ -40,12 +40,14 @@
     <div class="schedule-body"><div id="schedule" class="schedule-grid"></div></div>
   </details>
 
-  <details class="setup"><summary>大会設定</summary><div class="setup-body">
-    <div style="display:flex;justify-content:flex-end;padding-top:8px"><button type="button" class="btn" onclick="this.closest('details').removeAttribute('open')">最小化</button></div>
-    <div class="setup-grid"><div><label class="label" for="playerCount">参加人数</label><select id="playerCount" class="select"></select></div><div><label class="label" for="titleInput">大会名</label><input id="titleInput" class="text" maxlength="40"></div></div>
-    <span class="label">参加者名</span><div id="playerInputs" class="player-inputs"></div>
-    <div class="setup-actions"><button id="applyButton" class="btn btn-accent">設定を反映</button><button id="importButton" class="btn">読込</button><button id="resetResults" class="btn btn-danger">結果リセット</button><button id="resetAll" class="btn btn-danger">全初期化</button><input id="importFile" type="file" accept="application/json" hidden></div>
-  </div></details>
+  <details class="setup">
+    <summary><span>大会設定</span></summary>
+    <div class="setup-body">
+      <div class="setup-grid"><div><label class="label" for="playerCount">参加人数</label><select id="playerCount" class="select"></select></div><div><label class="label" for="titleInput">大会名</label><input id="titleInput" class="text" maxlength="40"></div></div>
+      <span class="label">参加者名</span><div id="playerInputs" class="player-inputs"></div>
+      <div class="setup-actions"><button id="applyButton" class="btn btn-accent">設定を反映</button><button id="importButton" class="btn">読込</button><button id="resetResults" class="btn btn-danger">結果リセット</button><button id="resetAll" class="btn btn-danger">全初期化</button><input id="importFile" type="file" accept="application/json" hidden></div>
+    </div>
+  </details>
 </main>
 <script src="/pokemon-round-robin.js?v=8"></script>
 </body>
