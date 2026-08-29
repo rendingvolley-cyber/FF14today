@@ -1,6 +1,6 @@
 import "./hunt-section.js";
 import "./hunt-native-file-picker.js";
-import "./island-sanctuary.js";
+import "./island-sanctuary-v2.js";
 
 if (!document.querySelector('link[data-island-sanctuary-style]')) {
   const islandStyle = document.createElement("link");
