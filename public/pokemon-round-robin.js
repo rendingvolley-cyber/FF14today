@@ -1,5 +1,5 @@
 (()=>{
-  const KEY='pokemon-round-robin-v4',OLD_KEYS=['pokemon-round-robin-v3','pokemon-round-robin-v2'],MIN=3,MAX=12,$=id=>document.getElementById(id);
+  const KEY='pokemon-round-robin-v4',OLD_KEYS=['pokemon-round-robin-v3','pokemon-round-robin-v2'],MIN=5,MAX=8,$=id=>document.getElementById(id);
   const defaultNames=n=>Array.from({length:n},(_,i)=>`プレイヤー${i+1}`);
   const initial=()=>({title:'ポケモン総当たり戦',players:defaultNames(7),results:{},active:[]});
   const valid=s=>s&&Array.isArray(s.players)&&s.players.length>=MIN&&s.players.length<=MAX&&s.results&&typeof s.results==='object';
@@ -27,7 +27,7 @@
   $('playerCount').addEventListener('change',()=>{const n=Number($('playerCount').value),wrap=$('playerInputs'),current=[...wrap.querySelectorAll('input')].map(x=>x.value);wrap.innerHTML='';for(let i=0;i<n;i++){const inp=document.createElement('input');inp.className='text';inp.value=current[i]||`プレイヤー${i+1}`;wrap.append(inp)}});
   $('applyButton').onclick=()=>{const n=Number($('playerCount').value),newPlayers=[...$('playerInputs').querySelectorAll('input')].slice(0,n).map((x,i)=>x.value.trim()||`プレイヤー${i+1}`);if(n!==state.players.length&&(Object.keys(state.results).length||state.active.length)&&!confirm('人数を変えると対戦結果・対戦中状態をリセットします。よろしいですか？')){renderInputs();return}state.title=$('titleInput').value.trim()||'ポケモン総当たり戦';if(n!==state.players.length){state.results={};state.active=[]}state.players=newPlayers;save();render()};
   $('backupButton').onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pokemon-round-robin-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-  $('importButton').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const s=JSON.parse(await f.text());if(!valid(s))throw new Error();state=normalize(s);save();render()}catch{alert('読み込めないバックアップです。')}e.target.value=''};
+  $('importButton').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const s=JSON.parse(await f.text());if(!valid(s))throw new Error();state=normalize(s);save();render()}catch{alert('読み込めないバックアップです。参加人数は5〜8人にしてください。')}e.target.value=''};
   $('resetResults').onclick=()=>{if(confirm('対戦結果と対戦中状態をリセットしますか？')){state.results={};state.active=[];save();render()}};$('resetAll').onclick=()=>{if(confirm('大会設定をすべて初期化しますか？')){state=initial();save();render()}};
   function render(){$('eventTitle').textContent=state.title;renderStandings();renderRecommended();renderSchedule();renderMatrix();renderInputs()}
   render();
