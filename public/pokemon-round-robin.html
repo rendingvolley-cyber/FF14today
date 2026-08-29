@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#070b16">
   <title>ポケモン総当たり戦</title>
-  <link rel="stylesheet" href="/pokemon-round-robin.css?v=9">
+  <link rel="stylesheet" href="/pokemon-round-robin.css?v=10">
 </head>
 <body>
 <main class="app">
@@ -30,7 +30,7 @@
     </article>
 
     <article class="panel matrix-panel">
-      <div class="head"><h2>総当たり表</h2><span class="progress">W / L / ●対戦中</span></div>
+      <div class="head"><h2>総当たり表</h2><span class="progress">W / L / ●対戦中 ・ W/Lタップで修正</span></div>
       <div class="matrix-wrap"><table id="matrix" class="matrix"></table></div>
     </article>
   </section>
@@ -49,6 +49,23 @@
     </div>
   </details>
 </main>
-<script src="/pokemon-round-robin.js?v=10"></script>
+
+<div id="resultEditor" class="result-editor" hidden role="dialog" aria-modal="true" aria-labelledby="resultEditorTitle">
+  <div class="result-editor-card">
+    <div class="result-editor-head">
+      <div><p class="result-editor-kicker">RESULT CORRECTION</p><h2 id="resultEditorTitle">結果を修正</h2></div>
+      <button id="resultClose" class="result-close" type="button" aria-label="閉じる">×</button>
+    </div>
+    <p id="resultMatchLabel" class="result-match-label"></p>
+    <p class="result-editor-help">正しい勝者を選ぶか、結果を未対戦に戻してください。</p>
+    <div class="result-choice-grid">
+      <button id="resultPlayerA" class="result-choice" type="button"></button>
+      <button id="resultPlayerB" class="result-choice" type="button"></button>
+    </div>
+    <button id="resultClear" class="result-clear" type="button">未対戦に戻す</button>
+  </div>
+</div>
+
+<script src="/pokemon-round-robin.js?v=11"></script>
 </body>
 </html>
