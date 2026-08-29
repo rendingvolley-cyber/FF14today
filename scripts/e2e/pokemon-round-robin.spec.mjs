@@ -16,20 +16,20 @@ test.describe("Pokémon round-robin", () => {
 
     const firstCard = page.locator("#recommended .match").first();
     await expect(firstCard).toBeVisible();
-    const matchNumber = (await firstCard.locator(".match-no").innerText()).split("\n")[0];
-    const matchNumberPattern = new RegExp(`^${matchNumber.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n`);
     const winnerName = await firstCard.locator(".player").first().innerText();
 
     await firstCard.locator("button.start").click();
 
-    const activeCard = page.locator("#recommended .match.playing").filter({ has: page.locator(".match-no").filter({ hasText: matchNumberPattern }) });
+    const activeCard = page.locator("#recommended .match.playing").first();
     await expect(activeCard).toBeVisible();
     await expect(activeCard).toContainText("対戦中");
+    await expect(activeCard.locator(".player").first()).toHaveText(winnerName);
 
-    await activeCard.locator(".player").filter({ hasText: winnerName }).click();
+    await activeCard.locator(".player").first().click();
 
     await expect(page.locator("#progress")).toHaveText("1/21");
-    await expect(page.locator("#recommended .match-no").filter({ hasText: matchNumberPattern })).toHaveCount(0);
+    await expect(page.locator("#recommended .match.playing")).toHaveCount(0);
+    await expect(page.locator("#recommended .match.done")).toHaveCount(0);
     await expect(page.locator("#recommended .match").first()).toBeVisible();
 
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("pokemon-round-robin-v4")));
