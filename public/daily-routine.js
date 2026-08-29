@@ -37,7 +37,7 @@ function ensurePanel() {
   panel.innerHTML = `
     <div class="retainer-flow-tabs" role="tablist" aria-label="ログイン後のおすすめ順">
       <button type="button" class="retainer-flow-tab" data-plan-open role="tab" aria-selected="false">
-        <span class="retainer-flow-step">4</span><span>今日のプラン</span><small>次にやる</small>
+        <span class="retainer-flow-step">3</span><span>今日のプラン</span><small>次にやる</small>
       </button>
     </div>
   `;
