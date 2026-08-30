@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#070b16">
   <title>ポケモン総当たり戦</title>
-  <link rel="stylesheet" href="/pokemon-round-robin.css?v=10">
+  <link rel="stylesheet" href="/pokemon-round-robin.css?v=11">
 </head>
 <body>
 <main class="app">
   <header class="topbar">
     <div class="brand"><span class="ball" aria-hidden="true"></span><div><p class="eyebrow">ROUND ROBIN SCOREBOARD</p><h1 id="eventTitle">ポケモン総当たり戦</h1></div></div>
-    <div class="actions"><button id="backupButton" class="btn">バックアップ</button><a class="link" href="/">FF14 Todayへ</a></div>
+    <div class="actions"><button id="randomSixButton" class="btn btn-random" type="button">6人ランダム</button><button id="backupButton" class="btn">バックアップ</button><a class="link" href="/">FF14 Todayへ</a></div>
   </header>
 
   <section class="dashboard">
@@ -50,6 +50,18 @@
   </details>
 </main>
 
+<div id="randomSixDialog" class="random-six-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="randomSixTitle">
+  <div class="random-six-card">
+    <div class="random-six-head">
+      <div><p class="random-six-kicker">RANDOM DRAW</p><h2 id="randomSixTitle">ランダム6人</h2></div>
+      <button id="randomSixClose" class="result-close" type="button" aria-label="閉じる">×</button>
+    </div>
+    <p class="random-six-help">登録済み参加者から6人を重複なしで抽選</p>
+    <ol id="randomSixList" class="random-six-list" aria-live="polite"></ol>
+    <div class="random-six-actions"><button id="randomSixAgain" class="btn btn-accent" type="button">もう一度抽選</button><button id="randomSixDone" class="btn" type="button">閉じる</button></div>
+  </div>
+</div>
+
 <div id="resultEditor" class="result-editor" hidden role="dialog" aria-modal="true" aria-labelledby="resultEditorTitle">
   <div class="result-editor-card">
     <div class="result-editor-head">
@@ -66,6 +78,6 @@
   </div>
 </div>
 
-<script src="/pokemon-round-robin.js?v=12"></script>
+<script src="/pokemon-round-robin.js?v=13"></script>
 </body>
 </html>
