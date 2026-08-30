@@ -30,6 +30,35 @@ test.describe("Pokémon six-player round-robin", () => {
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
     expect(saved.players).toHaveLength(6);
     expect(saved.players).toEqual(["プレイヤー1","プレイヤー2","プレイヤー3","プレイヤー4","プレイヤー5","プレイヤー6"]);
+    expect(saved.matchOrder).toHaveLength(15);
+    expect(new Set(saved.matchOrder).size).toBe(15);
+  });
+
+  test("random match order makes five disjoint three-match rounds and drives suggestions", async ({ page }) => {
+    const settings = page.locator("details.setup");
+    await settings.locator("summary").click();
+    await expect(page.locator("#matchOrderStatus")).toHaveText("標準順");
+
+    const before = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).matchOrder, KEY);
+    await page.evaluate(() => { Math.random = () => 0; });
+    await page.locator("#shuffleMatchesButton").click();
+
+    await expect(page.locator("#matchOrderStatus")).toHaveText("ランダム順");
+    const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
+    expect(saved.matchOrder).toHaveLength(15);
+    expect(new Set(saved.matchOrder).size).toBe(15);
+    expect(saved.matchOrder).not.toEqual(before);
+
+    for (let i = 0; i < 15; i += 3) {
+      const players = new Set(saved.matchOrder.slice(i, i + 3).flatMap(key => key.split("-").map(Number)));
+      expect(players.size).toBe(6);
+    }
+
+    const suggestedKeys = await page.locator("#recommended .match").evaluateAll(nodes => nodes.map(node => node.dataset.matchKey));
+    expect(suggestedKeys).toEqual(saved.matchOrder.slice(0, 3));
+
+    const scheduleKeys = await page.locator("#schedule .match").evaluateAll(nodes => nodes.map(node => node.dataset.matchKey));
+    expect(scheduleKeys).toEqual(saved.matchOrder);
   });
 
   test("start -> result -> finished match disappears and next candidates update", async ({ page }) => {
@@ -142,6 +171,7 @@ test.describe("Pokémon six-player round-robin", () => {
     expect(migrated.players).toEqual(["A","B","C","D","E","F"]);
     expect(migrated.results).toEqual({"0-1":"0"});
     expect(migrated.active).toEqual(["1-2"]);
+    expect(migrated.matchOrder).toHaveLength(15);
 
     const backup = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), LEGACY_BACKUP_KEY);
     expect(backup.players).toHaveLength(7);
