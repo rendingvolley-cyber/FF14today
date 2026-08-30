@@ -1,18 +1,47 @@
 (()=>{
   const SIZE=6;
+  const TOTAL_MATCHES=15;
   const KEY='pokemon-round-robin-v5-six';
   const LEGACY_KEYS=['pokemon-round-robin-v4','pokemon-round-robin-v3','pokemon-round-robin-v2'];
   const LEGACY_BACKUP_KEY='pokemon-round-robin-pre-six-backup';
   const $=id=>document.getElementById(id);
 
   const defaultNames=()=>Array.from({length:SIZE},(_,i)=>`プレイヤー${i+1}`);
-  const initial=()=>({title:'ポケモン総当たり戦',players:defaultNames(),results:{},active:[]});
   const matchKey=(a,b)=>[a,b].sort((x,y)=>x-y).join('-');
   const parseMatchKey=key=>String(key).split('-').map(Number);
   const validMatchKey=key=>{
-    const [a,b]=parseMatchKey(key);
+    const parts=parseMatchKey(key);
+    if(parts.length!==2)return false;
+    const [a,b]=parts;
     return Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0&&a<SIZE&&b<SIZE&&a!==b;
   };
+  const baseMatchKeys=()=>{
+    const keys=[];
+    for(let a=0;a<SIZE;a++)for(let b=a+1;b<SIZE;b++)keys.push(matchKey(a,b));
+    return keys;
+  };
+  const sameOrder=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&a.every((v,i)=>v===b[i]);
+  const canonicalOrder=rawOrder=>{
+    const fallback=baseMatchKeys();
+    if(!Array.isArray(rawOrder)||rawOrder.length!==TOTAL_MATCHES)return fallback;
+    const order=[];
+    for(const rawKey of rawOrder){
+      if(!validMatchKey(rawKey))return fallback;
+      const [a,b]=parseMatchKey(rawKey);
+      order.push(matchKey(a,b));
+    }
+    if(new Set(order).size!==TOTAL_MATCHES)return fallback;
+    const allowed=new Set(fallback);
+    if(order.some(key=>!allowed.has(key)))return fallback;
+    return order;
+  };
+  const initial=()=>({
+    title:'ポケモン総当たり戦',
+    players:defaultNames(),
+    results:{},
+    active:[],
+    matchOrder:baseMatchKeys()
+  });
   const validSix=s=>s&&Array.isArray(s.players)&&s.players.length===SIZE&&s.results&&typeof s.results==='object'&&!Array.isArray(s.results);
 
   function normalize(raw){
@@ -26,6 +55,7 @@
         if(winner===a||winner===b)results[matchKey(a,b)]=String(winner);
       }
     }
+
     const active=[];
     const seen=new Set();
     if(Array.isArray(raw?.active)){
@@ -38,7 +68,14 @@
         active.push(key);
       }
     }
-    return{title:String(raw?.title||'ポケモン総当たり戦'),players,results,active};
+
+    return{
+      title:String(raw?.title||'ポケモン総当たり戦'),
+      players,
+      results,
+      active,
+      matchOrder:canonicalOrder(raw?.matchOrder)
+    };
   }
 
   function load(){
@@ -77,10 +114,11 @@
   }
 
   function fixtures(){
-    const out=[];
-    let no=1;
-    for(let a=0;a<SIZE;a++)for(let b=a+1;b<SIZE;b++)out.push({a,b,no:no++});
-    return out;
+    state.matchOrder=canonicalOrder(state.matchOrder);
+    return state.matchOrder.map((key,index)=>{
+      const [a,b]=parseMatchKey(key);
+      return{a,b,key,no:index+1};
+    });
   }
 
   const getResult=(a,b)=>state.results[matchKey(a,b)]??null;
@@ -95,7 +133,10 @@
       if(seen.has(canonical)||getResult(a,b)!==null)return false;
       seen.add(canonical);
       return true;
-    }).map(key=>{const [a,b]=parseMatchKey(key);return matchKey(a,b)});
+    }).map(key=>{
+      const [a,b]=parseMatchKey(key);
+      return matchKey(a,b);
+    });
   }
 
   function records(){
@@ -149,14 +190,22 @@
     const busy=new Set();
     for(const key of state.active){
       const [a,b]=parseMatchKey(key);
-      if(Number.isInteger(a)&&Number.isInteger(b)){busy.add(a);busy.add(b)}
+      if(Number.isInteger(a)&&Number.isInteger(b)){
+        busy.add(a);
+        busy.add(b);
+      }
     }
     return busy;
   }
 
   function playedCounts(){
     const counts=Array(SIZE).fill(0);
-    for(const m of fixtures())if(getResult(m.a,m.b)!==null){counts[m.a]++;counts[m.b]++}
+    for(const m of fixtures()){
+      if(getResult(m.a,m.b)!==null){
+        counts[m.a]++;
+        counts[m.b]++;
+      }
+    }
     return counts;
   }
 
@@ -165,6 +214,7 @@
     const counts=playedCounts();
     const pending=fixtures().filter(m=>getResult(m.a,m.b)===null&&!isActive(m.a,m.b)&&!busy.has(m.a)&&!busy.has(m.b));
     pending.sort((x,y)=>(counts[x.a]+counts[x.b])-(counts[y.a]+counts[y.b])||Math.max(counts[x.a],counts[x.b])-Math.max(counts[y.a],counts[y.b])||x.no-y.no);
+
     const used=new Set();
     const picked=[];
     for(const m of pending){
@@ -208,6 +258,8 @@
     const active=isActive(m.a,m.b);
     const box=document.createElement('div');
     box.className='match'+(recommended?' recommended':'')+(active?' playing':'')+(result!==null?' done':'');
+    box.dataset.matchKey=m.key||matchKey(m.a,m.b);
+    box.dataset.matchNo=String(m.no);
 
     const no=document.createElement('div');
     no.className='match-no';
@@ -262,13 +314,42 @@
     return box;
   }
 
-  function shuffledPlayerIndexes(){
-    const ids=Array.from({length:SIZE},(_,i)=>i);
-    for(let i=ids.length-1;i>0;i--){
+  function shuffleInPlace(items){
+    for(let i=items.length-1;i>0;i--){
       const j=Math.floor(Math.random()*(i+1));
-      [ids[i],ids[j]]=[ids[j],ids[i]];
+      [items[i],items[j]]=[items[j],items[i]];
     }
-    return ids;
+    return items;
+  }
+
+  function shuffledPlayerIndexes(){
+    return shuffleInPlace(Array.from({length:SIZE},(_,i)=>i));
+  }
+
+  function buildRandomRoundRobinOrder(){
+    const rotating=shuffledPlayerIndexes();
+    const rounds=[];
+
+    for(let round=0;round<SIZE-1;round++){
+      const pairs=[];
+      for(let i=0;i<SIZE/2;i++){
+        pairs.push(matchKey(rotating[i],rotating[SIZE-1-i]));
+      }
+      shuffleInPlace(pairs);
+      rounds.push(pairs);
+      rotating.splice(1,0,rotating.pop());
+    }
+
+    shuffleInPlace(rounds);
+    return rounds.flat();
+  }
+
+  function shuffleMatchOrder(){
+    const underway=Object.keys(state.results).length>0||state.active.length>0;
+    if(underway&&!confirm('対戦順だけをランダムに並べ替えます。入力済みの勝敗や対戦中状態はそのまま残ります。よろしいですか？'))return;
+    state.matchOrder=buildRandomRoundRobinOrder();
+    save();
+    render();
   }
 
   function drawRandomSix(){
@@ -332,7 +413,7 @@
       body.append(tr);
     }
     const done=fixtures().filter(m=>getResult(m.a,m.b)!==null).length;
-    $('progress').textContent=`${done}/15${storageOk?'':' ・未保存'}`;
+    $('progress').textContent=`${done}/${TOTAL_MATCHES}${storageOk?'':' ・未保存'}`;
   }
 
   function renderRecommended(){
@@ -346,6 +427,7 @@
       pill.textContent='● 対戦中：勝った人をタップ';
       summary.append(pill);
     }
+
     const wrap=$('recommended');
     wrap.innerHTML='';
     for(const m of activeList)wrap.append(matchCard(m,true));
@@ -364,7 +446,7 @@
     });
     for(const m of list)wrap.append(matchCard(m,false));
     const done=fixtures().filter(m=>getResult(m.a,m.b)!==null).length;
-    $('scheduleCount').textContent=`残り ${15-done} / 全15`;
+    $('scheduleCount').textContent=`残り ${TOTAL_MATCHES-done} / 全${TOTAL_MATCHES}`;
   }
 
   function makeEditableResultCell(td,i,j){
@@ -387,6 +469,7 @@
     const head=document.createElement('tr');
     head.innerHTML='<th></th>'+state.players.map(name=>`<th>${escapeHtml(name)}</th>`).join('');
     table.append(head);
+
     for(let i=0;i<SIZE;i++){
       const tr=document.createElement('tr');
       tr.innerHTML=`<th>${escapeHtml(state.players[i])}</th>`;
@@ -439,6 +522,11 @@
     });
   }
 
+  function renderOrderStatus(){
+    const status=$('matchOrderStatus');
+    if(status)status.textContent=sameOrder(state.matchOrder,baseMatchKeys())?'標準順':'ランダム順';
+  }
+
   $('applyButton').onclick=()=>{
     const newPlayers=[...$('playerInputs').querySelectorAll('input')].slice(0,SIZE).map((input,i)=>input.value.trim()||`プレイヤー${i+1}`);
     while(newPlayers.length<SIZE)newPlayers.push(`プレイヤー${newPlayers.length+1}`);
@@ -448,6 +536,8 @@
     save();
     render();
   };
+
+  $('shuffleMatchesButton').onclick=shuffleMatchOrder;
 
   $('backupButton').onclick=()=>{
     const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
@@ -511,6 +601,7 @@
   });
 
   function render(){
+    state.matchOrder=canonicalOrder(state.matchOrder);
     $('eventTitle').textContent=state.title;
     $('randomSixButton').disabled=false;
     $('randomSixButton').title='登録した6人をランダム順で表示';
@@ -519,6 +610,7 @@
     renderSchedule();
     renderMatrix();
     renderInputs();
+    renderOrderStatus();
   }
 
   cleanActive();
