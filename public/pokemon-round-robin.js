@@ -34,6 +34,15 @@
   function setActive(a,b,on){const k=matchKey(a,b);if(on){if(getResult(a,b)!==null)return;const busy=busyPlayers();if(busy.has(a)||busy.has(b))return;if(!state.active.includes(k))state.active.push(k)}else state.active=state.active.filter(x=>x!==k);save();render()}
   function setResult(a,b,winner){const k=matchKey(a,b);if(winner===null)delete state.results[k];else{state.results[k]=String(winner);state.active=state.active.filter(x=>x!==k)}save();render()}
   function matchCard(m,recommended=false){const r=getResult(m.a,m.b),active=isActive(m.a,m.b),box=document.createElement('div');box.className='match'+(recommended?' recommended':'')+(active?' playing':'')+(r!==null?' done':'');const no=document.createElement('div');no.className='match-no';no.innerHTML=`#${m.no}${active?'<small>対戦中</small>':recommended?'<small>候補</small>':r!==null?'<small>確定</small>':''}`;box.append(no);const pa=document.createElement('button');pa.type='button';pa.className='player'+(r===String(m.a)?' winner':r===String(m.b)?' loser':'');pa.textContent=state.players[m.a];pa.title=active||r!==null?'勝者として確定':'この対戦を開始';pa.onclick=()=>active||r!==null?setResult(m.a,m.b,m.a):setActive(m.a,m.b,true);box.append(pa);const vs=document.createElement('div');vs.className='vs';vs.textContent='VS';box.append(vs);const pb=document.createElement('button');pb.type='button';pb.className='player'+(r===String(m.b)?' winner':r===String(m.a)?' loser':'');pb.textContent=state.players[m.b];pb.title=active||r!==null?'勝者として確定':'この対戦を開始';pb.onclick=()=>active||r!==null?setResult(m.a,m.b,m.b):setActive(m.a,m.b,true);box.append(pb);const actions=document.createElement('div');actions.className='match-actions';if(r!==null){const clear=document.createElement('button');clear.type='button';clear.className='mini';clear.textContent='↺';clear.title='結果を取消';clear.onclick=()=>setResult(m.a,m.b,null);actions.append(clear)}else if(active){const stop=document.createElement('button');stop.type='button';stop.className='mini stop';stop.textContent='中止';stop.onclick=()=>setActive(m.a,m.b,false);actions.append(stop)}else{const start=document.createElement('button');start.type='button';start.className='mini start';start.textContent='開始';const busy=busyPlayers();start.disabled=busy.has(m.a)||busy.has(m.b);start.onclick=()=>setActive(m.a,m.b,true);actions.append(start)}box.append(actions);return box}
+  function shuffledPlayerIndexes(){const ids=state.players.map((_,i)=>i);for(let i=ids.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ids[i],ids[j]]=[ids[j],ids[i]]}return ids}
+  function drawRandomSix(){
+    if(state.players.length<6)return;
+    const picked=shuffledPlayerIndexes().slice(0,6),list=$('randomSixList');
+    list.innerHTML='';
+    for(const index of picked){const li=document.createElement('li');li.textContent=state.players[index];li.dataset.playerIndex=String(index);list.append(li)}
+  }
+  function openRandomSix(){if(state.players.length<6)return;drawRandomSix();$('randomSixDialog').hidden=false;document.body.classList.add('modal-open');$('randomSixAgain').focus()}
+  function closeRandomSix(){$('randomSixDialog').hidden=true;document.body.classList.remove('modal-open');$('randomSixButton').focus()}
   function openResultEditor(a,b){
     if(getResult(a,b)===null)return;
     [a,b]=[a,b].sort((x,y)=>x-y);
@@ -62,12 +71,17 @@
   $('backupButton').onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pokemon-round-robin-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
   $('importButton').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const s=JSON.parse(await f.text());if(!valid(s))throw new Error();state=normalize(s);cleanActive();save();render()}catch{alert('読み込めないバックアップです。参加人数は5〜8人にしてください。')}e.target.value=''};
   $('resetResults').onclick=()=>{if(confirm('対戦結果と対戦中状態をリセットしますか？')){state.results={};state.active=[];save();render()}};$('resetAll').onclick=()=>{if(confirm('大会設定をすべて初期化しますか？')){state=initial();save();render()}};
+  $('randomSixButton').onclick=openRandomSix;
+  $('randomSixAgain').onclick=drawRandomSix;
+  $('randomSixClose').onclick=closeRandomSix;
+  $('randomSixDone').onclick=closeRandomSix;
+  $('randomSixDialog').onclick=e=>{if(e.target===$('randomSixDialog'))closeRandomSix()};
   $('resultClose').onclick=closeResultEditor;
   $('resultPlayerA').onclick=()=>editingMatch&&applyEditedResult(editingMatch.a);
   $('resultPlayerB').onclick=()=>editingMatch&&applyEditedResult(editingMatch.b);
   $('resultClear').onclick=()=>applyEditedResult(null);
   $('resultEditor').onclick=e=>{if(e.target===$('resultEditor'))closeResultEditor()};
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('resultEditor').hidden)closeResultEditor()});
-  function render(){$('eventTitle').textContent=state.title;renderStandings();renderRecommended();renderSchedule();renderMatrix();renderInputs()}
+  document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('randomSixDialog').hidden)closeRandomSix();else if(!$('resultEditor').hidden)closeResultEditor()});
+  function render(){$('eventTitle').textContent=state.title;$('randomSixButton').disabled=state.players.length<6;$('randomSixButton').title=state.players.length<6?'6人以上登録すると使えます':'登録済み参加者から6人をランダム表示';renderStandings();renderRecommended();renderSchedule();renderMatrix();renderInputs()}
   render();
 })();
