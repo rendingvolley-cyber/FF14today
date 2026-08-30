@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#070b16">
-  <title>ポケモン総当たり戦</title>
+  <title>ポケモン6人総当たり戦</title>
   <link rel="stylesheet" href="/pokemon-round-robin.css?v=11">
 </head>
 <body>
 <main class="app">
   <header class="topbar">
-    <div class="brand"><span class="ball" aria-hidden="true"></span><div><p class="eyebrow">ROUND ROBIN SCOREBOARD</p><h1 id="eventTitle">ポケモン総当たり戦</h1></div></div>
+    <div class="brand"><span class="ball" aria-hidden="true"></span><div><p class="eyebrow">6-PLAYER ROUND ROBIN SCOREBOARD</p><h1 id="eventTitle">ポケモン総当たり戦</h1></div></div>
     <div class="actions"><button id="randomSixButton" class="btn btn-random" type="button">6人ランダム表示</button><button id="backupButton" class="btn">バックアップ</button><a class="link" href="/">FF14 Todayへ</a></div>
   </header>
 
@@ -30,7 +30,7 @@
     </article>
 
     <article class="panel matrix-panel">
-      <div class="head"><h2>総当たり表</h2><span class="progress">W / L / ●対戦中 ・ W/Lタップで修正</span></div>
+      <div class="head"><h2>総当たり表</h2><span class="progress">6人・全15試合 ／ W / L / ●対戦中</span></div>
       <div class="matrix-wrap"><table id="matrix" class="matrix"></table></div>
     </article>
   </section>
@@ -43,7 +43,7 @@
   <details class="setup">
     <summary><span>大会設定</span></summary>
     <div class="setup-body">
-      <div class="setup-grid"><div><label class="label" for="playerCount">参加人数（6人固定）</label><select id="playerCount" class="select" disabled></select></div><div><label class="label" for="titleInput">大会名</label><input id="titleInput" class="text" maxlength="40"></div></div>
+      <div class="setup-grid"><div><label class="label" for="playerCount">参加人数（6人固定）</label><select id="playerCount" class="select" disabled><option value="6">6人</option></select></div><div><label class="label" for="titleInput">大会名</label><input id="titleInput" class="text" maxlength="40"></div></div>
       <span class="label">参加者名</span><div id="playerInputs" class="player-inputs"></div>
       <div class="setup-actions"><button id="applyButton" class="btn btn-accent">設定を反映</button><button id="importButton" class="btn">読込</button><button id="resetResults" class="btn btn-danger">結果リセット</button><button id="resetAll" class="btn btn-danger">全初期化</button><input id="importFile" type="file" accept="application/json" hidden></div>
     </div>
@@ -53,10 +53,10 @@
 <div id="randomSixDialog" class="random-six-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="randomSixTitle">
   <div class="random-six-card">
     <div class="random-six-head">
-      <div><p class="random-six-kicker">RANDOM DRAW</p><h2 id="randomSixTitle">6人ランダム表示</h2></div>
+      <div><p class="random-six-kicker">RANDOM ORDER</p><h2 id="randomSixTitle">6人ランダム表示</h2></div>
       <button id="randomSixClose" class="result-close" type="button" aria-label="閉じる">×</button>
     </div>
-    <p class="random-six-help">登録した6人の表示順をランダムに並べ替えます</p>
+    <p class="random-six-help">登録した6人をランダム順で表示します</p>
     <ol id="randomSixList" class="random-six-list" aria-live="polite"></ol>
     <div class="random-six-actions"><button id="randomSixAgain" class="btn btn-accent" type="button">もう一度抽選</button><button id="randomSixDone" class="btn" type="button">閉じる</button></div>
   </div>
@@ -78,7 +78,6 @@
   </div>
 </div>
 
-<script src="/pokemon-round-robin-six.js?v=1"></script>
-<script src="/pokemon-round-robin.js?v=13"></script>
+<script src="/pokemon-round-robin.js?v=14"></script>
 </body>
 </html>
