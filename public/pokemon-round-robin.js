@@ -1,48 +1,300 @@
 (()=>{
-  const KEY='pokemon-round-robin-v4',OLD_KEYS=['pokemon-round-robin-v3','pokemon-round-robin-v2'],MIN=5,MAX=8,$=id=>document.getElementById(id);
-  const defaultNames=n=>Array.from({length:n},(_,i)=>`プレイヤー${i+1}`);
-  const initial=()=>({title:'ポケモン総当たり戦',players:defaultNames(7),results:{},active:[]});
-  const valid=s=>s&&Array.isArray(s.players)&&s.players.length>=MIN&&s.players.length<=MAX&&s.results&&typeof s.results==='object';
-  function normalize(s){return{title:String(s.title||'ポケモン総当たり戦'),players:s.players.map((v,i)=>String(v||`プレイヤー${i+1}`)),results:s.results||{},active:Array.isArray(s.active)?s.active.map(String):[]}}
-  function load(){try{let s=JSON.parse(localStorage.getItem(KEY)||'null');if(valid(s))return normalize(s);for(const oldKey of OLD_KEYS){s=JSON.parse(localStorage.getItem(oldKey)||'null');if(valid(s))return normalize(s)}return initial()}catch{return initial()}}
+  const SIZE=6;
+  const KEY='pokemon-round-robin-v5-six';
+  const LEGACY_KEYS=['pokemon-round-robin-v4','pokemon-round-robin-v3','pokemon-round-robin-v2'];
+  const LEGACY_BACKUP_KEY='pokemon-round-robin-pre-six-backup';
+  const $=id=>document.getElementById(id);
+
+  const defaultNames=()=>Array.from({length:SIZE},(_,i)=>`プレイヤー${i+1}`);
+  const initial=()=>({title:'ポケモン総当たり戦',players:defaultNames(),results:{},active:[]});
+  const matchKey=(a,b)=>[a,b].sort((x,y)=>x-y).join('-');
+  const parseMatchKey=key=>String(key).split('-').map(Number);
+  const validMatchKey=key=>{
+    const [a,b]=parseMatchKey(key);
+    return Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0&&a<SIZE&&b<SIZE&&a!==b;
+  };
+  const validSix=s=>s&&Array.isArray(s.players)&&s.players.length===SIZE&&s.results&&typeof s.results==='object'&&!Array.isArray(s.results);
+
+  function normalize(raw){
+    const players=Array.from({length:SIZE},(_,i)=>String(raw?.players?.[i]||`プレイヤー${i+1}`));
+    const results={};
+    if(raw?.results&&typeof raw.results==='object'){
+      for(const [key,value] of Object.entries(raw.results)){
+        if(!validMatchKey(key))continue;
+        const [a,b]=parseMatchKey(key);
+        const winner=Number(value);
+        if(winner===a||winner===b)results[matchKey(a,b)]=String(winner);
+      }
+    }
+    const active=[];
+    const seen=new Set();
+    if(Array.isArray(raw?.active)){
+      for(const rawKey of raw.active){
+        if(!validMatchKey(rawKey))continue;
+        const [a,b]=parseMatchKey(rawKey);
+        const key=matchKey(a,b);
+        if(seen.has(key)||key in results)continue;
+        seen.add(key);
+        active.push(key);
+      }
+    }
+    return{title:String(raw?.title||'ポケモン総当たり戦'),players,results,active};
+  }
+
+  function load(){
+    try{
+      const current=JSON.parse(localStorage.getItem(KEY)||'null');
+      if(validSix(current))return normalize(current);
+
+      for(const legacyKey of LEGACY_KEYS){
+        const text=localStorage.getItem(legacyKey);
+        if(!text)continue;
+        const legacy=JSON.parse(text);
+        if(!legacy||!Array.isArray(legacy.players))continue;
+        if(!localStorage.getItem(LEGACY_BACKUP_KEY))localStorage.setItem(LEGACY_BACKUP_KEY,text);
+        return normalize(legacy);
+      }
+    }catch(e){
+      console.warn('Tournament state could not be loaded.',e);
+    }
+    return initial();
+  }
+
   let state=load();
   let storageOk=true;
   let editingMatch=null;
-  function save(){try{localStorage.setItem(KEY,JSON.stringify(state));storageOk=true;return true}catch(e){storageOk=false;console.warn('Tournament data could not be saved to localStorage.',e);return false}}
-  const matchKey=(a,b)=>[a,b].sort((x,y)=>x-y).join('-');
+
+  function save(){
+    try{
+      localStorage.setItem(KEY,JSON.stringify(state));
+      storageOk=true;
+      return true;
+    }catch(e){
+      storageOk=false;
+      console.warn('Tournament data could not be saved to localStorage.',e);
+      return false;
+    }
+  }
+
+  function fixtures(){
+    const out=[];
+    let no=1;
+    for(let a=0;a<SIZE;a++)for(let b=a+1;b<SIZE;b++)out.push({a,b,no:no++});
+    return out;
+  }
+
   const getResult=(a,b)=>state.results[matchKey(a,b)]??null;
   const isActive=(a,b)=>state.active.includes(matchKey(a,b));
+
   function cleanActive(){
     const seen=new Set();
-    state.active=state.active.filter(k=>{
-      if(seen.has(k))return false;
-      seen.add(k);
-      const parts=String(k).split('-').map(Number);
-      if(parts.length!==2)return false;
-      const [a,b]=parts;
-      if(!Number.isInteger(a)||!Number.isInteger(b)||a<0||b<0||a>=state.players.length||b>=state.players.length||a===b)return false;
-      return getResult(a,b)===null;
+    state.active=state.active.filter(key=>{
+      if(!validMatchKey(key))return false;
+      const [a,b]=parseMatchKey(key);
+      const canonical=matchKey(a,b);
+      if(seen.has(canonical)||getResult(a,b)!==null)return false;
+      seen.add(canonical);
+      return true;
+    }).map(key=>{const [a,b]=parseMatchKey(key);return matchKey(a,b)});
+  }
+
+  function records(){
+    const rows=state.players.map((name,index)=>({name,index,w:0,l:0,direct:0,rank:0}));
+    for(const m of fixtures()){
+      const result=getResult(m.a,m.b);
+      if(result===null)continue;
+      const winner=Number(result);
+      if(winner!==m.a&&winner!==m.b)continue;
+      const loser=winner===m.a?m.b:m.a;
+      rows[winner].w++;
+      rows[loser].l++;
+    }
+
+    const groups=new Map();
+    for(const row of rows){
+      if(!groups.has(row.w))groups.set(row.w,[]);
+      groups.get(row.w).push(row);
+    }
+
+    const sorted=[];
+    [...groups.keys()].sort((a,b)=>b-a).forEach(wins=>{
+      const group=groups.get(wins);
+      const ids=new Set(group.map(r=>r.index));
+      for(const row of group)row.direct=0;
+      if(group.length>1){
+        for(const m of fixtures()){
+          if(!ids.has(m.a)||!ids.has(m.b))continue;
+          const result=getResult(m.a,m.b);
+          if(result===null)continue;
+          const row=group.find(x=>x.index===Number(result));
+          if(row)row.direct++;
+        }
+      }
+      group.sort((a,b)=>b.direct-a.direct||a.index-b.index);
+      sorted.push(...group);
     });
+
+    let pos=1;
+    for(let i=0;i<sorted.length;){
+      let j=i+1;
+      while(j<sorted.length&&sorted[j].w===sorted[i].w&&sorted[j].direct===sorted[i].direct)j++;
+      for(let k=i;k<j;k++)sorted[k].rank=pos;
+      pos+=j-i;
+      i=j;
+    }
+    return sorted;
   }
-  cleanActive();
-  save();
-  function fixtures(){const out=[];let no=1;for(let a=0;a<state.players.length;a++)for(let b=a+1;b<state.players.length;b++)out.push({a,b,no:no++});return out}
-  function records(){const rows=state.players.map((name,index)=>({name,index,w:0,l:0,direct:0,rank:0}));for(const m of fixtures()){const r=getResult(m.a,m.b);if(r===null)continue;const winner=Number(r),loser=winner===m.a?m.b:m.a;if(winner!==m.a&&winner!==m.b)continue;rows[winner].w++;rows[loser].l++}const groups=new Map();for(const row of rows){if(!groups.has(row.w))groups.set(row.w,[]);groups.get(row.w).push(row)}const sorted=[];[...groups.keys()].sort((a,b)=>b-a).forEach(wins=>{const group=groups.get(wins),ids=new Set(group.map(r=>r.index));group.forEach(r=>r.direct=0);if(group.length>1){for(const m of fixtures()){if(!ids.has(m.a)||!ids.has(m.b))continue;const r=getResult(m.a,m.b);if(r!==null){const row=group.find(x=>x.index===Number(r));if(row)row.direct++}}}group.sort((a,b)=>b.direct-a.direct||a.index-b.index);sorted.push(...group)});let pos=1;for(let i=0;i<sorted.length;){let j=i+1;while(j<sorted.length&&sorted[j].w===sorted[i].w&&sorted[j].direct===sorted[i].direct)j++;for(let k=i;k<j;k++)sorted[k].rank=pos;pos+=j-i;i=j}return sorted}
-  function busyPlayers(){const busy=new Set();for(const k of state.active){const [a,b]=k.split('-').map(Number);if(Number.isInteger(a)&&Number.isInteger(b)){busy.add(a);busy.add(b)}}return busy}
-  function playedCounts(){const c=Array(state.players.length).fill(0);for(const m of fixtures())if(getResult(m.a,m.b)!==null){c[m.a]++;c[m.b]++}return c}
-  function candidates(){const busy=busyPlayers(),counts=playedCounts(),pending=fixtures().filter(m=>getResult(m.a,m.b)===null&&!isActive(m.a,m.b)&&!busy.has(m.a)&&!busy.has(m.b));pending.sort((x,y)=>(counts[x.a]+counts[x.b])-(counts[y.a]+counts[y.b])||Math.max(counts[x.a],counts[x.b])-Math.max(counts[y.a],counts[y.b])||x.no-y.no);const used=new Set(),picked=[];for(const m of pending){if(used.has(m.a)||used.has(m.b))continue;picked.push(m);used.add(m.a);used.add(m.b)}return picked}
-  function setActive(a,b,on){const k=matchKey(a,b);if(on){if(getResult(a,b)!==null)return;const busy=busyPlayers();if(busy.has(a)||busy.has(b))return;if(!state.active.includes(k))state.active.push(k)}else state.active=state.active.filter(x=>x!==k);save();render()}
-  function setResult(a,b,winner){const k=matchKey(a,b);if(winner===null)delete state.results[k];else{state.results[k]=String(winner);state.active=state.active.filter(x=>x!==k)}save();render()}
-  function matchCard(m,recommended=false){const r=getResult(m.a,m.b),active=isActive(m.a,m.b),box=document.createElement('div');box.className='match'+(recommended?' recommended':'')+(active?' playing':'')+(r!==null?' done':'');const no=document.createElement('div');no.className='match-no';no.innerHTML=`#${m.no}${active?'<small>対戦中</small>':recommended?'<small>候補</small>':r!==null?'<small>確定</small>':''}`;box.append(no);const pa=document.createElement('button');pa.type='button';pa.className='player'+(r===String(m.a)?' winner':r===String(m.b)?' loser':'');pa.textContent=state.players[m.a];pa.title=active||r!==null?'勝者として確定':'この対戦を開始';pa.onclick=()=>active||r!==null?setResult(m.a,m.b,m.a):setActive(m.a,m.b,true);box.append(pa);const vs=document.createElement('div');vs.className='vs';vs.textContent='VS';box.append(vs);const pb=document.createElement('button');pb.type='button';pb.className='player'+(r===String(m.b)?' winner':r===String(m.a)?' loser':'');pb.textContent=state.players[m.b];pb.title=active||r!==null?'勝者として確定':'この対戦を開始';pb.onclick=()=>active||r!==null?setResult(m.a,m.b,m.b):setActive(m.a,m.b,true);box.append(pb);const actions=document.createElement('div');actions.className='match-actions';if(r!==null){const clear=document.createElement('button');clear.type='button';clear.className='mini';clear.textContent='↺';clear.title='結果を取消';clear.onclick=()=>setResult(m.a,m.b,null);actions.append(clear)}else if(active){const stop=document.createElement('button');stop.type='button';stop.className='mini stop';stop.textContent='中止';stop.onclick=()=>setActive(m.a,m.b,false);actions.append(stop)}else{const start=document.createElement('button');start.type='button';start.className='mini start';start.textContent='開始';const busy=busyPlayers();start.disabled=busy.has(m.a)||busy.has(m.b);start.onclick=()=>setActive(m.a,m.b,true);actions.append(start)}box.append(actions);return box}
-  function shuffledPlayerIndexes(){const ids=state.players.map((_,i)=>i);for(let i=ids.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ids[i],ids[j]]=[ids[j],ids[i]]}return ids}
+
+  function busyPlayers(){
+    const busy=new Set();
+    for(const key of state.active){
+      const [a,b]=parseMatchKey(key);
+      if(Number.isInteger(a)&&Number.isInteger(b)){busy.add(a);busy.add(b)}
+    }
+    return busy;
+  }
+
+  function playedCounts(){
+    const counts=Array(SIZE).fill(0);
+    for(const m of fixtures())if(getResult(m.a,m.b)!==null){counts[m.a]++;counts[m.b]++}
+    return counts;
+  }
+
+  function candidates(){
+    const busy=busyPlayers();
+    const counts=playedCounts();
+    const pending=fixtures().filter(m=>getResult(m.a,m.b)===null&&!isActive(m.a,m.b)&&!busy.has(m.a)&&!busy.has(m.b));
+    pending.sort((x,y)=>(counts[x.a]+counts[x.b])-(counts[y.a]+counts[y.b])||Math.max(counts[x.a],counts[x.b])-Math.max(counts[y.a],counts[y.b])||x.no-y.no);
+    const used=new Set();
+    const picked=[];
+    for(const m of pending){
+      if(used.has(m.a)||used.has(m.b))continue;
+      picked.push(m);
+      used.add(m.a);
+      used.add(m.b);
+    }
+    return picked;
+  }
+
+  function setActive(a,b,on){
+    const key=matchKey(a,b);
+    if(on){
+      if(getResult(a,b)!==null)return;
+      const busy=busyPlayers();
+      if(busy.has(a)||busy.has(b))return;
+      if(!state.active.includes(key))state.active.push(key);
+    }else{
+      state.active=state.active.filter(x=>x!==key);
+    }
+    save();
+    render();
+  }
+
+  function setResult(a,b,winner){
+    const key=matchKey(a,b);
+    if(winner===null){
+      delete state.results[key];
+    }else{
+      if(winner!==a&&winner!==b)return;
+      state.results[key]=String(winner);
+      state.active=state.active.filter(x=>x!==key);
+    }
+    save();
+    render();
+  }
+
+  function matchCard(m,recommended=false){
+    const result=getResult(m.a,m.b);
+    const active=isActive(m.a,m.b);
+    const box=document.createElement('div');
+    box.className='match'+(recommended?' recommended':'')+(active?' playing':'')+(result!==null?' done':'');
+
+    const no=document.createElement('div');
+    no.className='match-no';
+    no.innerHTML=`#${m.no}${active?'<small>対戦中</small>':recommended?'<small>候補</small>':result!==null?'<small>確定</small>':''}`;
+    box.append(no);
+
+    const playerButton=(playerIndex,otherIndex)=>{
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='player'+(result===String(playerIndex)?' winner':result===String(otherIndex)?' loser':'');
+      btn.textContent=state.players[playerIndex];
+      btn.title=active||result!==null?'勝者として確定':'この対戦を開始';
+      btn.onclick=()=>active||result!==null?setResult(m.a,m.b,playerIndex):setActive(m.a,m.b,true);
+      return btn;
+    };
+
+    box.append(playerButton(m.a,m.b));
+    const vs=document.createElement('div');
+    vs.className='vs';
+    vs.textContent='VS';
+    box.append(vs);
+    box.append(playerButton(m.b,m.a));
+
+    const actions=document.createElement('div');
+    actions.className='match-actions';
+    if(result!==null){
+      const clear=document.createElement('button');
+      clear.type='button';
+      clear.className='mini';
+      clear.textContent='↺';
+      clear.title='結果を取消';
+      clear.onclick=()=>setResult(m.a,m.b,null);
+      actions.append(clear);
+    }else if(active){
+      const stop=document.createElement('button');
+      stop.type='button';
+      stop.className='mini stop';
+      stop.textContent='中止';
+      stop.onclick=()=>setActive(m.a,m.b,false);
+      actions.append(stop);
+    }else{
+      const start=document.createElement('button');
+      start.type='button';
+      start.className='mini start';
+      start.textContent='開始';
+      const busy=busyPlayers();
+      start.disabled=busy.has(m.a)||busy.has(m.b);
+      start.onclick=()=>setActive(m.a,m.b,true);
+      actions.append(start);
+    }
+    box.append(actions);
+    return box;
+  }
+
+  function shuffledPlayerIndexes(){
+    const ids=Array.from({length:SIZE},(_,i)=>i);
+    for(let i=ids.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [ids[i],ids[j]]=[ids[j],ids[i]];
+    }
+    return ids;
+  }
+
   function drawRandomSix(){
-    if(state.players.length<6)return;
-    const picked=shuffledPlayerIndexes().slice(0,6),list=$('randomSixList');
+    const list=$('randomSixList');
     list.innerHTML='';
-    for(const index of picked){const li=document.createElement('li');li.textContent=state.players[index];li.dataset.playerIndex=String(index);list.append(li)}
+    for(const index of shuffledPlayerIndexes()){
+      const li=document.createElement('li');
+      li.textContent=state.players[index];
+      li.dataset.playerIndex=String(index);
+      list.append(li);
+    }
   }
-  function openRandomSix(){if(state.players.length<6)return;drawRandomSix();$('randomSixDialog').hidden=false;document.body.classList.add('modal-open');$('randomSixAgain').focus()}
-  function closeRandomSix(){$('randomSixDialog').hidden=true;document.body.classList.remove('modal-open');$('randomSixButton').focus()}
+
+  function openRandomSix(){
+    drawRandomSix();
+    $('randomSixDialog').hidden=false;
+    document.body.classList.add('modal-open');
+    $('randomSixAgain').focus();
+  }
+
+  function closeRandomSix(){
+    $('randomSixDialog').hidden=true;
+    document.body.classList.remove('modal-open');
+    $('randomSixButton').focus();
+  }
+
   function openResultEditor(a,b){
     if(getResult(a,b)===null)return;
     [a,b]=[a,b].sort((x,y)=>x-y);
@@ -57,31 +309,219 @@
     document.body.classList.add('modal-open');
     (winner===a?$('resultPlayerA'):$('resultPlayerB')).focus();
   }
-  function closeResultEditor(){editingMatch=null;$('resultEditor').hidden=true;document.body.classList.remove('modal-open')}
-  function applyEditedResult(winner){if(!editingMatch)return;const {a,b}=editingMatch;closeResultEditor();setResult(a,b,winner)}
-  function renderStandings(){const body=$('standings');body.innerHTML='';for(const r of records()){const tr=document.createElement('tr');tr.innerHTML=`<td class="rank">${r.rank}</td><td>${escapeHtml(r.name)}</td><td class="wins">${r.w}</td><td>${r.l}</td>`;body.append(tr)}const done=fixtures().filter(m=>getResult(m.a,m.b)!==null).length;$('progress').textContent=`${done}/${fixtures().length}${storageOk?'':' ・未保存'}`}
-  function renderRecommended(){cleanActive();const activeList=fixtures().filter(m=>isActive(m.a,m.b));const summary=$('playingSummary');summary.innerHTML='';if(activeList.length){const p=document.createElement('span');p.className='playing-pill';p.textContent='● 対戦中：勝った人をタップ';summary.append(p)}const wrap=$('recommended');wrap.innerHTML='';for(const m of activeList)wrap.append(matchCard(m,true));const list=candidates();for(const m of list)wrap.append(matchCard(m,true));if(!activeList.length&&!list.length)wrap.innerHTML='<div class="empty">空き組なし</div>'}
-  function renderSchedule(){const wrap=$('schedule');wrap.innerHTML='';const list=fixtures().sort((x,y)=>{const xr=getResult(x.a,x.b),yr=getResult(y.a,y.b),xs=isActive(x.a,x.b)?0:xr===null?1:2,ys=isActive(y.a,y.b)?0:yr===null?1:2;return xs-ys||x.no-y.no});for(const m of list)wrap.append(matchCard(m,false));const done=fixtures().filter(m=>getResult(m.a,m.b)!==null).length;$('scheduleCount').textContent=`残り ${fixtures().length-done} / 全${fixtures().length}`}
-  function makeEditableResultCell(td,i,j){td.tabIndex=0;td.setAttribute('role','button');td.title='結果を修正';td.setAttribute('aria-label',`${state.players[i]} 対 ${state.players[j]} の結果を修正`);td.onclick=()=>openResultEditor(i,j);td.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openResultEditor(i,j)}}}
-  function renderMatrix(){const table=$('matrix');table.innerHTML='';const head=document.createElement('tr');head.innerHTML='<th></th>'+state.players.map(n=>`<th>${escapeHtml(n)}</th>`).join('');table.append(head);for(let i=0;i<state.players.length;i++){const tr=document.createElement('tr');tr.innerHTML=`<th>${escapeHtml(state.players[i])}</th>`;for(let j=0;j<state.players.length;j++){const td=document.createElement('td');if(i===j){td.className='self';td.textContent='—'}else{const r=getResult(i,j);if(isActive(i,j)){td.className='active';td.textContent='●'}else if(r===null){td.className='pending';td.textContent='·'}else if(Number(r)===i){td.className='win';td.textContent='W';makeEditableResultCell(td,i,j)}else{td.className='loss';td.textContent='L';makeEditableResultCell(td,i,j)}}tr.append(td)}table.append(tr)}}
-  function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-  function renderInputs(){const count=$('playerCount');count.innerHTML='';for(let n=MIN;n<=MAX;n++){const o=document.createElement('option');o.value=n;o.textContent=`${n}人`;if(n===state.players.length)o.selected=true;count.append(o)}$('titleInput').value=state.title;const wrap=$('playerInputs');wrap.innerHTML='';state.players.forEach(name=>{const inp=document.createElement('input');inp.className='text';inp.value=name;wrap.append(inp)})}
-  $('playerCount').addEventListener('change',()=>{const n=Number($('playerCount').value),wrap=$('playerInputs'),current=[...wrap.querySelectorAll('input')].map(x=>x.value);wrap.innerHTML='';for(let i=0;i<n;i++){const inp=document.createElement('input');inp.className='text';inp.value=current[i]||`プレイヤー${i+1}`;wrap.append(inp)}});
-  $('applyButton').onclick=()=>{const n=Number($('playerCount').value),newPlayers=[...$('playerInputs').querySelectorAll('input')].slice(0,n).map((x,i)=>x.value.trim()||`プレイヤー${i+1}`);if(n!==state.players.length&&(Object.keys(state.results).length||state.active.length)&&!confirm('人数を変えると対戦結果・対戦中状態をリセットします。よろしいですか？')){renderInputs();return}state.title=$('titleInput').value.trim()||'ポケモン総当たり戦';if(n!==state.players.length){state.results={};state.active=[]}state.players=newPlayers;cleanActive();save();render()};
-  $('backupButton').onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pokemon-round-robin-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-  $('importButton').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const s=JSON.parse(await f.text());if(!valid(s))throw new Error();state=normalize(s);cleanActive();save();render()}catch{alert('読み込めないバックアップです。参加人数は5〜8人にしてください。')}e.target.value=''};
-  $('resetResults').onclick=()=>{if(confirm('対戦結果と対戦中状態をリセットしますか？')){state.results={};state.active=[];save();render()}};$('resetAll').onclick=()=>{if(confirm('大会設定をすべて初期化しますか？')){state=initial();save();render()}};
+
+  function closeResultEditor(){
+    editingMatch=null;
+    $('resultEditor').hidden=true;
+    document.body.classList.remove('modal-open');
+  }
+
+  function applyEditedResult(winner){
+    if(!editingMatch)return;
+    const {a,b}=editingMatch;
+    closeResultEditor();
+    setResult(a,b,winner);
+  }
+
+  function renderStandings(){
+    const body=$('standings');
+    body.innerHTML='';
+    for(const row of records()){
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td class="rank">${row.rank}</td><td>${escapeHtml(row.name)}</td><td class="wins">${row.w}</td><td>${row.l}</td>`;
+      body.append(tr);
+    }
+    const done=fixtures().filter(m=>getResult(m.a,m.b)!==null).length;
+    $('progress').textContent=`${done}/15${storageOk?'':' ・未保存'}`;
+  }
+
+  function renderRecommended(){
+    cleanActive();
+    const activeList=fixtures().filter(m=>isActive(m.a,m.b));
+    const summary=$('playingSummary');
+    summary.innerHTML='';
+    if(activeList.length){
+      const pill=document.createElement('span');
+      pill.className='playing-pill';
+      pill.textContent='● 対戦中：勝った人をタップ';
+      summary.append(pill);
+    }
+    const wrap=$('recommended');
+    wrap.innerHTML='';
+    for(const m of activeList)wrap.append(matchCard(m,true));
+    for(const m of candidates())wrap.append(matchCard(m,true));
+    if(!wrap.children.length)wrap.innerHTML='<div class="empty">空き組なし</div>';
+  }
+
+  function renderSchedule(){
+    const wrap=$('schedule');
+    wrap.innerHTML='';
+    const list=fixtures().sort((x,y)=>{
+      const xr=getResult(x.a,x.b),yr=getResult(y.a,y.b);
+      const xs=isActive(x.a,x.b)?0:xr===null?1:2;
+      const ys=isActive(y.a,y.b)?0:yr===null?1:2;
+      return xs-ys||x.no-y.no;
+    });
+    for(const m of list)wrap.append(matchCard(m,false));
+    const done=fixtures().filter(m=>getResult(m.a,m.b)!==null).length;
+    $('scheduleCount').textContent=`残り ${15-done} / 全15`;
+  }
+
+  function makeEditableResultCell(td,i,j){
+    td.tabIndex=0;
+    td.setAttribute('role','button');
+    td.title='結果を修正';
+    td.setAttribute('aria-label',`${state.players[i]} 対 ${state.players[j]} の結果を修正`);
+    td.onclick=()=>openResultEditor(i,j);
+    td.onkeydown=e=>{
+      if(e.key==='Enter'||e.key===' '){
+        e.preventDefault();
+        openResultEditor(i,j);
+      }
+    };
+  }
+
+  function renderMatrix(){
+    const table=$('matrix');
+    table.innerHTML='';
+    const head=document.createElement('tr');
+    head.innerHTML='<th></th>'+state.players.map(name=>`<th>${escapeHtml(name)}</th>`).join('');
+    table.append(head);
+    for(let i=0;i<SIZE;i++){
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<th>${escapeHtml(state.players[i])}</th>`;
+      for(let j=0;j<SIZE;j++){
+        const td=document.createElement('td');
+        if(i===j){
+          td.className='self';
+          td.textContent='—';
+        }else{
+          const result=getResult(i,j);
+          if(isActive(i,j)){
+            td.className='active';
+            td.textContent='●';
+          }else if(result===null){
+            td.className='pending';
+            td.textContent='·';
+          }else if(Number(result)===i){
+            td.className='win';
+            td.textContent='W';
+            makeEditableResultCell(td,i,j);
+          }else{
+            td.className='loss';
+            td.textContent='L';
+            makeEditableResultCell(td,i,j);
+          }
+        }
+        tr.append(td);
+      }
+      table.append(tr);
+    }
+  }
+
+  function escapeHtml(value){
+    return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderInputs(){
+    const count=$('playerCount');
+    count.innerHTML='<option value="6">6人</option>';
+    count.value='6';
+    count.disabled=true;
+    $('titleInput').value=state.title;
+    const wrap=$('playerInputs');
+    wrap.innerHTML='';
+    state.players.forEach(name=>{
+      const input=document.createElement('input');
+      input.className='text';
+      input.value=name;
+      wrap.append(input);
+    });
+  }
+
+  $('applyButton').onclick=()=>{
+    const newPlayers=[...$('playerInputs').querySelectorAll('input')].slice(0,SIZE).map((input,i)=>input.value.trim()||`プレイヤー${i+1}`);
+    while(newPlayers.length<SIZE)newPlayers.push(`プレイヤー${newPlayers.length+1}`);
+    state.title=$('titleInput').value.trim()||'ポケモン総当たり戦';
+    state.players=newPlayers;
+    cleanActive();
+    save();
+    render();
+  };
+
+  $('backupButton').onclick=()=>{
+    const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`pokemon-round-robin-six-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+
+  $('importButton').onclick=()=>$('importFile').click();
+  $('importFile').onchange=async e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    try{
+      const imported=JSON.parse(await file.text());
+      if(!validSix(imported))throw new Error('not-six');
+      state=normalize(imported);
+      cleanActive();
+      save();
+      render();
+    }catch{
+      alert('読み込めないバックアップです。6人総当たりのデータを使用してください。');
+    }
+    e.target.value='';
+  };
+
+  $('resetResults').onclick=()=>{
+    if(confirm('対戦結果と対戦中状態をリセットしますか？')){
+      state.results={};
+      state.active=[];
+      save();
+      render();
+    }
+  };
+
+  $('resetAll').onclick=()=>{
+    if(confirm('大会設定をすべて初期化しますか？')){
+      state=initial();
+      save();
+      render();
+    }
+  };
+
   $('randomSixButton').onclick=openRandomSix;
   $('randomSixAgain').onclick=drawRandomSix;
   $('randomSixClose').onclick=closeRandomSix;
   $('randomSixDone').onclick=closeRandomSix;
   $('randomSixDialog').onclick=e=>{if(e.target===$('randomSixDialog'))closeRandomSix()};
+
   $('resultClose').onclick=closeResultEditor;
   $('resultPlayerA').onclick=()=>editingMatch&&applyEditedResult(editingMatch.a);
   $('resultPlayerB').onclick=()=>editingMatch&&applyEditedResult(editingMatch.b);
   $('resultClear').onclick=()=>applyEditedResult(null);
   $('resultEditor').onclick=e=>{if(e.target===$('resultEditor'))closeResultEditor()};
-  document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('randomSixDialog').hidden)closeRandomSix();else if(!$('resultEditor').hidden)closeResultEditor()});
-  function render(){$('eventTitle').textContent=state.title;$('randomSixButton').disabled=state.players.length<6;$('randomSixButton').title=state.players.length<6?'6人以上登録すると使えます':'登録済み参加者から6人をランダム表示';renderStandings();renderRecommended();renderSchedule();renderMatrix();renderInputs()}
+
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape')return;
+    if(!$('randomSixDialog').hidden)closeRandomSix();
+    else if(!$('resultEditor').hidden)closeResultEditor();
+  });
+
+  function render(){
+    $('eventTitle').textContent=state.title;
+    $('randomSixButton').disabled=false;
+    $('randomSixButton').title='登録した6人をランダム順で表示';
+    renderStandings();
+    renderRecommended();
+    renderSchedule();
+    renderMatrix();
+    renderInputs();
+  }
+
+  cleanActive();
+  save();
   render();
 })();
