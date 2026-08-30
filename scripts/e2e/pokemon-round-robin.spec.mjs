@@ -78,6 +78,35 @@ test.describe("Pokémon round-robin", () => {
     expect(saved.results).toEqual({});
   });
 
+  test("random six draw shows six unique registered participants and disables below six", async ({ page }) => {
+    const drawButton = page.locator("#randomSixButton");
+    await expect(drawButton).toBeEnabled();
+    await drawButton.click();
+
+    const dialog = page.locator("#randomSixDialog");
+    const items = dialog.locator("#randomSixList li");
+    await expect(dialog).toBeVisible();
+    await expect(items).toHaveCount(6);
+
+    let names = await items.allTextContents();
+    expect(new Set(names).size).toBe(6);
+    for (const name of names) expect(/^プレイヤー[1-7]$/.test(name)).toBeTruthy();
+
+    await page.locator("#randomSixAgain").click();
+    await expect(items).toHaveCount(6);
+    names = await items.allTextContents();
+    expect(new Set(names).size).toBe(6);
+
+    await page.locator("#randomSixDone").click();
+    await expect(dialog).toBeHidden();
+
+    const settings = page.locator("details.setup");
+    await settings.locator("summary").click();
+    await page.locator("#playerCount").selectOption("5");
+    await page.locator("#applyButton").click();
+    await expect(drawButton).toBeDisabled();
+  });
+
   test("settings can be opened and minimized by tapping its header again", async ({ page }) => {
     const settings = page.locator("details.setup");
     await expect(settings).not.toHaveAttribute("open", "");
