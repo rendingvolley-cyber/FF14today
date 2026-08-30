@@ -32,16 +32,20 @@ test.describe("Pokémon player order shuffle", () => {
     await expect(shuffle).toBeEnabled();
 
     await page.evaluate(() => { Math.random = () => 0; });
-    await Promise.all([
-      page.waitForNavigation(),
-      shuffle.click(),
-    ]);
+    await shuffle.click();
+    await expect(page.locator("#randomSixDialog")).toBeVisible();
+    await expect(page.locator("#randomSixList li")).toHaveText(["B", "C", "D", "E", "F", "A"]);
 
     saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), KEY);
     expect(saved.players).toEqual(["B", "C", "D", "E", "F", "A"]);
     expect(new Set(saved.players)).toEqual(new Set(registered));
     expect(saved.results).toEqual({});
     expect(saved.active).toEqual([]);
+
+    await Promise.all([
+      page.waitForNavigation(),
+      page.locator("#randomSixDone").click(),
+    ]);
 
     await expect(page.locator("#playerInputs input").nth(0)).toHaveValue("B");
     await expect(page.locator("#matrix tr").first().locator("th").nth(1)).toHaveText("B");
