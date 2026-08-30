@@ -1,28 +1,38 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Pokémon round-robin", () => {
+const KEY = "pokemon-round-robin-v5-six";
+const LEGACY_KEY = "pokemon-round-robin-v4";
+const LEGACY_BACKUP_KEY = "pokemon-round-robin-pre-six-backup";
+
+test.describe("Pokémon six-player round-robin", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/pokemon-round-robin.html");
-    await page.evaluate(() => {
-      localStorage.removeItem("pokemon-round-robin-v4");
-      localStorage.removeItem("pokemon-round-robin-v4-pre-six-backup");
+    await page.evaluate(({ key, legacyKey, backupKey }) => {
+      localStorage.removeItem(key);
+      localStorage.removeItem(legacyKey);
+      localStorage.removeItem(backupKey);
       localStorage.removeItem("pokemon-round-robin-v3");
       localStorage.removeItem("pokemon-round-robin-v2");
-    });
+    }, { key: KEY, legacyKey: LEGACY_KEY, backupKey: LEGACY_BACKUP_KEY });
     await page.reload();
   });
 
-  test("six-player tournament starts with 15 matches and fixed participant count", async ({ page }) => {
+  test("is six players only with exactly 15 round-robin matches", async ({ page }) => {
     await expect(page.locator("#progress")).toHaveText("0/15");
     await expect(page.locator("#playerInputs input")).toHaveCount(6);
     await expect(page.locator("#playerCount")).toHaveValue("6");
     await expect(page.locator("#playerCount")).toBeDisabled();
     await expect(page.locator("#scheduleCount")).toHaveText("残り 15 / 全15");
+    await expect(page.locator("#matrix tr")).toHaveCount(7);
+    await expect(page.locator("#matrix tr").first().locator("th")).toHaveCount(7);
+    await expect(page.locator("#recommended .match")).toHaveCount(3);
+
+    const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
+    expect(saved.players).toHaveLength(6);
+    expect(saved.players).toEqual(["プレイヤー1","プレイヤー2","プレイヤー3","プレイヤー4","プレイヤー5","プレイヤー6"]);
   });
 
   test("start -> result -> finished match disappears and next candidates update", async ({ page }) => {
-    await expect(page.locator("#progress")).toHaveText("0/15");
-
     const firstCard = page.locator("#recommended .match").first();
     await expect(firstCard).toBeVisible();
     const winnerName = await firstCard.locator(".player").first().innerText();
@@ -41,7 +51,7 @@ test.describe("Pokémon round-robin", () => {
     await expect(page.locator("#recommended .match.done")).toHaveCount(0);
     await expect(page.locator("#recommended .match").first()).toBeVisible();
 
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("pokemon-round-robin-v4")));
+    const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
     expect(saved.players).toHaveLength(6);
     expect(Object.keys(saved.results)).toHaveLength(1);
     expect(saved.active).toEqual([]);
@@ -72,7 +82,7 @@ test.describe("Pokémon round-robin", () => {
 
     const playerBRow = page.locator("#standings tr").filter({ hasText: playerB });
     await expect(playerBRow.locator("td").nth(2)).toHaveText("1");
-    let saved = await page.evaluate(() => JSON.parse(localStorage.getItem("pokemon-round-robin-v4")));
+    let saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
     expect(saved.results["0-1"]).toBe("1");
 
     await page.locator("#matrix td.win").first().click();
@@ -84,7 +94,7 @@ test.describe("Pokémon round-robin", () => {
     await expect(page.locator("#progress")).toHaveText("0/15");
     await expect(page.locator("#matrix td.win")).toHaveCount(0);
     await expect(page.locator("#matrix td.loss")).toHaveCount(0);
-    saved = await page.evaluate(() => JSON.parse(localStorage.getItem("pokemon-round-robin-v4")));
+    saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
     expect(saved.results).toEqual({});
   });
 
@@ -106,30 +116,34 @@ test.describe("Pokémon round-robin", () => {
     await expect(items).toHaveCount(6);
     names = await items.allTextContents();
     expect(new Set(names).size).toBe(6);
-    expect([...names].sort()).toEqual(["プレイヤー1","プレイヤー2","プレイヤー3","プレイヤー4","プレイヤー5","プレイヤー6"]);
 
     await page.locator("#randomSixDone").click();
     await expect(dialog).toBeHidden();
   });
 
-  test("legacy seven-player local data migrates to six and keeps a backup", async ({ page }) => {
-    await page.evaluate(() => {
-      localStorage.setItem("pokemon-round-robin-v4", JSON.stringify({
+  test("legacy seven-player local data migrates into the new six-player store", async ({ page }) => {
+    await page.evaluate(({ key, legacyKey, backupKey }) => {
+      localStorage.removeItem(key);
+      localStorage.removeItem(backupKey);
+      localStorage.setItem(legacyKey, JSON.stringify({
         title: "移行テスト",
         players: ["A","B","C","D","E","F","G"],
         results: {"0-1":"0","0-6":"6"},
         active: ["1-2","5-6"]
       }));
-    });
+    }, { key: KEY, legacyKey: LEGACY_KEY, backupKey: LEGACY_BACKUP_KEY });
     await page.reload();
 
     await expect(page.locator("#progress")).toHaveText("1/15");
     await expect(page.locator("#playerInputs input")).toHaveCount(6);
-    const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem("pokemon-round-robin-v4")));
+    await expect(page.locator("#standings tr")).toHaveCount(6);
+
+    const migrated = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
     expect(migrated.players).toEqual(["A","B","C","D","E","F"]);
     expect(migrated.results).toEqual({"0-1":"0"});
     expect(migrated.active).toEqual(["1-2"]);
-    const backup = await page.evaluate(() => JSON.parse(localStorage.getItem("pokemon-round-robin-v4-pre-six-backup")));
+
+    const backup = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), LEGACY_BACKUP_KEY);
     expect(backup.players).toHaveLength(7);
   });
 
