@@ -2,6 +2,7 @@ const RANK_KEY = "ff14_today_island_rank_v1";
 const ANIMALS_KEY = "ff14_today_island_animals_v1";
 const DAILY_PREFIX = "ff14_today_island_daily_v1_";
 const DONE_PREFIX = "ff14_today_island_rank_done_v1_";
+const GRANARY_DONE_PREFIX = "ff14_today_island_granary_done_v1_";
 
 const RANKS = {
   3:{title:"開拓工房を2棟動かす",tasks:["開拓用ストーンハンマーを製作する","開拓工房Iを2棟建築する","ねこみみさんへ報告する","余った時間で不足素材だけ採集する"],materials:["無人島の原木×20","無人島のパームリーフ×20","無人島の石灰岩×10","無人島のつる×10","無人島の砂×10"],tool:"開拓用ストーンハンマー：無人島のパーム原木×2 / 無人島のつる×4 / 無人島の石材×3"},
@@ -28,6 +29,25 @@ const root=()=>document.getElementById("retainerAdvice");
 function rank(){const value=Number(localStorage.getItem(RANK_KEY));return RANKS[value]?value:3}
 function animals(){const value=Number(localStorage.getItem(ANIMALS_KEY));if(Number.isInteger(value)&&value>=0)return value;localStorage.setItem(ANIMALS_KEY,"5");return 5}
 function workshopCount(value){return value<=4?2:value<=14?3:4}
+function granaryDoneKey(id){return `${GRANARY_DONE_PREFIX}${id}`}
+function granaryDone(id){return localStorage.getItem(granaryDoneKey(id))==="1"}
+function granaryPlan(value){
+  if(value<5)return {destination:"R5から解放",target:"グラナリーオフィス建築後に開始",reason:"今は派遣なし。",steps:[]};
+  if(value<=8){
+    if(!granaryDone("spruce"))return {destination:"森林",target:"無人島のスプルース原木 ×6",reason:"R8の改築用。まずこれを6個確保。",steps:[["spruce","スプルース原木×6 確保済み"],["garnet","ガーネット原石×9 確保済み"]]};
+    if(!granaryDone("garnet"))return {destination:"渓流",target:"無人島のガーネット原石 ×9",reason:"R8の改築用。スプルースの次はここ。",steps:[["spruce","スプルース原木×6 確保済み"],["garnet","ガーネット原石×9 確保済み"]]};
+    return {destination:"山",target:"無人島の銀鉱 ×3",reason:"R8用2種が揃ったら、R9用を先取り。",steps:[["spruce","スプルース原木×6 確保済み"],["garnet","ガーネット原石×9 確保済み"],["silver","銀鉱×3 確保済み"]]};
+  }
+  if(value===9){
+    if(!granaryDone("silver"))return {destination:"山",target:"無人島の銀鉱 ×3",reason:"R9の進行素材。3個まで山を継続。",steps:[["silver","銀鉱×3 確保済み"]]};
+    return {destination:"草原",target:"無人島のアリッサム ×5",reason:"銀鉱が揃ったらR12用を先取り。",steps:[["silver","銀鉱×3 確保済み"],["alyssum","アリッサム×5 確保済み"]]};
+  }
+  if(value<=12){
+    if(!granaryDone("alyssum"))return {destination:"草原",target:"無人島のアリッサム ×5",reason:"R12の進行素材。5個まで草原。",steps:[["alyssum","アリッサム×5 確保済み"]]};
+    return {destination:"自由",target:"不足している通常素材の探索地",reason:"R15到達優先の必須希少素材は確保済み。",steps:[["alyssum","アリッサム×5 確保済み"]]};
+  }
+  return {destination:"自由",target:"工房で不足する素材の探索地",reason:"R15到達までの必須希少素材ルートは終了。",steps:[]};
+}
 
 function setStepText(tab,value){const step=$(tab,".retainer-flow-step");if(step&&step.textContent!==value)step.textContent=value}
 function normalizeTabs(){
@@ -71,6 +91,22 @@ function render(content){
   const countEl=$(content,"[data-island-workshop-count]");if(countEl)countEl.textContent=`工房${count}棟`;
   const twigs=$(content,"[data-island-twigs]"),logs=$(content,"[data-island-logs]"),vines=$(content,"[data-island-vines]");
   if(twigs)twigs.textContent=String(9*count);if(logs)logs.textContent=String(8*count);if(vines)vines.textContent=String(7*count);
+  const plan=granaryPlan(value);
+  const destination=$(content,"[data-island-granary-destination]");
+  const target=$(content,"[data-island-granary-target]");
+  const reason=$(content,"[data-island-granary-reason]");
+  if(destination)destination.textContent=plan.destination;
+  if(target)target.textContent=plan.target;
+  if(reason)reason.textContent=plan.reason;
+  const granarySteps=$(content,"[data-island-granary-steps]");
+  if(granarySteps){
+    granarySteps.replaceChildren(...plan.steps.map(([id,text])=>{
+      const label=document.createElement("label");label.className="island-granary-check";
+      const input=document.createElement("input");input.type="checkbox";input.checked=granaryDone(id);
+      input.addEventListener("change",()=>{if(input.checked)localStorage.setItem(granaryDoneKey(id),"1");else localStorage.removeItem(granaryDoneKey(id));render(content)});
+      const span=document.createElement("span");span.textContent=text;label.append(input,span);return label;
+    }));
+  }
   updateTabStatus();
 }
 
@@ -87,8 +123,14 @@ function buildContent(panel,tabs){
       <label class="island-daily-card"><input type="checkbox" data-island-daily="pasture"><span><b>0–2分｜放牧地</b><small>落とし物回収 → 餌</small></span></label>
       <label class="island-daily-card"><input type="checkbox" data-island-daily="farm"><span><b>2–4分｜耕作地</b><small>収穫 → 種 → 水やり</small></span></label>
       <label class="island-daily-card"><input type="checkbox" data-island-daily="workshop"><span><b>4–7分｜開拓工房</b><small>結果確認 → 翌日分を予約</small></span></label>
-      <label class="island-daily-card"><input type="checkbox" data-island-daily="granary"><span><b>7–9分｜グラナリー</b><small>R5以降：回収 → 再派遣</small></span></label>
+      <label class="island-daily-card"><input type="checkbox" data-island-daily="granary"><span><b>7–9分｜グラナリー</b><small>回収 → 下の「今日の派遣先」へ再派遣</small></span></label>
     </div>
+    <section class="island-granary-block">
+      <div class="island-section-head"><div><p class="label">グラナリー｜今日の派遣先</p><h3><strong data-island-granary-destination></strong> へ派遣</h3></div><span class="island-granary-target" data-island-granary-target></span></div>
+      <p class="island-granary-reason" data-island-granary-reason></p>
+      <div class="island-granary-steps" data-island-granary-steps></div>
+      <p class="island-fineprint">先取り順：森林（スプルース原木×6）→ 渓流（ガーネット原石×9）→ 山（銀鉱×3）→ 草原（アリッサム×5）。必要数を確保したらチェックすると次の派遣先へ進みます。</p>
+    </section>
     <div class="island-columns">
       <section class="island-block"><div class="island-section-head"><div><p class="label">残り6分</p><h3 data-island-rank-title></h3></div><span class="island-rank-priority">上から1〜2個だけ</span></div><div class="island-rank-tasks" data-island-rank-tasks></div></section>
       <section class="island-block island-workshop-block"><div class="island-section-head"><div><p class="label">翌日分の目安</p><h3>工房24時間スターター</h3></div><span class="island-workshop-pill" data-island-workshop-count></span></div><p class="island-workshop-route">アイルウッドネックレス 4h → アイルウッドチェア 6h → ネックレス 4h → チェア 6h → ネックレス 4h</p><div class="island-workshop-mats"><div><strong data-island-twigs></strong><span>無人島の小枝</span></div><div><strong data-island-logs></strong><span>無人島の原木</span></div><div><strong data-island-vines></strong><span>無人島のつる</span></div></div><p class="island-fineprint">利益最大化より、短時間で工房を止めないことを優先した固定スターターです。</p></section>
