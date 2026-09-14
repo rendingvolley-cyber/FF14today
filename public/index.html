@@ -3,16 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f4f8ff">
-  <meta name="description" content="Lodestoneの進捗から、今日ちょっとやってみたいFF14の遊び方を見つける個人向けプランナー。">
+  <meta name="theme-color" content="#eef4ff">
+  <meta name="description" content="無人島の日課と、時間が余った時のアチーブメント・採集・釣り候補を必要な時だけ取得する個人向けFF14補助ツール。">
   <title>FF14 Today</title>
-  <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/reasons.css">
-  <link rel="stylesheet" href="/context-inbox.css">
-  <link rel="stylesheet" href="/focus-flow.css">
-  <link rel="stylesheet" href="/daily-routine.css">
-  <link rel="stylesheet" href="/leve-cost-advice.css">
-  <link rel="stylesheet" href="/grand-company-routine.css">
+  <link rel="stylesheet" href="/v2.css">
 </head>
 <body>
   <main class="shell">
@@ -20,177 +14,120 @@
       <div class="brand">
         <span class="brand-mark">✦</span>
         <div>
-          <p class="eyebrow">EORZEA PERSONAL PLANNER</p>
+          <p class="eyebrow">EORZEA PERSONAL TOOL</p>
           <h1>FF14 Today</h1>
         </div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
-        <a href="/pokemon-round-robin.html" style="display:inline-flex;align-items:center;min-height:38px;padding:0 13px;border:1px solid #cbdaf0;border-radius:999px;background:#eef5ff;color:#2d4f7c;text-decoration:none;font-size:.82rem;font-weight:800;white-space:nowrap;">ポケモン総当たり ↗</a>
-        <span class="version">v1.9.1 · DAILY ROUTINE</span>
-      </div>
+      <span class="version">v2 · ON DEMAND</span>
     </header>
 
-    <section id="identity" class="identity hidden">
-      <div class="identity-main">
-        <div class="avatar-orb">K</div>
-        <div>
-          <p class="label">TODAY'S CHARACTER</p>
-          <h2 id="characterName"></h2>
-          <p id="characterWorld" class="muted"></p>
-        </div>
+    <section class="identity">
+      <div>
+        <p class="eyebrow">CHARACTER</p>
+        <h2 id="characterName">読み込み中…</h2>
+        <div id="characterWorld" class="muted"></div>
       </div>
-      <div class="identity-actions">
-        <div class="sync-meta"><span id="syncDot" class="dot"></span><span id="syncText">未同期</span></div>
-        <button id="syncButton" class="quiet-button" type="button">Lodestone同期</button>
+      <div class="sync">
+        <span id="syncText" class="muted">確認中…</span>
+        <button id="syncButton" class="btn ghost" type="button">Lodestone同期</button>
       </div>
     </section>
 
-    <section id="planner" class="planner hidden">
-      <div class="planner-hero">
-        <p class="eyebrow">PICK A VIBE</p>
-        <h2>今日は、どんな遊び方にする？</h2>
-        <p class="planner-lead">正解を選ばなくていい。ちょっと気になる入口を押せば、その先の「最初の一歩」までこちらで決める。</p>
+    <section class="card island-main">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">ISLAND SANCTUARY</p>
+          <h2>無人島</h2>
+          <p class="muted">毎日やることと、今のランクで進めることだけを分けて表示。</p>
+        </div>
+        <strong id="islandProgress" class="pill">今日 0/4 完了</strong>
       </div>
 
-      <div class="quick-settings">
-        <div class="setting-block">
-          <p class="label">遊べる時間</p>
-          <div id="timeChoices" class="segmented time-segmented">
-            <button type="button" data-minutes="15">15分</button>
-            <button type="button" data-minutes="30">30分</button>
-            <button type="button" data-minutes="60" class="active">60分</button>
-            <button type="button" data-minutes="90">90分</button>
-            <button type="button" data-minutes="120">2h+</button>
+      <div class="island-summary">
+        <div class="rank-box">
+          <label for="islandRank">現在の開拓ランク</label>
+          <select id="islandRank">
+            <option value="3">Rank 3</option><option value="4">Rank 4</option><option value="5">Rank 5</option>
+            <option value="6">Rank 6</option><option value="7">Rank 7</option><option value="8">Rank 8</option>
+            <option value="9">Rank 9</option><option value="10">Rank 10</option><option value="11">Rank 11</option>
+            <option value="12">Rank 12</option><option value="13">Rank 13</option><option value="14">Rank 14</option>
+            <option value="15">Rank 15</option>
+          </select>
+        </div>
+        <div>
+          <p class="progress-title" id="islandTitle">現在ランクの目標</p>
+          <p class="progress-copy">チェックは今日分だけ保存され、日付が変わると自動で新しい日になります。</p>
+        </div>
+      </div>
+
+      <h3 class="subhead">今日やること</h3>
+      <div id="islandDaily" class="daily-list"></div>
+
+      <h3 class="subhead">今のランクでやること</h3>
+      <div id="islandRankTasks" class="rank-list"></div>
+      <div id="islandGranary" class="granary"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">WHEN YOU HAVE TIME</p>
+          <h2>時間が余ったら</h2>
+          <p class="muted">必要なものだけ、その時に取得。</p>
+        </div>
+      </div>
+
+      <div class="tool-grid">
+        <article class="tool-card">
+          <h3>アチーブメント</h3>
+          <p>取得済み実績を除外し、条件が軽そうな未取得候補から表示します。</p>
+          <button id="achievementButton" class="btn" type="button">アチーブ候補を取得</button>
+          <div id="achievementResult" class="result"></div>
+        </article>
+
+        <article class="tool-card">
+          <h3>時限採集</h3>
+          <p>今の採掘師・園芸師Lvで取れる、現在〜12時間以内の候補を取得します。</p>
+          <button id="gatherButton" class="btn" type="button">時限採集を取得</button>
+          <div id="gatherResult" class="result"></div>
+        </article>
+
+        <article class="tool-card">
+          <h3>釣り</h3>
+          <p>経験値向けの遊び方か、現在の天候・時間で狙えるヌシ候補を必要な時だけ取得します。</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn secondary" type="button" data-fish-mode="experience">経験値</button>
+            <button class="btn secondary" type="button" data-fish-mode="big-fish">ヌシ</button>
+            <button class="btn" type="button" data-fish-mode="all">まとめて取得</button>
           </div>
-        </div>
-        <div class="setting-block energy-block">
-          <p class="label">気力</p>
-          <div id="energyChoices" class="energy">
-            <button type="button" data-energy="1">1</button>
-            <button type="button" data-energy="2" class="active">2</button>
-            <button type="button" data-energy="3">3</button>
-            <button type="button" data-energy="4">4</button>
-            <button type="button" data-energy="5">5</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="contextInbox" class="context-inbox" tabindex="0" role="button" aria-label="FF14スクリーンショットを貼り付けて判断材料に追加">
-        <div class="context-inbox-head">
-          <div class="context-inbox-title"><span class="context-inbox-icon">▣</span><span>スクショを判断材料に追加</span></div>
-          <span class="context-inbox-shortcut">Ctrl+V</span>
-        </div>
-        <p class="context-inbox-copy">双蛇党納品、ジャーナル、製作・採集ステータスをそのまま貼り付け。名前や数値を手入力しなくてOK。</p>
-        <p id="contextInboxStatus" class="context-inbox-status" data-kind="idle">FF14でスクショをコピーして、このページで Ctrl+V。</p>
-        <div id="contextInboxSaved" class="context-inbox-saved" aria-live="polite"></div>
-      </div>
-
-      <div class="mode-picker">
-        <div id="modeChoices" class="mode-grid">
-          <button type="button" data-mode="efficient" class="mode-card active">
-            <span class="mode-icon">⚡</span>
-            <span class="mode-copy"><strong>効率よく進める</strong><small>日課・レベル上げ・短時間で伸びるもの</small></span>
-            <span class="mode-arrow">→</span>
-          </button>
-          <button type="button" data-mode="craft" class="mode-card">
-            <span class="mode-icon">✦</span>
-            <span class="mode-copy"><strong>何か作る</strong><small>製作手帳・レベル上げ・具体的な製作品</small></span>
-            <span class="mode-arrow">→</span>
-          </button>
-          <button type="button" data-mode="gather" class="mode-card">
-            <span class="mode-icon">♧</span>
-            <span class="mode-copy"><strong>採集・釣り</strong><small>素材名・場所・個数まで指定して案内</small></span>
-            <span class="mode-arrow">→</span>
-          </button>
-          <button type="button" data-mode="discover" class="mode-card">
-            <span class="mode-icon">◎</span>
-            <span class="mode-copy"><strong>知らない遊びを発見</strong><small>普段選ばないコンテンツを理由つきで提案</small></span>
-            <span class="mode-arrow">→</span>
-          </button>
-        </div>
-        <p id="modeHelp" class="mode-help">効率：経験値や日次ボーナスを優先。その中から始めやすい候補を出します。</p>
-      </div>
-
-      <div id="dailyChecklist" class="daily-checklist">
-        <div>
-          <div class="daily-checklist-head"><p class="label">今日の日課</p><span id="dailyDate" class="daily-date"></span></div>
-          <div id="dailyCheckStatus" class="daily-check-status">終わった日課だけチェック。おすすめがその場で入れ替わります。</div>
-        </div>
-        <div class="daily-checks">
-          <label class="daily-check"><input id="dailyLeveling" type="checkbox"><span>レベルレ済み</span></label>
-          <label class="daily-check"><input id="dailyAlliance" type="checkbox"><span>アラルレ済み</span></label>
-        </div>
-      </div>
-
-      <button id="planButton" class="primary-button hero-button">この方向を見てみる</button>
-    </section>
-
-    <section id="nowPanel" class="now-panel hidden">
-      <div class="now-heading">
-        <div>
-          <p class="eyebrow">YOUR NEXT STEP</p>
-          <h2>気になったら、ここから。</h2>
-        </div>
-        <span id="planKind" class="badge">READY</span>
-      </div>
-
-      <div id="emptyState" class="empty">
-        <div class="empty-icon">→</div>
-        <p class="big">入口を1つ選んでみて</p>
-        <p>その遊び方の候補と、最初に何を押せばいいかまで出す。</p>
-      </div>
-
-      <div id="planContent" class="hidden">
-        <p id="planNotice" class="notice"></p>
-        <div class="focus-line">
-          <div class="focus-left"><span class="label">今回の対象</span><span id="focusJob" class="focus-job"></span></div>
-          <div class="session-meta"><span id="sessionRemaining" class="session-pill">まだ開始していません</span><span id="todayCompletedCount" class="session-pill">今日完了 0件</span></div>
-        </div>
-        <p class="methods-help"><strong>#1は「始めやすさ」優先。</strong> STARTで今やる1件を固定。閉じても同じ日のうちは続きへ戻れます。</p>
-        <div id="methodList" class="methods-grid"></div>
-        <details class="skip-box"><summary>今日は考えなくていいもの</summary><ul id="skipList"></ul></details>
+          <div id="fishResult" class="result"></div>
+        </article>
       </div>
     </section>
 
-    <details id="achievementPanel" class="achievement-panel">
-      <summary>
-        <div>
-          <p class="label">LODESTONE PROGRESS</p>
-          <strong>アチーブメント進捗</strong>
-        </div>
-        <div class="achievement-summary-metrics">
-          <span><strong id="achievementCount">—</strong> 件</span>
-          <span><strong id="achievementPoints">—</strong> pt</span>
-        </div>
-      </summary>
-      <div class="achievement-content">
-        <div class="achievement-head">
-          <span id="achievementSyncText" class="sync-state">同期中…</span>
-          <span><strong id="achievementPages">—</strong> pages</span>
-        </div>
-        <p class="label recent-label">最近の達成</p>
-        <ol id="recentAchievements" class="recent-achievements"><li class="muted">同期結果を待っています。</li></ol>
-      </div>
-    </details>
+    <section class="grid">
+      <section class="card">
+        <p class="eyebrow">ACHIEVEMENTS</p>
+        <h3>現在の取得数</h3>
+        <p style="font-size:28px;font-weight:950;margin:10px 0"><span id="achievementCount">—</span> 件</p>
+        <p class="muted">ポイント <strong id="achievementPoints">—</strong></p>
+      </section>
+      <section class="card">
+        <p class="eyebrow">JOBS</p>
+        <h3>ジョブ進捗</h3>
+        <p id="jobsSummary" class="muted">読み込み中…</p>
+        <div id="jobsList" class="jobs"></div>
+      </section>
+    </section>
 
-    <details id="jobsPanel" class="jobs-panel hidden">
-      <summary><span>ジョブ進捗</span><span id="jobsSummary" class="muted"></span></summary>
-      <div id="jobsGrid" class="jobs-grid"></div>
-    </details>
+    <section class="card">
+      <p class="eyebrow">MONEY MAKING</p>
+      <h3>金策</h3>
+      <p class="muted">リーヴは通常画面には出しません。金策として使う時だけ呼び出す機能へ今後拡張します。</p>
+    </section>
 
-    <p id="statusMessage" class="status"></p>
+    <p id="status" class="status"></p>
   </main>
-  <script src="/app.js" type="module"></script>
-  <script src="/choice-reasons.js" type="module"></script>
-  <script src="/context-inbox.js" type="module"></script>
-  <script src="/focus-flow.js" type="module"></script>
-  <script src="/daily-routine.js" type="module"></script>
-  <script src="/grand-company-routine.js" type="module"></script>
-  <script src="/gc-material-requirements.js?v=gc-material-requirements-v2-20260819" type="module"></script>
-  <script src="/routine-tribe-step.js" type="module"></script>
-  <script src="/gc-seal-market.js" type="module"></script>
-  <script src="/leve-cost-advice.js" type="module"></script>
-  <script src="/category-job-switcher.js"></script>
-  <script src="/time-sensitive-layout-direct.js?v=stacked-direct-v1"></script>
+  <script src="/v2.js" type="module"></script>
 </body>
 </html>

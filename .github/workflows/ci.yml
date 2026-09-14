@@ -6,6 +6,7 @@ on:
       - main
       - 'feature/**'
       - 'fix/**'
+      - 'ff14today-v2-*'
   pull_request:
     branches:
       - main
@@ -21,128 +22,41 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm install
-      - name: JavaScript syntax
+        run: npm install --no-audit --no-fund
+      - name: V2 JavaScript syntax
         run: |
-          node --check src/index.js
+          node --check src/v2-entry.js
           node --check src/single-user.js
           node --check src/lodestone-achievements.js
-          node --check src/concrete-plan.js
-          node --check src/context-image.js
-          node --check src/context-history-wrapper.js
-          node --check src/context-opportunities.js
-          node --check src/measurable-motive-wrapper.js
-          node --check src/gather-window-wrapper.js
-          node --check src/gather-ui-wrapper.js
-          node --check src/grounded-discovery-wrapper.js
-          node --check src/task-board-recovery.js
-          node --check src/task-board-recovery-wrapper.js
-          node --check src/task-board-live-catalog.js
           node --check src/time-sensitive-game-windows.js
-          node --check src/grand-company-deliveries.js
-          node --check src/grand-company-wrapper.js
-          node --check src/inventory-context.js
-          node --check src/inventory-store.js
-          node --check src/inventory-wrapper.js
-          node --check src/combat-job-focus.js
-          node --check src/combat-job-wrapper.js
-          node --check src/category-job-focus.js
-          node --check src/category-job-focus-wrapper.js
-          node --check src/leve-cost-data.js
-          node --check src/leve-cost-advisor.js
-          node --check src/dynamic-recipe-resolver.js
-          node --check src/dynamic-leve-cost-advisor.js
-          node --check src/leve-cost-wrapper.js
-          node --check src/gc-misclassification-cleanup-wrapper.js
-          node --check src/gc-seal-market.js
-          node --check src/gc-seal-market-wrapper.js
-          node --check src/gc-supply-duty-recognition-wrapper.js
-          node --check src/gc-jsonmode-wrapper.js
-          node --check src/gc-supply-duty-entry.js
-          node --check src/gc-top3-entry.js
-          node --check src/hunt-service.js
-          node --check src/hunt-entry.js
-          node --check public/app.js
-          node --check public/choice-reasons.js
-          node --check public/task-board.js
-          node --check public/task-board-v2.js
-          node --check public/task-board-schedule-correction.js
-          node --check public/task-board-daily-checks.js
-          node --check public/context-inbox.js
-          node --check public/context-inbox-core.js
-          node --check public/gather-checklist.js
-          node --check public/daily-routine.js
-          node --check public/routine-tribe-step.js
-          node --check public/grand-company-routine.js
-          node --check public/gc-seal-market.js
-          node --check public/combat-job-switcher.js
-          node --check public/category-job-switcher.js
-          node --check public/tribe-leveling-data.js
-          node --check public/focus-flow.js
-          node --check public/leve-cost-advice.js
-          node --check public/time-sensitive-game-window-labels.js
-          node --check public/hunt-section.js
-          node --check scripts/test-grand-company-deliveries.mjs
-          node --check scripts/test-gc-jsonmode.mjs
-          node --check scripts/test-gc-seal-market.mjs
-          node --check scripts/test-gc-ui-cleanup.mjs
-          node --check scripts/test-inventory-context.mjs
-          node --check scripts/test-dynamic-recipe-resolver.mjs
-          node --check scripts/test-leve-japanese-labels.mjs
-          node --check scripts/test-task-board-schedule.mjs
-          node --check scripts/test-category-job-focus.mjs
-          node --check scripts/test-task-board-live-catalog.mjs
-          node --check scripts/test-hunt-section.mjs
-          node --check scripts/playwright.config.mjs
-          node --check scripts/e2e/focus-flow-boot.spec.mjs
-          node --check scripts/e2e/dynamic-leve-cost.spec.mjs
-          node --check scripts/e2e/task-board-schedule.spec.mjs
-          node --check scripts/e2e/routine-tribe-and-timed-zero.spec.mjs
-          node --check scripts/e2e/category-job-switcher.spec.mjs
-          node --check scripts/e2e/task-board-variety.spec.mjs
-      - name: Context planning rules
-        run: node scripts/test-context-opportunities.mjs
-      - name: Measurable motive rules
-        run: node scripts/test-measurable-motives.mjs
-      - name: Gather checklist rules
-        run: node scripts/test-gather-window-ux.mjs
-      - name: Grounded discovery rules
-        run: node scripts/test-grounded-discovery.mjs
-      - name: Combat job focus rules
-        run: node scripts/test-combat-job-focus.mjs
-      - name: Category job focus rules
-        run: node scripts/test-category-job-focus.mjs
-      - name: Task board live catalog rules
-        run: node scripts/test-task-board-live-catalog.mjs
-      - name: Daily hunt section rules
-        run: node scripts/test-hunt-section.mjs
-      - name: Tribe leveling guide rules
-        run: node scripts/test-tribe-leveling-guide.mjs
-      - name: Focus flow rules
-        run: node scripts/test-focus-flow.mjs
-      - name: Leve cost advisor rules
-        run: node scripts/test-leve-cost-advisor.mjs
-      - name: Leve Japanese item labels
-        run: node scripts/test-leve-japanese-labels.mjs
-      - name: Dynamic recipe resolver rules
-        run: node scripts/test-dynamic-recipe-resolver.mjs
-      - name: Grand Company delivery rules
-        run: node scripts/test-grand-company-deliveries.mjs
-      - name: Grand Company JSON mode rules
-        run: node scripts/test-gc-jsonmode.mjs
-      - name: Grand Company seal market rules
-        run: node scripts/test-gc-seal-market.mjs
-      - name: Grand Company UI cleanup
-        run: node scripts/test-gc-ui-cleanup.mjs
-      - name: Inventory evidence rules
-        run: node scripts/test-inventory-context.mjs
-      - name: Task board schedule rules
-        run: node scripts/test-task-board-schedule.mjs
-      - name: Browser boot regression
-        timeout-minutes: 8
+          node --check src/task-board-live-catalog.js
+          node --check public/v2.js
+      - name: V2 homepage contract
+        shell: bash
         run: |
-          npx playwright install chromium
-          npm run test:e2e
+          set -euo pipefail
+          grep -q 'v2 · ON DEMAND' public/index.html
+          grep -q '無人島' public/index.html
+          grep -q 'アチーブ候補を取得' public/index.html
+          grep -q '時限採集を取得' public/index.html
+          grep -q 'まとめて取得' public/index.html
+          ! grep -q '遊べる時間' public/index.html
+          ! grep -q '気力' public/index.html
+          ! grep -q 'レベルレ済み' public/index.html
+          ! grep -q 'アラルレ済み' public/index.html
+          ! grep -q '双蛇党' public/index.html
+          ! grep -q 'モブハント' public/index.html
+          ! grep -q 'スクショ' public/index.html
+          ! grep -q 'ポケモン総当たり' public/index.html
+      - name: Worker API contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'src/v2-entry.js' wrangler.jsonc
+          grep -q 'achievement_candidates: true' src/v2-entry.js
+          grep -q 'timed_gathering_on_demand: true' src/v2-entry.js
+          grep -q 'fishing_on_demand: true' src/v2-entry.js
+          grep -q 'not_available_in_v2' src/v2-entry.js
       - name: Wrangler config JSON
         run: node -e "JSON.parse(require('fs').readFileSync('wrangler.jsonc','utf8')); console.log('wrangler.jsonc OK')"
       - name: Secret pattern scan
