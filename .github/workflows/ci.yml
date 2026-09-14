@@ -30,18 +30,21 @@ jobs:
           node --check src/time-sensitive-game-windows.js
           node --check src/task-board-live-catalog.js
           node --check public/leveling-advisor.js
+          node --check public/island-guide.js
           node --check public/v2.js
           node --check scripts/test-v2-leveling-advisor.mjs
-      - name: V2 leveling advisor regression
+      - name: V2 actionable guidance regression
         run: node scripts/test-v2-leveling-advisor.mjs
       - name: V2 homepage contract
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'v2 · LEVELING' public/index.html
+          grep -q 'v2.2 · ACTIONABLE' public/index.html
           grep -q '上げたいジョブ' public/index.html
           grep -q 'levelJobSelect' public/index.html
-          grep -q '無人島' public/index.html
+          grep -q '先に揃える素材' public/index.html
+          grep -q 'islandMaterials' public/index.html
+          grep -q 'この順番でやる' public/index.html
           grep -q '時限採集を取得' public/index.html
           grep -q 'まとめて取得' public/index.html
           ! grep -q 'アチーブ候補を取得' public/index.html
@@ -57,9 +60,11 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'src/v2-entry.js' wrangler.jsonc
-          grep -q 'version: "2.1.0"' src/v2-entry.js
+          grep -q 'version: "2.2.0"' src/v2-entry.js
           grep -q 'achievement_candidates: false' src/v2-entry.js
           grep -q 'leveling_advisor: true' src/v2-entry.js
+          grep -q 'actionable_steps: true' src/v2-entry.js
+          grep -q 'island_material_shortage: true' src/v2-entry.js
           grep -q 'timed_gathering_on_demand: true' src/v2-entry.js
           grep -q 'fishing_on_demand: true' src/v2-entry.js
           ! grep -q '/api/achievements/candidates' src/v2-entry.js
