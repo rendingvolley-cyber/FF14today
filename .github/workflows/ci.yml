@@ -31,6 +31,9 @@ jobs:
           node --check src/time-sensitive-game-windows.js
           node --check src/task-board-live-catalog.js
           node --check public/v2.js
+          node --check scripts/test-v2-achievement-score.mjs
+      - name: V2 achievement ranking regression
+        run: node scripts/test-v2-achievement-score.mjs
       - name: V2 homepage contract
         shell: bash
         run: |
