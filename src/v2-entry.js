@@ -77,21 +77,21 @@ function experienceFishingRows(level) {
   if (!level) return [];
   if (level < 15) {
     return [{
-      title: `漁師Lv${level}の適正レベル帯で通常釣り`,
-      reason: "序盤は適正レベル帯の新規魚・クラスクエスト対象を埋めながら経験値を取る。",
+      title: `漁師Lv${level}：釣り手帳の未取得を埋める`,
+      reason: "釣り手帳で現在Lv以下の未取得魚がいる釣り場を選び、マップ表示→現地で未取得が消えるまで釣る。",
       kind: "experience"
     }];
   }
   if (level < 100) {
     return [
       {
-        title: "オーシャンフィッシングを優先",
-        reason: `漁師Lv${level}の経験値目的。開催中なら短時間でまとまった経験値を狙いやすい。`,
+        title: "オーシャンフィッシング：リムサ下甲板 X:3.0 Y:12.7",
+        reason: `漁師Lv${level}。Dryskthotaで航路確認→受付中なら参加。餌は隣のMerchant & Menderで購入。1航海終えたら次枠まで別作業。`,
         kind: "experience"
       },
       {
-        title: "未開放の釣り場・釣り手帳を埋める",
-        reason: "新規魚の手帳経験値を回収しつつ、後のヌシ釣り用の釣り場知識も増やす。",
+        title: "開催待ちは釣り手帳の未取得を上から埋める",
+        reason: "釣り手帳→現在Lv以下の未取得魚がいる釣り場→マップ表示→現地へ移動、の順で進める。",
         kind: "experience"
       }
     ];
@@ -129,7 +129,7 @@ export default {
         return json({
           ok: true,
           service: "ff14-today",
-          version: "2.1.0",
+          version: "2.2.0",
           single_user: true,
           screenshot_import: false,
           grand_company: false,
@@ -138,6 +138,8 @@ export default {
           roulette_recommendations: false,
           achievement_candidates: false,
           leveling_advisor: true,
+          actionable_steps: true,
+          island_material_shortage: true,
           island_sanctuary: true,
           timed_gathering_on_demand: true,
           fishing_on_demand: true
