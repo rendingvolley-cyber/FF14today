@@ -1,8 +1,4 @@
 import legacySingleUserApp from "./single-user.js";
-import {
-  getLodestoneAchievementState,
-  syncLodestoneAchievements
-} from "./lodestone-achievements.js";
 import { buildTimedGatheringRows } from "./time-sensitive-game-windows.js";
 import {
   buildBigFishRows,
@@ -10,11 +6,9 @@ import {
 } from "./task-board-live-catalog.js";
 
 const OWNER_LODESTONE_ID = "3091607";
-const XIVAPI_BASE = "https://v2.xivapi.com/api";
 const FISH_DATA_URL = "https://raw.githubusercontent.com/icykoneko/ff14-fish-tracker-app/master/js/app/data.js";
 const CACHE_MS = 6 * 60 * 60 * 1000;
 
-let achievementCatalogCache = { loadedAt: 0, rows: null };
 let fishCache = { loadedAt: 0, data: null, error: null };
 
 function json(data, status = 200) {
@@ -58,92 +52,6 @@ function jobLevel(character, code) {
   const row = (character?.jobs || []).find(job => String(job?.code || "").toUpperCase() === code);
   const value = Number(row?.level || 0);
   return Number.isFinite(value) ? value : 0;
-}
-
-function normalizeText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-export function achievementDistanceScore(name, description) {
-  const text = `${normalizeText(name)} ${normalizeText(description)}`;
-  const values = [...text.matchAll(/([0-9][0-9,]*)\s*(?:回|個|体|匹|種類|勝|件|回達成|回クリア)/g)]
-    .map(match => Number(String(match[1]).replace(/,/g, "")))
-    .filter(value => Number.isFinite(value) && value > 0);
-  const primaryTarget = values.length ? Math.max(...values) : 25;
-  let score = primaryTarget;
-
-  if (/初めて|初回|ひとつ|クエストをコンプリート/.test(text)) score -= 12;
-  if (primaryTarget <= 1 && /1\s*回/.test(text)) score -= 8;
-  if (/累計|合計|通算/.test(text)) score += Math.min(500, Math.max(primaryTarget, 50));
-  if (/1000|1,000|5000|5,000|10000|10,000/.test(text)) score += 1000;
-
-  return Math.max(0, score);
-}
-
-async function loadAchievementCatalog(nowMs = Date.now()) {
-  if (achievementCatalogCache.rows && nowMs - achievementCatalogCache.loadedAt < CACHE_MS) {
-    return achievementCatalogCache.rows;
-  }
-
-  const rows = [];
-  let after = -1;
-  const limit = 500;
-  for (let page = 0; page < 12; page += 1) {
-    const params = new URLSearchParams({
-      fields: "Name,Description,Points",
-      language: "ja",
-      limit: String(limit)
-    });
-    if (after >= 0) params.set("after", String(after));
-    const response = await fetch(`${XIVAPI_BASE}/sheet/Achievement?${params.toString()}`, {
-      headers: { "user-agent": "FF14Today/v2-achievement-candidates" },
-      cf: { cacheEverything: true, cacheTtl: 21600 }
-    });
-    if (!response.ok) throw new Error(`xivapi_achievement_http_${response.status}`);
-    const data = await response.json();
-    const pageRows = Array.isArray(data?.rows) ? data.rows : [];
-    rows.push(...pageRows);
-    if (pageRows.length < limit) break;
-    const lastId = Number(pageRows[pageRows.length - 1]?.row_id);
-    if (!Number.isFinite(lastId) || lastId <= after) break;
-    after = lastId;
-  }
-
-  achievementCatalogCache = { loadedAt: nowMs, rows };
-  return rows;
-}
-
-async function buildAchievementCandidates(env, limit = 12) {
-  let state = await getLodestoneAchievementState(env, OWNER_LODESTONE_ID);
-  if (!state) state = await syncLodestoneAchievements(env, OWNER_LODESTONE_ID, { force: false });
-  const acquired = new Set((state?.history || []).map(row => Number(row?.achievement_id)).filter(Number.isFinite));
-  const catalog = await loadAchievementCatalog();
-  const rows = catalog
-    .map(row => {
-      const id = Number(row?.row_id);
-      const name = normalizeText(row?.fields?.Name);
-      const description = normalizeText(row?.fields?.Description);
-      const points = Number(row?.fields?.Points || 0) || 0;
-      if (!Number.isFinite(id) || id <= 0 || !name || !description || acquired.has(id)) return null;
-      return {
-        achievement_id: id,
-        name,
-        description,
-        points,
-        distance_score: achievementDistanceScore(name, description)
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => (a.distance_score - b.distance_score) || (b.points - a.points) || a.achievement_id - b.achievement_id)
-    .slice(0, Math.max(1, Math.min(30, Number(limit) || 12)));
-
-  return {
-    ok: true,
-    basis: "Lodestone取得済みIDとXIVAPI実績条件を照合。現在の個別進捗カウンターは取得できないため、未取得条件の負荷から『取りやすさ』を推定します。数値が小さいほど軽い条件です。",
-    acquired_count: state?.total_achievements || acquired.size,
-    synced_at: state?.synced_at || null,
-    candidates: rows
-  };
 }
 
 async function loadFishData(nowMs = Date.now()) {
@@ -221,51 +129,30 @@ export default {
         return json({
           ok: true,
           service: "ff14-today",
-          version: "2.0.0",
+          version: "2.1.0",
           single_user: true,
           screenshot_import: false,
           grand_company: false,
           allied_society: false,
           hunt_board: false,
           roulette_recommendations: false,
+          achievement_candidates: false,
+          leveling_advisor: true,
           island_sanctuary: true,
-          achievement_candidates: true,
           timed_gathering_on_demand: true,
           fishing_on_demand: true
         });
       }
 
       if (url.pathname === "/api/profile" && request.method === "GET") {
-        const character = await ownerCharacter(env);
-        const achievements = await getLodestoneAchievementState(env, OWNER_LODESTONE_ID);
         return json({
           ok: true,
-          character,
-          achievements: achievements ? {
-            total_achievements: achievements.total_achievements,
-            achievement_points: achievements.achievement_points,
-            synced_at: achievements.synced_at
-          } : null
+          character: await ownerCharacter(env)
         });
       }
 
       if (url.pathname === "/api/sync" && request.method === "POST") {
         return legacySingleUserApp.fetch(request, env);
-      }
-
-      if (url.pathname === "/api/achievements" && request.method === "GET") {
-        const state = await getLodestoneAchievementState(env, OWNER_LODESTONE_ID);
-        return json({ ok: true, achievements: state });
-      }
-
-      if (url.pathname === "/api/achievements/sync" && request.method === "POST") {
-        const force = url.searchParams.get("force") === "1";
-        const state = await syncLodestoneAchievements(env, OWNER_LODESTONE_ID, { force });
-        return json({ ok: true, achievements: state });
-      }
-
-      if (url.pathname === "/api/achievements/candidates" && request.method === "GET") {
-        return json(await buildAchievementCandidates(env, url.searchParams.get("limit")));
       }
 
       if (url.pathname === "/api/gathering/timed" && request.method === "GET") {
