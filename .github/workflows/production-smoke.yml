@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -12,7 +15,7 @@ permissions:
 jobs:
   verify-production:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - name: Mark production smoke pending
         shell: bash
@@ -26,7 +29,7 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -d "{\"state\":\"pending\",\"context\":\"production-smoke\",\"description\":\"Waiting for FF14 Today v2 production\",\"target_url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}"
 
-      - name: Verify live HTTP surface
+      - name: Verify live HTTP surface and on-demand APIs
         id: http_smoke
         continue-on-error: true
         shell: bash
@@ -57,6 +60,19 @@ jobs:
           [[ "$health" == *'"timed_gathering_on_demand": true'* ]]
           [[ "$health" == *'"fishing_on_demand": true'* ]]
 
+          profile="$(curl -fsS --max-time 30 "${BASE}/api/profile")"
+          achievements="$(curl -fsS --max-time 90 "${BASE}/api/achievements/candidates?limit=3")"
+          gathering="$(curl -fsS --max-time 60 "${BASE}/api/gathering/timed")"
+          fishing="$(curl -fsS --max-time 60 "${BASE}/api/fishing/candidates?mode=all")"
+          [[ "$profile" == *'"ok": true'* ]]
+          [[ "$profile" == *'"character"'* ]]
+          [[ "$achievements" == *'"ok": true'* ]]
+          [[ "$achievements" == *'"candidates"'* ]]
+          [[ "$gathering" == *'"ok": true'* ]]
+          [[ "$gathering" == *'"rows"'* ]]
+          [[ "$fishing" == *'"ok": true'* ]]
+          [[ "$fishing" == *'"fisher_level"'* ]]
+
       - name: Checkout
         if: steps.http_smoke.outcome == 'success'
         uses: actions/checkout@v4
@@ -85,6 +101,7 @@ jobs:
           import { chromium } from '@playwright/test';
           const browser = await chromium.launch({ headless: true });
           const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+          page.setDefaultTimeout(90000);
           const pageErrors = [];
           const consoleErrors = [];
           page.on('pageerror', err => pageErrors.push(String(err?.stack || err)));
@@ -100,12 +117,29 @@ jobs:
             hasGather: Boolean(document.getElementById('gatherButton')),
             fishButtons: document.querySelectorAll('[data-fish-mode]').length
           }));
-          console.log(JSON.stringify({ snapshot, pageErrors, consoleErrors }, null, 2));
           if (!snapshot.bodyText.includes('FF14 Today')) throw new Error('FF14 Today shell is not rendered');
           if (!snapshot.bodyText.includes('時間が余ったら')) throw new Error('on-demand area is missing');
           if (!snapshot.rank) throw new Error('Island Sanctuary rank selector is missing');
           if (!snapshot.hasAchievement || !snapshot.hasGather || snapshot.fishButtons < 3) throw new Error('on-demand controls are missing');
+
+          await page.locator('#achievementButton').click();
+          await page.locator('#achievementResult .result-row').first().waitFor({ state: 'visible' });
+          const achievementText = await page.locator('#achievementResult').innerText();
+          if (achievementText.includes('取得失敗')) throw new Error(`achievement action failed: ${achievementText}`);
+
+          await page.locator('#gatherButton').click();
+          await page.locator('#gatherResult .result-row').first().waitFor({ state: 'visible' });
+          const gatheringText = await page.locator('#gatherResult').innerText();
+          if (gatheringText.includes('取得失敗')) throw new Error(`gathering action failed: ${gatheringText}`);
+
+          await page.locator('[data-fish-mode="all"]').click();
+          await page.locator('#fishResult .result-row').first().waitFor({ state: 'visible' });
+          const fishingText = await page.locator('#fishResult').innerText();
+          if (fishingText.includes('取得失敗')) throw new Error(`fishing action failed: ${fishingText}`);
+
+          console.log(JSON.stringify({ snapshot, achievementText, gatheringText, fishingText, pageErrors, consoleErrors }, null, 2));
           if (pageErrors.length) throw new Error(`pageerror: ${pageErrors.join(' | ')}`);
+          if (consoleErrors.length) throw new Error(`console error: ${consoleErrors.join(' | ')}`);
           await page.screenshot({ path: 'production-smoke.png', fullPage: true });
           await browser.close();
           NODE
