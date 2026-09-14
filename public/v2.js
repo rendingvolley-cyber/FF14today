@@ -31,18 +31,19 @@ function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&"
 function fmtDate(value){if(!value)return"未同期";try{return new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(value))}catch{return value}}
 
 function islandRank(){const value=Number(localStorage.getItem(RANK_KEY));return ISLAND[value]?value:3}
+function dailyForRank(rank){return DAILY.filter(([id])=>id!=="granary"||rank>=5)}
 function renderIsland(){
-  const rank=islandRank(),data=ISLAND[rank];
+  const rank=islandRank(),data=ISLAND[rank],daily=dailyForRank(rank);
   $("islandRank").value=String(rank);
   $("islandTitle").textContent=data.title;
   $("islandGranary").innerHTML=`<strong>グラナリー</strong>${escapeHtml(data.granary)}`;
   $("islandRankTasks").innerHTML=data.tasks.map(task=>`<div class="rank-row"><span>${escapeHtml(task)}</span></div>`).join("");
-  $("islandDaily").innerHTML=DAILY.map(([id,label])=>{
+  $("islandDaily").innerHTML=daily.map(([id,label])=>{
     const done=localStorage.getItem(dailyKey(id))==="1";
     return `<label class="check-row${done?" done":""}"><input type="checkbox" data-island-daily="${id}" ${done?"checked":""}><span>${escapeHtml(label)}</span></label>`;
   }).join("");
-  const done=DAILY.filter(([id])=>localStorage.getItem(dailyKey(id))==="1").length;
-  $("islandProgress").textContent=`今日 ${done}/${DAILY.length} 完了`;
+  const done=daily.filter(([id])=>localStorage.getItem(dailyKey(id))==="1").length;
+  $("islandProgress").textContent=`今日 ${done}/${daily.length} 完了`;
 }
 
 async function api(path, options){
@@ -82,7 +83,7 @@ async function loadAchievements(){
   $("achievementResult").innerHTML="";
   try{
     const data=await api("/api/achievements/candidates?limit=12");
-    $("achievementResult").innerHTML=`<p class="result-note">${escapeHtml(data.basis||"")}</p><div class="result-list">${(data.candidates||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.description)}</small><small><span class="pill">${row.points||0}pt</span>近さ推定 ${row.distance_score}</small></div>`).join("")||'<div class="result-row"><small>候補を取得できませんでした。</small></div>'}</div>`;
+    $("achievementResult").innerHTML=`<p class="result-note">${escapeHtml(data.basis||"")}</p><div class="result-list">${(data.candidates||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.description)}</small><small><span class="pill">${row.points||0}pt</span>取りやすさ指標 ${row.distance_score}</small></div>`).join("")||'<div class="result-row"><small>候補を取得できませんでした。</small></div>'}</div>`;
     await loadProfile();
   }catch(error){$("achievementResult").innerHTML=`<p class="result-note">取得失敗：${escapeHtml(error.message)}</p>`}
   finally{setBusy(button,false,"アチーブ候補を取得")}

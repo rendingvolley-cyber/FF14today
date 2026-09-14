@@ -64,15 +64,19 @@ function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
-function achievementDistanceScore(name, description) {
+export function achievementDistanceScore(name, description) {
   const text = `${normalizeText(name)} ${normalizeText(description)}`;
   const values = [...text.matchAll(/([0-9][0-9,]*)\s*(?:回|個|体|匹|種類|勝|件|回達成|回クリア)/g)]
     .map(match => Number(String(match[1]).replace(/,/g, "")))
     .filter(value => Number.isFinite(value) && value > 0);
-  let score = values.length ? Math.min(...values) : 25;
-  if (/初めて|初回|1回|ひとつ|クエストをコンプリート/.test(text)) score -= 12;
-  if (/累計|合計|通算/.test(text)) score += Math.min(500, Math.max(...values, 50));
+  const primaryTarget = values.length ? Math.max(...values) : 25;
+  let score = primaryTarget;
+
+  if (/初めて|初回|ひとつ|クエストをコンプリート/.test(text)) score -= 12;
+  if (primaryTarget <= 1 && /1\s*回/.test(text)) score -= 8;
+  if (/累計|合計|通算/.test(text)) score += Math.min(500, Math.max(primaryTarget, 50));
   if (/1000|1,000|5000|5,000|10000|10,000/.test(text)) score += 1000;
+
   return Math.max(0, score);
 }
 
@@ -135,7 +139,7 @@ async function buildAchievementCandidates(env, limit = 12) {
 
   return {
     ok: true,
-    basis: "Lodestone取得済みIDとXIVAPI実績条件を照合。現在カウンターを取得できないため、初版は条件文の軽さから近さを推定します。",
+    basis: "Lodestone取得済みIDとXIVAPI実績条件を照合。現在の個別進捗カウンターは取得できないため、未取得条件の負荷から『取りやすさ』を推定します。数値が小さいほど軽い条件です。",
     acquired_count: state?.total_achievements || acquired.size,
     synced_at: state?.synced_at || null,
     candidates: rows
