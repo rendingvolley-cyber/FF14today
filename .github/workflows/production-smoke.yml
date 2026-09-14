@@ -24,7 +24,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d "{\"state\":\"pending\",\"context\":\"production-smoke\",\"description\":\"Waiting for FF14 Today leveling production\",\"target_url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}"
+            -d "{\"state\":\"pending\",\"context\":\"production-smoke\",\"description\":\"Waiting for FF14 Today actionable production\",\"target_url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}"
 
       - name: Verify live HTTP surface and APIs
         id: http_smoke
@@ -37,7 +37,7 @@ jobs:
           for attempt in $(seq 1 18); do
             root="$(curl -fsS --max-time 20 "${BASE}/" || true)"
             health="$(curl -fsS --max-time 20 "${BASE}/api/health" || true)"
-            if [[ "$root" == *"v2 · LEVELING"* && "$health" == *'"version": "2.1.0"'* ]]; then
+            if [[ "$root" == *"v2.2 · ACTIONABLE"* && "$health" == *'"version": "2.2.0"'* ]]; then
               ok=1
               break
             fi
@@ -45,31 +45,27 @@ jobs:
           done
           [[ "$ok" == "1" ]]
           [[ "$root" == *"上げたいジョブ"* ]]
-          [[ "$root" == *"無人島"* ]]
+          [[ "$root" == *"先に揃える素材"* ]]
+          [[ "$root" == *"この順番でやる"* ]]
           [[ "$root" == *"時限採集を取得"* ]]
           [[ "$root" == *"まとめて取得"* ]]
           [[ "$root" != *"アチーブ候補を取得"* ]]
-          [[ "$root" != *"PICK A VIBE"* ]]
           [[ "$root" != *"双蛇党"* ]]
           [[ "$root" != *"モブハント"* ]]
           [[ "$root" != *"スクショ"* ]]
           [[ "$health" == *'"screenshot_import": false'* ]]
           [[ "$health" == *'"achievement_candidates": false'* ]]
           [[ "$health" == *'"leveling_advisor": true'* ]]
-          [[ "$health" == *'"timed_gathering_on_demand": true'* ]]
-          [[ "$health" == *'"fishing_on_demand": true'* ]]
+          [[ "$health" == *'"actionable_steps": true'* ]]
+          [[ "$health" == *'"island_material_shortage": true'* ]]
 
           profile="$(curl -fsS --max-time 30 "${BASE}/api/profile")"
           gathering="$(curl -fsS --max-time 60 "${BASE}/api/gathering/timed")"
           fishing="$(curl -fsS --max-time 60 "${BASE}/api/fishing/candidates?mode=all")"
-          achievement_status="$(curl -sS --max-time 30 -o /tmp/achievement.json -w '%{http_code}' "${BASE}/api/achievements/candidates?limit=3")"
           [[ "$profile" == *'"ok": true'* ]]
           [[ "$profile" == *'"character"'* ]]
           [[ "$gathering" == *'"ok": true'* ]]
-          [[ "$gathering" == *'"rows"'* ]]
           [[ "$fishing" == *'"ok": true'* ]]
-          [[ "$fishing" == *'"fisher_level"'* ]]
-          [[ "$achievement_status" == "404" ]]
 
       - name: Checkout
         if: steps.http_smoke.outcome == 'success'
@@ -98,7 +94,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { chromium } from '@playwright/test';
           const browser = await chromium.launch({ headless: true });
-          const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+          const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
           page.setDefaultTimeout(90000);
           const pageErrors = [];
           const consoleErrors = [];
@@ -107,30 +103,26 @@ jobs:
           const response = await page.goto('https://ff14-today.ff14-today.workers.dev/', { waitUntil: 'domcontentloaded', timeout: 45000 });
           if (!response || !response.ok()) throw new Error(`navigation failed: ${response?.status()}`);
           await page.waitForTimeout(2500);
-          const snapshot = await page.evaluate(() => ({
-            title: document.title,
-            bodyText: document.body?.innerText || '',
-            rank: document.getElementById('islandRank')?.value || '',
-            hasLeveling: Boolean(document.getElementById('levelJobSelect')),
-            hasAchievement: Boolean(document.getElementById('achievementButton')),
-            hasGather: Boolean(document.getElementById('gatherButton')),
-            fishButtons: document.querySelectorAll('[data-fish-mode]').length
-          }));
-          if (!snapshot.bodyText.includes('FF14 Today')) throw new Error('FF14 Today shell is not rendered');
-          if (!snapshot.bodyText.includes('レベル上げ')) throw new Error('leveling area is missing');
-          if (!snapshot.bodyText.includes('時間が余ったら')) throw new Error('on-demand area is missing');
-          if (!snapshot.rank) throw new Error('Island Sanctuary rank selector is missing');
-          if (!snapshot.hasLeveling || snapshot.hasAchievement || !snapshot.hasGather || snapshot.fishButtons < 3) throw new Error('main controls are incorrect');
 
-          const firstJob = await page.locator('#levelJobSelect option:not([value=""])').first().getAttribute('value');
-          if (!firstJob) throw new Error('no levelable job options found');
-          await page.locator('#levelJobSelect').selectOption(firstJob);
+          await page.locator('#levelJobSelect').selectOption('SAM');
           await page.locator('#levelingResult .method-row').first().waitFor({ state: 'visible' });
           const levelingText = await page.locator('#levelingResult').innerText();
-          if (!levelingText.trim()) throw new Error('leveling recommendations are empty');
-          if (levelingText.includes('ルーレット') || levelingText.includes('友好部族') || levelingText.includes('グランドカンパニー') || levelingText.includes('リーヴ')) {
-            throw new Error(`forbidden leveling recommendation surfaced: ${levelingText}`);
-          }
+          if (!levelingText.includes('オリジェニクス')) throw new Error(`SAM Lv99 must name Origenics: ${levelingText}`);
+          if (!levelingText.includes('コンテンツファインダー')) throw new Error('battle instructions are not executable');
+          if (!levelingText.includes('終わり：')) throw new Error('battle completion condition missing');
+          if (levelingText.includes('ルーレット') || levelingText.includes('友好部族') || levelingText.includes('グランドカンパニー') || levelingText.includes('リーヴ')) throw new Error(`forbidden leveling recommendation surfaced: ${levelingText}`);
+
+          await page.locator('#islandRank').selectOption('3');
+          const limestone = page.locator('input[data-island-material="石灰岩"]');
+          await limestone.waitFor({ state: 'visible' });
+          if (await limestone.getAttribute('data-target') !== '20') throw new Error('Rank 3 limestone target must be 20');
+          await limestone.fill('5');
+          const shortageId = await limestone.getAttribute('data-shortage-id');
+          const shortageText = await page.locator(`#${shortageId}`).innerText();
+          if (!shortageText.includes('不足 15')) throw new Error(`shortage calculator failed: ${shortageText}`);
+          const islandText = await page.locator('.island-main').innerText();
+          if (!islandText.includes('Workshop Iを2棟')) throw new Error('Rank 3 exact workshop count missing');
+          if (!islandText.includes('完了条件')) throw new Error('Island completion condition missing');
 
           await page.locator('#gatherButton').click();
           await page.locator('#gatherResult .result-row').first().waitFor({ state: 'visible' });
@@ -142,7 +134,7 @@ jobs:
           const fishingText = await page.locator('#fishResult').innerText();
           if (fishingText.includes('取得失敗')) throw new Error(`fishing action failed: ${fishingText}`);
 
-          console.log(JSON.stringify({ snapshot, firstJob, levelingText, gatheringText, fishingText, pageErrors, consoleErrors }, null, 2));
+          console.log(JSON.stringify({ levelingText, shortageText, gatheringText, fishingText, pageErrors, consoleErrors }, null, 2));
           if (pageErrors.length) throw new Error(`pageerror: ${pageErrors.join(' | ')}`);
           if (consoleErrors.length) throw new Error(`console error: ${consoleErrors.join(' | ')}`);
           await page.screenshot({ path: 'production-smoke.png', fullPage: true });
@@ -167,10 +159,10 @@ jobs:
         run: |
           if [[ "$HTTP_OUTCOME" == "success" && "$BROWSER_OUTCOME" == "success" ]]; then
             state="success"
-            description="FF14 Today leveling production smoke passed"
+            description="FF14 Today actionable production smoke passed"
           else
             state="failure"
-            description="FF14 Today leveling production smoke failed"
+            description="FF14 Today actionable production smoke failed"
           fi
           curl -fsS -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \

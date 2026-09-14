@@ -4,132 +4,58 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#eef4ff">
-  <meta name="description" content="上げたいジョブを選んで現在レベルに合う育成方法を確認し、無人島・時限採集・釣りも必要な時だけ使える個人向けFF14補助ツール。">
+  <meta name="description" content="上げたいジョブを選ぶと具体的なコンテンツ名と実行手順を表示し、無人島は必要素材・不足数・進行順まで確認できる個人向けFF14補助ツール。">
   <title>FF14 Today</title>
   <link rel="stylesheet" href="/v2.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">✦</span>
-        <div>
-          <p class="eyebrow">EORZEA PERSONAL TOOL</p>
-          <h1>FF14 Today</h1>
-        </div>
-      </div>
-      <span class="version">v2 · LEVELING</span>
+      <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">EORZEA PERSONAL TOOL</p><h1>FF14 Today</h1></div></div>
+      <span class="version">v2.2 · ACTIONABLE</span>
     </header>
 
     <section class="identity">
-      <div>
-        <p class="eyebrow">CHARACTER</p>
-        <h2 id="characterName">読み込み中…</h2>
-        <div id="characterWorld" class="muted"></div>
-      </div>
-      <div class="sync">
-        <span id="syncText" class="muted">確認中…</span>
-        <button id="syncButton" class="btn ghost" type="button">Lodestone同期</button>
-      </div>
+      <div><p class="eyebrow">CHARACTER</p><h2 id="characterName">読み込み中…</h2><div id="characterWorld" class="muted"></div></div>
+      <div class="sync"><span id="syncText" class="muted">確認中…</span><button id="syncButton" class="btn ghost" type="button">Lodestone同期</button></div>
     </section>
 
     <section class="card leveling-main">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">LEVELING</p>
-          <h2>レベル上げ</h2>
-          <p class="muted">上げたいジョブを自分で選ぶと、現在Lvに合う育成方法を表示します。</p>
-        </div>
+        <div><p class="eyebrow">LEVELING</p><h2>レベル上げ</h2><p class="muted">コンテンツ名だけで終わらせず、ゲーム内で何を押して、どこまでやれば終わりかまで表示します。</p></div>
         <strong id="levelingMeta" class="pill">ジョブ読込中</strong>
       </div>
-
       <div class="leveling-picker">
-        <div class="job-select-box">
-          <label for="levelJobSelect">上げたいジョブ</label>
-          <select id="levelJobSelect" disabled>
-            <option value="">Lodestone読込中…</option>
-          </select>
-          <small>Lv上限到達済みのジョブは候補から外します。</small>
-        </div>
-        <div id="levelingChoice" class="leveling-choice">
-          <strong>ジョブを選んでください</strong>
-          <span>選択するまで育成方法は決めません。</span>
-        </div>
+        <div class="job-select-box"><label for="levelJobSelect">上げたいジョブ</label><select id="levelJobSelect" disabled><option value="">Lodestone読込中…</option></select><small>Lv上限到達済みのジョブは候補から外します。</small></div>
+        <div id="levelingChoice" class="leveling-choice"><strong>ジョブを選んでください</strong><span>選択するまで育成方法は決めません。</span></div>
       </div>
       <div id="levelingResult" class="method-list"></div>
     </section>
 
     <section class="card island-main">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">ISLAND SANCTUARY</p>
-          <h2>無人島</h2>
-          <p class="muted">毎日やることと、今のランクで進めることを分けて表示。</p>
-        </div>
+        <div><p class="eyebrow">ISLAND SANCTUARY</p><h2>無人島</h2><p class="muted">必要素材を先に揃え、表示された順番で進めます。所持数を入れると不足数だけ残ります。</p></div>
         <strong id="islandProgress" class="pill">今日 0/3 完了</strong>
       </div>
-
       <div class="island-summary">
-        <div class="rank-box">
-          <label for="islandRank">現在の開拓ランク</label>
-          <select id="islandRank">
-            <option value="3">Rank 3</option><option value="4">Rank 4</option><option value="5">Rank 5</option>
-            <option value="6">Rank 6</option><option value="7">Rank 7</option><option value="8">Rank 8</option>
-            <option value="9">Rank 9</option><option value="10">Rank 10</option><option value="11">Rank 11</option>
-            <option value="12">Rank 12</option><option value="13">Rank 13</option><option value="14">Rank 14</option>
-            <option value="15">Rank 15</option>
-          </select>
-        </div>
-        <div>
-          <p class="progress-title" id="islandTitle">現在ランクの目標</p>
-          <p class="progress-copy">チェックは今日分だけ保存され、日付が変わると自動で新しい日になります。</p>
-        </div>
+        <div class="rank-box"><label for="islandRank">現在の開拓ランク</label><select id="islandRank"><option value="3">Rank 3</option><option value="4">Rank 4</option><option value="5">Rank 5</option><option value="6">Rank 6</option><option value="7">Rank 7</option><option value="8">Rank 8</option><option value="9">Rank 9</option><option value="10">Rank 10</option><option value="11">Rank 11</option><option value="12">Rank 12</option><option value="13">Rank 13</option><option value="14">Rank 14</option><option value="15">Rank 15</option></select></div>
+        <div><p class="progress-title" id="islandTitle">現在ランクの目標</p><p class="progress-copy">素材の「所持」はこの端末に保存。必要数−所持数を自動で不足表示します。</p></div>
       </div>
-
-      <h3 class="subhead">今日やること</h3>
-      <div id="islandDaily" class="daily-list"></div>
-
-      <h3 class="subhead">今のランクでやること</h3>
-      <div id="islandRankTasks" class="rank-list"></div>
+      <h3 class="subhead">今日やること</h3><div id="islandDaily" class="daily-list"></div>
+      <h3 class="subhead">先に揃える素材</h3><div id="islandMaterials"></div>
+      <h3 class="subhead">この順番でやる</h3><div id="islandRankTasks" class="rank-list"></div>
       <div id="islandGranary" class="granary"></div>
     </section>
 
     <section class="card">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">WHEN YOU HAVE TIME</p>
-          <h2>時間が余ったら</h2>
-          <p class="muted">必要なものだけ、その時に取得。</p>
-        </div>
-      </div>
-
+      <div class="section-head"><div><p class="eyebrow">WHEN YOU HAVE TIME</p><h2>時間が余ったら</h2><p class="muted">押した時点で、場所や時間まで分かるものだけ表示。</p></div></div>
       <div class="tool-grid two">
-        <article class="tool-card">
-          <h3>時限採集</h3>
-          <p>今の採掘師・園芸師Lvで取れる、現在〜12時間以内の候補を取得します。</p>
-          <button id="gatherButton" class="btn" type="button">時限採集を取得</button>
-          <div id="gatherResult" class="result"></div>
-        </article>
-
-        <article class="tool-card">
-          <h3>釣り</h3>
-          <p>経験値向けの遊び方か、現在の天候・時間で狙えるヌシ候補を必要な時だけ取得します。</p>
-          <div class="fish-actions">
-            <button class="btn secondary" type="button" data-fish-mode="experience">経験値</button>
-            <button class="btn secondary" type="button" data-fish-mode="big-fish">ヌシ</button>
-            <button class="btn" type="button" data-fish-mode="all">まとめて取得</button>
-          </div>
-          <div id="fishResult" class="result"></div>
-        </article>
+        <article class="tool-card"><h3>時限採集</h3><p>現在Lvで取れる候補を、名前・場所・座標・ETつきで取得します。</p><button id="gatherButton" class="btn" type="button">時限採集を取得</button><div id="gatherResult" class="result"></div></article>
+        <article class="tool-card"><h3>釣り</h3><p>経験値かヌシを選択。ヌシは時間・場所・餌を表示します。</p><div class="fish-actions"><button class="btn secondary" type="button" data-fish-mode="experience">経験値</button><button class="btn secondary" type="button" data-fish-mode="big-fish">ヌシ</button><button class="btn" type="button" data-fish-mode="all">まとめて取得</button></div><div id="fishResult" class="result"></div></article>
       </div>
     </section>
 
-    <section class="card">
-      <p class="eyebrow">MONEY MAKING</p>
-      <h3>金策</h3>
-      <p class="muted">リーヴはレベル上げには出しません。金策として使う時だけ呼び出す機能へ今後拡張します。</p>
-    </section>
-
+    <section class="card"><p class="eyebrow">MONEY MAKING</p><h3>金策</h3><p class="muted">リーヴはレベル上げには出しません。金策として使う時だけ呼び出す機能へ分離します。</p></section>
     <p id="status" class="status"></p>
   </main>
   <script src="/v2.js" type="module"></script>

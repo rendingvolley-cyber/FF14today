@@ -1,158 +1,36 @@
 import { groupLabel, levelableJobs, levelingRecommendations } from "./leveling-advisor.js";
+import { ISLAND_GUIDE, materialStorageKey } from "./island-guide.js";
 
-const $ = id => document.getElementById(id);
-const RANK_KEY = "ff14_today_island_rank_v1";
-const DAILY_PREFIX = "ff14_today_island_daily_v2_";
-const LEVEL_JOB_KEY = "ff14_today_leveling_job_v1";
-let currentLevelJobs = [];
-
-const ISLAND = {
-  3:{title:"開拓工房を2棟動かす",tasks:["開拓用ストーンハンマーを製作","開拓工房Iを2棟建築","ねこみみさんへ報告","不足素材だけ採集"],granary:"まだ未解放"},
-  4:{title:"拠点と放牧地を拡張",tasks:["アイランドホールIIへ改築","耕作地・放牧地を拡張","土地を拡張","ランドマークを1つ建築"],granary:"まだ未解放"},
-  5:{title:"3棟目の工房とグラナリー",tasks:["開拓用シャベルを製作","土地を拡張","3棟目の開拓工房を建築","グラナリーオフィスを建築"],granary:"森林へ派遣してスプルース原木×6を先取り"},
-  6:{title:"工房IIへ改築",tasks:["開拓用カッパーサイズを製作","開拓工房3棟をIIへ改築","グラナリーをIIへ改築","不足EXPだけ採集"],granary:"森林→渓流の順でR8素材を集める"},
-  7:{title:"ホールIIIと2棟目グラナリー",tasks:["アイランドホールIIIへ改築","耕作地・放牧地を最大拡張","2棟目のグラナリーを建築","ランドマークを追加"],granary:"スプルース原木×6→ガーネット原石×9"},
-  8:{title:"工房III・グラナリーIII",tasks:["開拓用ブロンズピックを製作","開拓工房3棟をIIIへ改築","グラナリー2棟をIIIへ改築","固定EXP回収後に不足分だけ採集"],granary:"必要素材が揃ったら山で銀鉱×3を先取り"},
-  9:{title:"土地拡張と灯台",tasks:["土地を拡張","ランドマーク『灯台』を建築","ねこみみさん関連クエストを進行","R10用素材を準備"],granary:"山で銀鉱×3→草原でアリッサム×5"},
-  10:{title:"フライング解放",tasks:["フライング解放条件を完了","工房を止めない","採集EXPは余裕がある日にまとめる"],granary:"草原でアリッサム×5を確保"},
-  11:{title:"短時間日課でR12へ",tasks:["工房・畑・放牧地・グラナリーを優先","R12までの採集EXPは余裕がある日にまとめる"],granary:"アリッサム不足なら草原、足りていれば自由"},
-  12:{title:"とんがり山の洞窟を解放",tasks:["ねこみみさんのクエストを最優先","魔法人形用の砕岩装備を製作","とんがり山の洞窟を解放","固定報酬を回収してから採集"],granary:"必須希少素材が揃っていれば不足素材の場所へ"},
-  13:{title:"ホールIV・グラナリーIV",tasks:["開拓用スチールハンマーを製作","アイランドホールIVへ改築","グラナリー2棟をIVへ改築","R14用素材を多めに採集"],granary:"工房で不足しやすい素材の探索地へ"},
-  14:{title:"工房IVからR15へ",tasks:["開拓工房3棟をIVへ改築","完成EXPをすべて回収","R15までの採集は余裕がある日にまとめる"],granary:"工房で不足する素材を補充"},
-  15:{title:"R15到達",tasks:["ランク15到達で今回の目標達成","続ける場合だけ追加工房・ランドマークへ進む"],granary:"不足素材の補充用として自由に派遣"}
-};
-
-const DAILY = [
-  ["workshop","工房の結果確認・次の予約"],
-  ["pasture","放牧地の回収・餌"],
-  ["garden","耕作地の収穫・種・水やり"],
-  ["granary","グラナリー回収・再派遣"]
-];
-
+const $=id=>document.getElementById(id);
+const RANK_KEY="ff14_today_island_rank_v1";
+const DAILY_PREFIX="ff14_today_island_daily_v2_";
+const LEVEL_JOB_KEY="ff14_today_leveling_job_v1";
+let currentLevelJobs=[];
+const DAILY=[["workshop","工房の結果確認・次の予約"],["pasture","放牧地の回収・餌"],["garden","耕作地の収穫・種・水やり"],["granary","グラナリー回収・再派遣"]];
 function jstDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Tokyo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
-function dailyKey(id){return `${DAILY_PREFIX}${jstDate()}_${id}`}
+function dailyKey(id){return`${DAILY_PREFIX}${jstDate()}_${id}`}
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]))}
 function fmtDate(value){if(!value)return"未同期";try{return new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(value))}catch{return value}}
-
-function islandRank(){const value=Number(localStorage.getItem(RANK_KEY));return ISLAND[value]?value:3}
+function islandRank(){const value=Number(localStorage.getItem(RANK_KEY));return ISLAND_GUIDE[value]?value:3}
 function dailyForRank(rank){return DAILY.filter(([id])=>id!=="granary"||rank>=5)}
-function renderIsland(){
-  const rank=islandRank(),data=ISLAND[rank],daily=dailyForRank(rank);
-  $("islandRank").value=String(rank);
-  $("islandTitle").textContent=data.title;
-  $("islandGranary").innerHTML=`<strong>グラナリー</strong>${escapeHtml(data.granary)}`;
-  $("islandRankTasks").innerHTML=data.tasks.map(task=>`<div class="rank-row"><span>${escapeHtml(task)}</span></div>`).join("");
-  $("islandDaily").innerHTML=daily.map(([id,label])=>{
-    const done=localStorage.getItem(dailyKey(id))==="1";
-    return `<label class="check-row${done?" done":""}"><input type="checkbox" data-island-daily="${id}" ${done?"checked":""}><span>${escapeHtml(label)}</span></label>`;
-  }).join("");
-  const done=daily.filter(([id])=>localStorage.getItem(dailyKey(id))==="1").length;
-  $("islandProgress").textContent=`今日 ${done}/${daily.length} 完了`;
-}
-
-async function api(path, options){
-  const response=await fetch(path,options);
-  let data={};try{data=await response.json()}catch{}
-  if(!response.ok)throw new Error(data.detail||data.error||`HTTP ${response.status}`);
-  return data;
-}
-
-function renderLeveling(code){
-  const selected=currentLevelJobs.find(job=>job.code===code);
-  if(!selected){
-    $("levelingChoice").innerHTML="<strong>ジョブを選んでください</strong><span>選択するまで育成方法は決めません。</span>";
-    $("levelingResult").innerHTML="";
-    return;
-  }
-  const {job,methods}=levelingRecommendations(selected);
-  $("levelingChoice").innerHTML=`<strong>${escapeHtml(job.name)} Lv${job.level} → Lv${job.cap}</strong><span>${escapeHtml(groupLabel(job.group))} / 現在Lvに合わせた候補</span>`;
-  $("levelingResult").innerHTML=methods.map((row,index)=>`<article class="method-row"><span class="method-rank">${row.rank===0?"固有":index+1}</span><div><div class="method-title">${escapeHtml(row.title)}${row.tag?` <span class="pill">${escapeHtml(row.tag)}</span>`:""}</div><p>${escapeHtml(row.reason)}</p></div></article>`).join("");
-}
-
-function populateLeveling(rawJobs){
-  currentLevelJobs=levelableJobs(rawJobs);
-  const select=$("levelJobSelect");
-  const maxCount=(Array.isArray(rawJobs)?rawJobs:[]).filter(job=>Number(job?.level)>=100).length;
-  $("levelingMeta").textContent=`育成候補 ${currentLevelJobs.length} / Lv100 ${maxCount}`;
-  if(!currentLevelJobs.length){
-    select.innerHTML='<option value="">育成できるジョブがありません</option>';
-    select.disabled=true;
-    renderLeveling("");
-    return;
-  }
-  const groups=["battle","crafter","gatherer"];
-  const parts=['<option value="">ジョブを選ぶ</option>'];
-  for(const group of groups){
-    const rows=currentLevelJobs.filter(job=>job.group===group);
-    if(!rows.length)continue;
-    parts.push(`<optgroup label="${escapeHtml(groupLabel(group))}">`);
-    parts.push(...rows.map(job=>`<option value="${escapeHtml(job.code)}">${escapeHtml(job.name)}　Lv${job.level}</option>`));
-    parts.push("</optgroup>");
-  }
-  select.innerHTML=parts.join("");
-  select.disabled=false;
-  const saved=localStorage.getItem(LEVEL_JOB_KEY)||"";
-  if(currentLevelJobs.some(job=>job.code===saved)){
-    select.value=saved;
-    renderLeveling(saved);
-  }else{
-    select.value="";
-    renderLeveling("");
-  }
-}
-
-function renderProfile(data){
-  const c=data?.character;
-  if(c){
-    $("characterName").textContent=c.name||"Kanade";
-    $("characterWorld").textContent=[c.world,c.data_center].filter(Boolean).join(" · ");
-    $("syncText").textContent=`最終同期 ${fmtDate(c.synced_at)}`;
-    populateLeveling(c.jobs||[]);
-  }else{
-    $("characterName").textContent="Lodestone未同期";
-    $("characterWorld").textContent="同期すると現在Lvから育成方法を選べます。";
-    $("syncText").textContent="未同期";
-    populateLeveling([]);
-  }
-}
-
-async function loadProfile(){
-  try{renderProfile(await api("/api/profile"))}catch(error){$("status").textContent=`読み込み失敗：${error.message}`}
-}
-
+function ownedMaterial(rank,name){const n=Number(localStorage.getItem(materialStorageKey(rank,name))||0);return Number.isFinite(n)&&n>0?Math.floor(n):0}
+function shortage(target,owned){return Math.max(0,Number(target)-Number(owned))}
+function shortageId(rank,index){return`island-shortage-${rank}-${index}`}
+function renderMaterials(rank,data){const host=$("islandMaterials");if(!host)return;if(!data.materials.length){host.innerHTML='<p class="muted material-empty">このRankは固定の建築素材タスクなし。日課と工房EXP回収を進めます。</p>';return}host.innerHTML=`<p class="result-note">「所持」に今持っている数を入れると、不足数だけ残ります。端末内に保存します。</p><div class="material-grid">${data.materials.map(([name,target,where],index)=>{const owned=ownedMaterial(rank,name),need=shortage(target,owned);return`<article class="material-row${need===0?' complete':''}"><div><strong>${escapeHtml(name)} ×${target}</strong><small>${escapeHtml(where)}</small></div><label>所持 <input inputmode="numeric" min="0" type="number" value="${owned}" data-island-material="${escapeHtml(name)}" data-rank="${rank}" data-target="${target}" data-shortage-id="${shortageId(rank,index)}"></label><span id="${shortageId(rank,index)}" class="material-need">${need===0?'揃った':`不足 ${need}`}</span></article>`}).join("")}</div>`}
+function renderIsland(){const rank=islandRank(),data=ISLAND_GUIDE[rank],daily=dailyForRank(rank);$("islandRank").value=String(rank);$("islandTitle").textContent=data.title;$("islandGranary").innerHTML=`<strong>グラナリー</strong><span>${escapeHtml(data.granary)}</span><small>完了条件：${escapeHtml(data.completion)}</small>`;$("islandRankTasks").innerHTML=`<ol class="action-steps">${data.steps.map(step=>`<li>${escapeHtml(step)}</li>`).join("")}</ol>`;renderMaterials(rank,data);$("islandDaily").innerHTML=daily.map(([id,label])=>{const done=localStorage.getItem(dailyKey(id))==="1";return`<label class="check-row${done?' done':''}"><input type="checkbox" data-island-daily="${id}" ${done?'checked':''}><span>${escapeHtml(label)}</span></label>`}).join("");const done=daily.filter(([id])=>localStorage.getItem(dailyKey(id))==="1").length;$("islandProgress").textContent=`今日 ${done}/${daily.length} 完了`}
+async function api(path,options){const response=await fetch(path,options);let data={};try{data=await response.json()}catch{}if(!response.ok)throw new Error(data.detail||data.error||`HTTP ${response.status}`);return data}
+function renderLeveling(code){const selected=currentLevelJobs.find(job=>job.code===code);if(!selected){$("levelingChoice").innerHTML="<strong>ジョブを選んでください</strong><span>選択するまで育成方法は決めません。</span>";$("levelingResult").innerHTML="";return}const{job,methods}=levelingRecommendations(selected);$("levelingChoice").innerHTML=`<strong>${escapeHtml(job.name)} Lv${job.level} → Lv${job.cap}</strong><span>${escapeHtml(groupLabel(job.group))} / 画面どおりに実行</span>`;$("levelingResult").innerHTML=methods.map((row,index)=>`<article class="method-row"><span class="method-rank">${row.rank===0?'固有':index+1}</span><div><div class="method-title">${escapeHtml(row.title)}${row.tag?` <span class="pill">${escapeHtml(row.tag)}</span>`:""}</div><p>${escapeHtml(row.reason)}</p>${row.steps?.length?`<ol class="method-steps">${row.steps.map(step=>`<li>${escapeHtml(step)}</li>`).join("")}</ol>`:""}${row.completion?`<div class="completion"><strong>終わり：</strong>${escapeHtml(row.completion)}</div>`:""}</div></article>`).join("")}
+function populateLeveling(rawJobs){currentLevelJobs=levelableJobs(rawJobs);const select=$("levelJobSelect");const maxCount=(Array.isArray(rawJobs)?rawJobs:[]).filter(job=>Number(job?.level)>=100).length;$("levelingMeta").textContent=`育成候補 ${currentLevelJobs.length} / Lv100 ${maxCount}`;if(!currentLevelJobs.length){select.innerHTML='<option value="">育成できるジョブがありません</option>';select.disabled=true;renderLeveling("");return}const groups=["battle","crafter","gatherer"],parts=['<option value="">ジョブを選ぶ</option>'];for(const group of groups){const rows=currentLevelJobs.filter(job=>job.group===group);if(!rows.length)continue;parts.push(`<optgroup label="${escapeHtml(groupLabel(group))}">`,...rows.map(job=>`<option value="${escapeHtml(job.code)}">${escapeHtml(job.name)}　Lv${job.level}</option>`),"</optgroup>")}select.innerHTML=parts.join("");select.disabled=false;const saved=localStorage.getItem(LEVEL_JOB_KEY)||"";if(currentLevelJobs.some(job=>job.code===saved)){select.value=saved;renderLeveling(saved)}else{select.value="";renderLeveling("")}}
+function renderProfile(data){const c=data?.character;if(c){$("characterName").textContent=c.name||"Kanade";$("characterWorld").textContent=[c.world,c.data_center].filter(Boolean).join(" · ");$("syncText").textContent=`最終同期 ${fmtDate(c.synced_at)}`;populateLeveling(c.jobs||[])}else{$("characterName").textContent="Lodestone未同期";$("characterWorld").textContent="同期すると現在Lvから育成方法を選べます。";$("syncText").textContent="未同期";populateLeveling([])}}
+async function loadProfile(){try{renderProfile(await api("/api/profile"))}catch(error){$("status").textContent=`読み込み失敗：${error.message}`}}
 function setBusy(button,busy,label){if(!button)return;button.disabled=busy;if(label)button.textContent=label}
 function timeLabel(ms){if(!ms)return"";return new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit"}).format(new Date(ms))}
-
-async function loadGathering(){
-  const button=$("gatherButton");setBusy(button,true,"取得中…");$("gatherResult").innerHTML="";
-  try{
-    const data=await api("/api/gathering/timed");
-    $("gatherResult").innerHTML=`<p class="result-note">押した時点から12時間以内の時限採集候補です。</p><div class="result-list">${(data.rows||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.title)}</strong><small>${row.time_window?.state==="open"?'<span class="pill">いま採れる</span>':`<span class="pill">${timeLabel(row.time_window?.start_at_ms)}〜</span>`}${escapeHtml(row.reason)}</small></div>`).join("")||'<div class="result-row"><small>現在のLvで表示できる時限候補はありません。</small></div>'}</div>`;
-  }catch(error){$("gatherResult").innerHTML=`<p class="result-note">取得失敗：${escapeHtml(error.message)}</p>`}
-  finally{setBusy(button,false,"時限採集を取得")}
-}
-
-async function loadFishing(mode="all"){
-  document.querySelectorAll("[data-fish-mode]").forEach(b=>b.disabled=true);$("fishResult").innerHTML="";
-  try{
-    const data=await api(`/api/fishing/candidates?mode=${encodeURIComponent(mode)}`);
-    const exp=(data.experience||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.reason)}</small></div>`).join("");
-    const big=(data.big_fish||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.name)}</strong><small><span class="pill">${timeLabel(row.start_at_ms)}〜</span>${escapeHtml([row.zone,row.location,row.weather,row.bait?.length?`餌: ${row.bait.join(" → ")}`:""].filter(Boolean).join(" / "))}</small></div>`).join("");
-    $("fishResult").innerHTML=`<p class="result-note">漁師Lv${data.fisher_level||0} / ${escapeHtml(data.source||"")}</p><div class="result-list">${exp}${big||(!exp?'<div class="result-row"><small>現在24時間以内に表示できるヌシ候補はありません。</small></div>':"")}</div>`;
-  }catch(error){$("fishResult").innerHTML=`<p class="result-note">取得失敗：${escapeHtml(error.message)}</p>`}
-  finally{document.querySelectorAll("[data-fish-mode]").forEach(b=>b.disabled=false)}
-}
-
-$("levelJobSelect")?.addEventListener("change",event=>{
-  const code=event.target.value||"";
-  if(code)localStorage.setItem(LEVEL_JOB_KEY,code);else localStorage.removeItem(LEVEL_JOB_KEY);
-  renderLeveling(code);
-});
+async function loadGathering(){const button=$("gatherButton");setBusy(button,true,"取得中…");$("gatherResult").innerHTML="";try{const data=await api("/api/gathering/timed");$("gatherResult").innerHTML=`<p class="result-note">押した時点から12時間以内。名前・場所・座標・ETをそのまま使えます。</p><div class="result-list">${(data.rows||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.title)}</strong><small>${row.time_window?.state==="open"?'<span class="pill">いま採れる</span>':`<span class="pill">${timeLabel(row.time_window?.start_at_ms)}〜</span>`}${escapeHtml(row.reason)}</small></div>`).join("")||'<div class="result-row"><small>現在のLvで表示できる時限候補はありません。</small></div>'}</div>`}catch(error){$("gatherResult").innerHTML=`<p class="result-note">取得失敗：${escapeHtml(error.message)}</p>`}finally{setBusy(button,false,"時限採集を取得")}}
+async function loadFishing(mode="all"){document.querySelectorAll("[data-fish-mode]").forEach(b=>b.disabled=true);$("fishResult").innerHTML="";try{const data=await api(`/api/fishing/candidates?mode=${encodeURIComponent(mode)}`);const exp=(data.experience||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.reason)}</small></div>`).join("");const big=(data.big_fish||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.name)}</strong><small><span class="pill">${timeLabel(row.start_at_ms)}〜</span>${escapeHtml([row.zone,row.location,row.weather,row.bait?.length?`餌: ${row.bait.join(" → ")}`:""].filter(Boolean).join(" / "))}</small></div>`).join("");$("fishResult").innerHTML=`<p class="result-note">漁師Lv${data.fisher_level||0} / ${escapeHtml(data.source||"")}</p><div class="result-list">${exp}${big||(!exp?'<div class="result-row"><small>現在24時間以内に表示できるヌシ候補はありません。</small></div>':"")}</div>`}catch(error){$("fishResult").innerHTML=`<p class="result-note">取得失敗：${escapeHtml(error.message)}</p>`}finally{document.querySelectorAll("[data-fish-mode]").forEach(b=>b.disabled=false)}}
+$("levelJobSelect")?.addEventListener("change",event=>{const code=event.target.value||"";if(code)localStorage.setItem(LEVEL_JOB_KEY,code);else localStorage.removeItem(LEVEL_JOB_KEY);renderLeveling(code)});
 $("islandRank")?.addEventListener("change",event=>{localStorage.setItem(RANK_KEY,event.target.value);renderIsland()});
 document.addEventListener("change",event=>{const id=event.target?.dataset?.islandDaily;if(!id)return;localStorage.setItem(dailyKey(id),event.target.checked?"1":"0");renderIsland()});
+document.addEventListener("input",event=>{const input=event.target;if(!input?.dataset?.islandMaterial)return;const rank=Number(input.dataset.rank),name=input.dataset.islandMaterial,target=Number(input.dataset.target),owned=Math.max(0,Number(input.value)||0);localStorage.setItem(materialStorageKey(rank,name),String(Math.floor(owned)));const node=$(input.dataset.shortageId);if(node){const need=shortage(target,owned);node.textContent=need===0?"揃った":`不足 ${need}`;input.closest(".material-row")?.classList.toggle("complete",need===0)}});
 $("syncButton")?.addEventListener("click",async()=>{const b=$("syncButton");setBusy(b,true,"同期中…");try{await api("/api/sync",{method:"POST"});await loadProfile();$("status").textContent="Lodestone同期が完了しました。"}catch(error){$("status").textContent=`同期失敗：${error.message}`}finally{setBusy(b,false,"Lodestone同期")}});
-$("gatherButton")?.addEventListener("click",loadGathering);
-document.querySelectorAll("[data-fish-mode]").forEach(button=>button.addEventListener("click",()=>loadFishing(button.dataset.fishMode)));
-
-renderIsland();
-void loadProfile();
+$("gatherButton")?.addEventListener("click",loadGathering);document.querySelectorAll("[data-fish-mode]").forEach(button=>button.addEventListener("click",()=>loadFishing(button.dataset.fishMode)));
+renderIsland();void loadProfile();
