@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ff14-today",
-  "main": "src/hunt-entry.js",
+  "main": "src/v2-entry.js",
   "compatibility_date": "2026-08-09",
   "assets": {
     "directory": "./public",
