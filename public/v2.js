@@ -1,6 +1,10 @@
+import { groupLabel, levelableJobs, levelingRecommendations } from "./leveling-advisor.js";
+
 const $ = id => document.getElementById(id);
 const RANK_KEY = "ff14_today_island_rank_v1";
 const DAILY_PREFIX = "ff14_today_island_daily_v2_";
+const LEVEL_JOB_KEY = "ff14_today_leveling_job_v1";
+let currentLevelJobs = [];
 
 const ISLAND = {
   3:{title:"開拓工房を2棟動かす",tasks:["開拓用ストーンハンマーを製作","開拓工房Iを2棟建築","ねこみみさんへ報告","不足素材だけ採集"],granary:"まだ未解放"},
@@ -53,23 +57,63 @@ async function api(path, options){
   return data;
 }
 
+function renderLeveling(code){
+  const selected=currentLevelJobs.find(job=>job.code===code);
+  if(!selected){
+    $("levelingChoice").innerHTML="<strong>ジョブを選んでください</strong><span>選択するまで育成方法は決めません。</span>";
+    $("levelingResult").innerHTML="";
+    return;
+  }
+  const {job,methods}=levelingRecommendations(selected);
+  $("levelingChoice").innerHTML=`<strong>${escapeHtml(job.name)} Lv${job.level} → Lv${job.cap}</strong><span>${escapeHtml(groupLabel(job.group))} / 現在Lvに合わせた候補</span>`;
+  $("levelingResult").innerHTML=methods.map((row,index)=>`<article class="method-row"><span class="method-rank">${row.rank===0?"固有":index+1}</span><div><div class="method-title">${escapeHtml(row.title)}${row.tag?` <span class="pill">${escapeHtml(row.tag)}</span>`:""}</div><p>${escapeHtml(row.reason)}</p></div></article>`).join("");
+}
+
+function populateLeveling(rawJobs){
+  currentLevelJobs=levelableJobs(rawJobs);
+  const select=$("levelJobSelect");
+  const maxCount=(Array.isArray(rawJobs)?rawJobs:[]).filter(job=>Number(job?.level)>=100).length;
+  $("levelingMeta").textContent=`育成候補 ${currentLevelJobs.length} / Lv100 ${maxCount}`;
+  if(!currentLevelJobs.length){
+    select.innerHTML='<option value="">育成できるジョブがありません</option>';
+    select.disabled=true;
+    renderLeveling("");
+    return;
+  }
+  const groups=["battle","crafter","gatherer"];
+  const parts=['<option value="">ジョブを選ぶ</option>'];
+  for(const group of groups){
+    const rows=currentLevelJobs.filter(job=>job.group===group);
+    if(!rows.length)continue;
+    parts.push(`<optgroup label="${escapeHtml(groupLabel(group))}">`);
+    parts.push(...rows.map(job=>`<option value="${escapeHtml(job.code)}">${escapeHtml(job.name)}　Lv${job.level}</option>`));
+    parts.push("</optgroup>");
+  }
+  select.innerHTML=parts.join("");
+  select.disabled=false;
+  const saved=localStorage.getItem(LEVEL_JOB_KEY)||"";
+  if(currentLevelJobs.some(job=>job.code===saved)){
+    select.value=saved;
+    renderLeveling(saved);
+  }else{
+    select.value="";
+    renderLeveling("");
+  }
+}
+
 function renderProfile(data){
   const c=data?.character;
   if(c){
     $("characterName").textContent=c.name||"Kanade";
     $("characterWorld").textContent=[c.world,c.data_center].filter(Boolean).join(" · ");
     $("syncText").textContent=`最終同期 ${fmtDate(c.synced_at)}`;
-    const jobs=(c.jobs||[]).filter(j=>Number(j.level)>0).sort((a,b)=>Number(b.level)-Number(a.level));
-    $("jobsSummary").textContent=`Lv100 ${jobs.filter(j=>Number(j.level)>=100).length} / 解放 ${jobs.length}`;
-    $("jobsList").innerHTML=jobs.slice(0,12).map(j=>`<span class="job">${escapeHtml(j.name_ja||j.name||j.code)} Lv${Number(j.level)||0}</span>`).join("");
-  } else {
+    populateLeveling(c.jobs||[]);
+  }else{
     $("characterName").textContent="Lodestone未同期";
-    $("characterWorld").textContent="同期すると採集・釣り候補を現在Lvに合わせます。";
+    $("characterWorld").textContent="同期すると現在Lvから育成方法を選べます。";
     $("syncText").textContent="未同期";
+    populateLeveling([]);
   }
-  const a=data?.achievements;
-  $("achievementCount").textContent=a?.total_achievements??"—";
-  $("achievementPoints").textContent=a?.achievement_points??"—";
 }
 
 async function loadProfile(){
@@ -77,19 +121,8 @@ async function loadProfile(){
 }
 
 function setBusy(button,busy,label){if(!button)return;button.disabled=busy;if(label)button.textContent=label}
-
-async function loadAchievements(){
-  const button=$("achievementButton");setBusy(button,true,"取得中…");
-  $("achievementResult").innerHTML="";
-  try{
-    const data=await api("/api/achievements/candidates?limit=12");
-    $("achievementResult").innerHTML=`<p class="result-note">${escapeHtml(data.basis||"")}</p><div class="result-list">${(data.candidates||[]).map(row=>`<div class="result-row"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.description)}</small><small><span class="pill">${row.points||0}pt</span>取りやすさ指標 ${row.distance_score}</small></div>`).join("")||'<div class="result-row"><small>候補を取得できませんでした。</small></div>'}</div>`;
-    await loadProfile();
-  }catch(error){$("achievementResult").innerHTML=`<p class="result-note">取得失敗：${escapeHtml(error.message)}</p>`}
-  finally{setBusy(button,false,"アチーブ候補を取得")}
-}
-
 function timeLabel(ms){if(!ms)return"";return new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit"}).format(new Date(ms))}
+
 async function loadGathering(){
   const button=$("gatherButton");setBusy(button,true,"取得中…");$("gatherResult").innerHTML="";
   try{
@@ -110,10 +143,14 @@ async function loadFishing(mode="all"){
   finally{document.querySelectorAll("[data-fish-mode]").forEach(b=>b.disabled=false)}
 }
 
+$("levelJobSelect")?.addEventListener("change",event=>{
+  const code=event.target.value||"";
+  if(code)localStorage.setItem(LEVEL_JOB_KEY,code);else localStorage.removeItem(LEVEL_JOB_KEY);
+  renderLeveling(code);
+});
 $("islandRank")?.addEventListener("change",event=>{localStorage.setItem(RANK_KEY,event.target.value);renderIsland()});
 document.addEventListener("change",event=>{const id=event.target?.dataset?.islandDaily;if(!id)return;localStorage.setItem(dailyKey(id),event.target.checked?"1":"0");renderIsland()});
 $("syncButton")?.addEventListener("click",async()=>{const b=$("syncButton");setBusy(b,true,"同期中…");try{await api("/api/sync",{method:"POST"});await loadProfile();$("status").textContent="Lodestone同期が完了しました。"}catch(error){$("status").textContent=`同期失敗：${error.message}`}finally{setBusy(b,false,"Lodestone同期")}});
-$("achievementButton")?.addEventListener("click",loadAchievements);
 $("gatherButton")?.addEventListener("click",loadGathering);
 document.querySelectorAll("[data-fish-mode]").forEach(button=>button.addEventListener("click",()=>loadFishing(button.dataset.fishMode)));
 
