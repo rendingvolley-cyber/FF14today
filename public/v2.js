@@ -80,7 +80,7 @@ const JP_TEXT_REPLACEMENTS=[
   ["Duty Support","コンテンツサポーター"],
   ["Trust","フェイス"]
 ];
-function jpText(value){let text=String(value??"");for(const[from,to]of JP_TEXT_REPLACEMENTS)text=text.split(from).join(to);return text.replace(/\bRank\s*(\d+)/g,"開拓ランク$1").replace(/\bEXP\b/g,"経験値").replace(/\bCF\b/g,"コンテンツファインダー")}
+function jpText(value){let text=String(value??"");for(const[from,to]of JP_TEXT_REPLACEMENTS)text=text.split(from).join(to);return text.replace(/\bRank\s*(\d+)/g,"開拓ランク$1").replace(/\bEXP\b/g,"経験値").replace(/\bCF\b/g,"コンテンツファインダー").replace(/\bVI\b/g,"6").replace(/\bIV\b/g,"4").replace(/\bIII\b/g,"3").replace(/\bII\b/g,"2").replace(/\bV\b/g,"5").replace(/\bI\b/g,"1")}
 function jstDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Tokyo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function dailyKey(id){return`${DAILY_PREFIX}${jstDate()}_${id}`}
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]))}
