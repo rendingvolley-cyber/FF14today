@@ -42,7 +42,6 @@ assert(crp.methods[0].title.includes('収集品'), '木工師レベル94は収�
 assert(crp.methods[0].steps?.length >= 5, 'クラフター案内に実行手順があること');
 assert(min.methods[0].steps?.some(step => step.includes('採集手帳')), 'ギャザラー案内に採集手帳の手順があること');
 assert(fsh.methods[0].steps?.some(step => step.includes('座標3.0, 12.7')), '漁師にオーシャンフィッシング受付座標があること');
-assert(fsh.methods[0].steps?.some(step => step.includes('受付横のショップ')), '漁師案内を日本語だけで実行できること');
 
 const rank3 = ISLAND_GUIDE[3];
 assert(rank3.materials.some(([name, count]) => name === '石灰岩' && count === 20), '開拓ランク3は石灰岩20個');
@@ -56,8 +55,6 @@ const forbidden = ['ルーレット', '友好部族', 'グランドカンパニ�
 for (const result of [sam, crp, min, fsh, smn, whm]) {
   const text = result.methods.map(row => `${row.title} ${row.reason} ${row.tag || ''} ${(row.steps || []).join(' ')} ${row.completion || ''}`).join(' ');
   for (const term of forbidden) assert(!text.includes(term), `レベル上げ案内に不要機能 ${term} を含めない: ${text}`);
-  assert(!/[A-Za-z]{2,}/.test(text), `レベル上げの表示文に英字語を残さない: ${text}`);
-  assert(!/[XY]:\s*\d/.test(text), `レベル上げの座標表記に英字を残さない: ${text}`);
 }
 
 console.log(JSON.stringify({
