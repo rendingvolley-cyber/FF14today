@@ -12,12 +12,12 @@
   <main class="shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">エオルゼア個人用ツール</p><h1>FF14 Today</h1></div></div>
-      <span class="version">v2.2・実行手順版</span>
+      <span class="version">2.2・実行手順版</span>
     </header>
 
     <section class="identity">
       <div><p class="eyebrow">キャラクター</p><h2 id="characterName">読み込み中…</h2><div id="characterWorld" class="muted"></div></div>
-      <div class="sync"><span id="syncText" class="muted">確認中…</span><button id="syncButton" class="btn ghost" type="button">Lodestone同期</button></div>
+      <div class="sync"><span id="syncText" class="muted">確認中…</span><button id="syncButton" class="btn ghost" type="button">ロードストーン同期</button></div>
     </section>
 
     <section class="card leveling-main">
@@ -26,7 +26,7 @@
         <strong id="levelingMeta" class="pill">ジョブ読込中</strong>
       </div>
       <div class="leveling-picker">
-        <div class="job-select-box"><label for="levelJobSelect">上げたいジョブ</label><select id="levelJobSelect" disabled><option value="">Lodestone読込中…</option></select><small>Lv上限到達済みのジョブは候補から外します。</small></div>
+        <div class="job-select-box"><label for="levelJobSelect">上げたいジョブ</label><select id="levelJobSelect" disabled><option value="">ロードストーン読込中…</option></select><small>レベル上限到達済みのジョブは候補から外します。</small></div>
         <div id="levelingChoice" class="leveling-choice"><strong>ジョブを選んでください</strong><span>選択するまで育成方法は決めません。</span></div>
       </div>
       <div id="levelingResult" class="method-list"></div>
@@ -50,7 +50,7 @@
     <section class="card">
       <div class="section-head"><div><p class="eyebrow">時間が余ったら</p><h2>時間が余ったら</h2><p class="muted">押した時点で、場所や時間まで分かるものだけ表示。</p></div></div>
       <div class="tool-grid two">
-        <article class="tool-card"><h3>時限採集</h3><p>現在Lvで取れる候補を、名前・場所・座標・ETつきで取得します。</p><button id="gatherButton" class="btn" type="button">時限採集を取得</button><div id="gatherResult" class="result"></div></article>
+        <article class="tool-card"><h3>時限採集</h3><p>現在レベルで取れる候補を、名前・場所・座標・エオルゼア時間つきで取得します。</p><button id="gatherButton" class="btn" type="button">時限採集を取得</button><div id="gatherResult" class="result"></div></article>
         <article class="tool-card"><h3>釣り</h3><p>経験値かヌシを選択。ヌシは時間・場所・餌を表示します。</p><div class="fish-actions"><button class="btn secondary" type="button" data-fish-mode="experience">経験値</button><button class="btn secondary" type="button" data-fish-mode="big-fish">ヌシ</button><button class="btn" type="button" data-fish-mode="all">まとめて取得</button></div><div id="fishResult" class="result"></div></article>
       </div>
     </section>

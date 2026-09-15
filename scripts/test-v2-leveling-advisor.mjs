@@ -11,47 +11,53 @@ const jobs = [
   { code: 'CRP', name_ja: '木工師', level: 94 },
   { code: 'MIN', name_ja: '採掘師', level: 95 },
   { code: 'FSH', name_ja: '漁師', level: 89 },
-  { code: 'BLU', name_ja: '青魔道士', level: 80 }
+  { code: 'BLU', name_ja: '青魔道士', level: 80 },
+  { code: 'SMN', name_ja: '召喚士', level: 73 },
+  { code: 'WHM', name_ja: '白魔道士', level: 57 }
 ];
 
 const levelable = levelableJobs(jobs);
-assert(levelable.some(job => job.code === 'SAM'), 'SAM Lv99 should be selectable');
-assert(levelable.some(job => job.code === 'CRP'), 'CRP Lv94 should be selectable');
-assert(levelable.some(job => job.code === 'MIN'), 'MIN Lv95 should be selectable');
-assert(levelable.some(job => job.code === 'FSH'), 'FSH Lv89 should be selectable');
-assert(!levelable.some(job => job.code === 'WAR'), 'WAR Lv100 should be hidden');
-assert(!levelable.some(job => job.code === 'BLU'), 'BLU Lv80 should be treated as cap');
+assert(levelable.some(job => job.code === 'SAM'), '侍レベル99が選択可能であること');
+assert(levelable.some(job => job.code === 'CRP'), '木工師レベル94が選択可能であること');
+assert(levelable.some(job => job.code === 'MIN'), '採掘師レベル95が選択可能であること');
+assert(levelable.some(job => job.code === 'FSH'), '漁師レベル89が選択可能であること');
+assert(!levelable.some(job => job.code === 'WAR'), '戦士レベル100は候補外であること');
+assert(!levelable.some(job => job.code === 'BLU'), '青魔道士レベル80は上限扱いであること');
 
-assert(dungeonForLevel(91)?.name.includes('イフイカ'), 'Lv91 must resolve to Ihuykatumu');
-assert(dungeonForLevel(95)?.name.includes('天深きセノーテ'), 'Lv95 must resolve to Skydeep Cenote');
-assert(dungeonForLevel(99)?.name.includes('オリジェニクス'), 'Lv99 must resolve to Origenics');
+assert(dungeonForLevel(91)?.name.includes('イフイカ'), 'レベル91はイフイカ・トゥム');
+assert(dungeonForLevel(95)?.name.includes('天深きセノーテ'), 'レベル95は天深きセノーテ');
+assert(dungeonForLevel(99)?.name.includes('オリジェニクス'), 'レベル99はオリジェニクス');
 
 const sam = levelingRecommendations(jobs[1]);
 const crp = levelingRecommendations(jobs[2]);
 const min = levelingRecommendations(jobs[3]);
 const fsh = levelingRecommendations(jobs[4]);
+const smn = levelingRecommendations(jobs[6]);
+const whm = levelingRecommendations(jobs[7]);
 
-assert(sam.methods[0].title.includes('オリジェニクス'), 'SAM Lv99 should name Origenics directly');
-assert(sam.methods[0].steps?.some(step => step.includes('コンテンツファインダー')), 'battle advice must contain executable steps');
-assert(sam.methods[0].completion?.includes('Lv100'), 'SAM Lv99 must expose a concrete finish condition');
-assert(crp.methods[0].title.includes('収集品'), 'CRP Lv94 should prioritize collectables');
-assert(crp.methods[0].steps?.length >= 5, 'crafter advice must explain the actual workflow');
-assert(min.methods[0].steps?.some(step => step.includes('採集手帳')), 'gatherer advice must say how to locate the target');
-assert(fsh.methods[0].steps?.some(step => step.includes('X:3.0 Y:12.7')), 'FSH must include Ocean Fishing registration coordinates');
+assert(sam.methods[0].title.includes('オリジェニクス'), '侍レベル99はオリジェニクスを直接表示');
+assert(sam.methods[0].steps?.some(step => step.includes('コンテンツファインダー')), '戦闘案内に実行手順があること');
+assert(sam.methods[0].completion?.includes('レベル100'), '侍レベル99に終了条件があること');
+assert(crp.methods[0].title.includes('収集品'), '木工師レベル94は収集品を優先');
+assert(crp.methods[0].steps?.length >= 5, 'クラフター案内に実行手順があること');
+assert(min.methods[0].steps?.some(step => step.includes('採集手帳')), 'ギャザラー案内に採集手帳の手順があること');
+assert(fsh.methods[0].steps?.some(step => step.includes('座標3.0, 12.7')), '漁師にオーシャンフィッシング受付座標があること');
+assert(fsh.methods[0].steps?.some(step => step.includes('受付横のショップ')), '漁師案内を日本語だけで実行できること');
 
 const rank3 = ISLAND_GUIDE[3];
-assert(rank3.materials.some(([name, count]) => name === '石灰岩' && count === 20), 'Rank 3 must require 20 limestone');
-assert(rank3.materials.some(([name, count]) => name === '原木' && count === 22), 'Rank 3 must require 22 logs');
-assert(rank3.steps.some(step => step.includes('Workshop Iを2棟')), 'Rank 3 must explain exact workshop count');
-assert(rank3.completion.includes('Workshop Iが2棟'), 'Rank 3 must expose completion condition');
+assert(rank3.materials.some(([name, count]) => name === '石灰岩' && count === 20), '開拓ランク3は石灰岩20個');
+assert(rank3.materials.some(([name, count]) => name === '原木' && count === 22), '開拓ランク3は原木22個');
+assert(rank3.steps.some(step => step.includes('Workshop Iを2棟')), '元データに工房2棟の進行情報があること');
+assert(rank3.completion.includes('Workshop Iが2棟'), '元データに工房2棟の完了条件があること');
 const rank6 = ISLAND_GUIDE[6];
-assert(rank6.materials.some(([name, count]) => name === 'ヘンプ' && count === 40), 'Rank 6 must require 40 hemp');
-assert(rank6.steps.some(step => step.includes('Workshop I×3')), 'Rank 6 must explain all three workshop upgrades');
+assert(rank6.materials.some(([name, count]) => name === 'ヘンプ' && count === 40), '開拓ランク6はヘンプ40個');
 
 const forbidden = ['ルーレット', '友好部族', 'グランドカンパニー', 'リーヴ'];
-for (const result of [sam, crp, min, fsh]) {
-  const text = result.methods.map(row => `${row.title} ${row.reason} ${(row.steps || []).join(' ')}`).join(' ');
-  for (const term of forbidden) assert(!text.includes(term), `recommendations must not include ${term}: ${text}`);
+for (const result of [sam, crp, min, fsh, smn, whm]) {
+  const text = result.methods.map(row => `${row.title} ${row.reason} ${row.tag || ''} ${(row.steps || []).join(' ')} ${row.completion || ''}`).join(' ');
+  for (const term of forbidden) assert(!text.includes(term), `レベル上げ案内に不要機能 ${term} を含めない: ${text}`);
+  assert(!/[A-Za-z]{2,}/.test(text), `レベル上げの表示文に英字語を残さない: ${text}`);
+  assert(!/[XY]:\s*\d/.test(text), `レベル上げの座標表記に英字を残さない: ${text}`);
 }
 
 console.log(JSON.stringify({
