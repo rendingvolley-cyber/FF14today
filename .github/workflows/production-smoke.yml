@@ -130,7 +130,7 @@ jobs:
           const shortageText = await page.locator(`#${shortageId}`).innerText();
           if (!shortageText.includes('不足 15')) throw new Error(`shortage calculator failed: ${shortageText}`);
           const islandText = await page.locator('.island-main').innerText();
-          if (!islandText.includes('工房1を2棟')) throw new Error(`Japanese workshop label missing: ${islandText}`);
+          if (!islandText.includes('工房 1を2棟')) throw new Error(`Japanese workshop label missing: ${islandText}`);
           if (islandText.includes('Workshop') || islandText.includes('Granary') || islandText.includes('Landmark')) throw new Error(`English island labels surfaced: ${islandText}`);
           if (!islandText.includes('完了条件')) throw new Error('Island completion condition missing');
 
