@@ -85,8 +85,8 @@ function experienceFishingRows(level) {
   if (level < 100) {
     return [
       {
-        title: "オーシャンフィッシング：リムサ下甲板 X:3.0 Y:12.7",
-        reason: `漁師Lv${level}。Dryskthotaで航路確認→受付中なら参加。餌は隣のMerchant & Menderで購入。1航海終えたら次枠まで別作業。`,
+        title: "オーシャンフィッシング：リムサ・ロミンサ下甲板層 X:3.0 Y:12.7",
+        reason: `漁師Lv${level}。オーシャンフィッシング受付で航路を確認し、受付中なら参加。餌は受付付近のショップで購入。1航海終えたら次の開催まで別作業。`,
         kind: "experience"
       },
       {
@@ -111,7 +111,7 @@ async function buildFishingCandidates(character, mode = "all") {
     ok: true,
     fisher_level: fisherLevel,
     mode,
-    source: "FFX|V Fish Tracker",
+    source: "釣り候補データ",
     source_error: source.error,
     experience: mode === "big-fish" ? [] : experienceFishingRows(fisherLevel),
     big_fish: mode === "experience" ? [] : bigFish
