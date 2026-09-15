@@ -39,9 +39,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'v2.2・実行手順版' public/index.html
+          grep -q '2.2・実行手順版' public/index.html
           grep -q 'エオルゼア個人用ツール' public/index.html
           grep -q 'キャラクター' public/index.html
+          grep -q 'ロードストーン同期' public/index.html
           grep -q '無人島開拓' public/index.html
           grep -q '時間が余ったら' public/index.html
           grep -q '上げたいジョブ' public/index.html
@@ -49,6 +50,7 @@ jobs:
           grep -q 'islandMaterials' public/index.html
           grep -q 'この順番でやる' public/index.html
           grep -q '時限採集を取得' public/index.html
+          grep -q 'エオルゼア時間' public/index.html
           grep -q 'まとめて取得' public/index.html
           ! grep -q 'ACTIONABLE' public/index.html
           ! grep -q '>LEVELING<' public/index.html
@@ -58,6 +60,10 @@ jobs:
           ! grep -q 'EORZEA PERSONAL TOOL' public/index.html
           ! grep -q '>CHARACTER<' public/index.html
           ! grep -q '>Rank ' public/index.html
+          ! grep -q 'Lodestone' public/index.html
+          ! grep -q '>v2\.2' public/index.html
+          ! grep -q '\bLv[0-9]' public/index.html
+          ! grep -q '\bET\b' public/index.html
           ! grep -q 'アチーブ候補を取得' public/index.html
           ! grep -q 'achievementCount' public/index.html
           ! grep -q '遊べる時間' public/index.html
@@ -67,6 +73,9 @@ jobs:
           ! grep -q 'スクショ' public/index.html
           ! grep -q 'ポケモン総当たり' public/index.html
           grep -q '工房' public/v2.js
+          grep -q 'Dryskthota.*オーシャンフィッシング受付' public/v2.js
+          grep -q 'Merchant & Mender.*受付横のショップ' public/v2.js
+          grep -q 'Versatile Lure.*万能ルアー' public/v2.js
           grep -q '釣り候補データ' src/v2-entry.js
           ! grep -q 'Dryskthota' src/v2-entry.js
           ! grep -q 'Merchant & Mender' src/v2-entry.js
