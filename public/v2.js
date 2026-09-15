@@ -39,6 +39,7 @@ const JP_TEXT_REPLACEMENTS=[
   ["Pathfinder Mk. I","開拓担当マメット第1段階"],
   ["Determined Digger","掘削担当マメット"],
   ["Facility Plot","施設建築用地"],
+  ["Plot","用地"],
   ["Quixotic Windmill","風車"],
   ["Boiling Bathhouse","温泉施設"],
   ["Bathhouse","温泉施設"],
