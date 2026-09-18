@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#eef4ff">
-  <meta name="description" content="25000点持ち30000点返し、順位点+20/+10/-10/-20の4人麻雀点数計算。2位・3位・4位を入力すると1位を自動計算します。">
+  <meta name="description" content="25000点持ち30000点返し、順位点+20/+10/-10/-20の4人麻雀点数計算。半荘ごとの成績をブラウザに保存して集計できます。">
   <title>麻雀点数計算 | FF14 Today</title>
   <link rel="stylesheet" href="/v2.css">
   <style>
-    .mahjong-shell{width:min(820px,calc(100% - 28px))}
+    .mahjong-shell{width:min(980px,calc(100% - 28px))}
     .mahjong-nav{margin-bottom:14px}
     .mahjong-nav a{display:inline-block;text-decoration:none}
     .rule-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:12px}
@@ -31,11 +31,34 @@
     .result-table .final{font-weight:950}
     .result-table tfoot td{border-bottom:0;font-weight:900}
     .result-note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.55}
-    @media(max-width:620px){
-      .mahjong-shell{width:min(100% - 18px,820px)}
-      .rule-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .storage-note{margin:0;color:var(--muted);font-size:12px;line-height:1.6}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+    .stat-card{border:1px solid var(--line);border-radius:13px;padding:12px;background:#fff}
+    .stat-card strong{display:block;margin-bottom:6px;overflow-wrap:anywhere}
+    .stat-card span{display:block;color:var(--muted);font-size:12px;line-height:1.55}
+    .history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .history-list{display:grid;gap:10px}
+    .history-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}
+    .history-meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}
+    .history-date{font-weight:900}
+    .history-players{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+    .history-player{padding:9px;border-radius:11px;background:#f8fbff}
+    .history-player strong,.history-player span{display:block}
+    .history-player strong{font-size:13px;overflow-wrap:anywhere}
+    .history-player span{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.45}
+    .delete-record{border:1px solid var(--line);background:#fff;color:#6d8095;border-radius:9px;padding:7px 9px;font-weight:800;cursor:pointer}
+    .empty-history{margin:0;color:var(--muted)}
+    @media(max-width:760px){
+      .mahjong-shell{width:min(100% - 18px,980px)}
+      .rule-grid,.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
       .entry-row{grid-template-columns:46px minmax(0,1fr)}
       .entry-row .score-cell{grid-column:2}
+      .history-players{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:420px){
+      .history-players{grid-template-columns:1fr}
+      .history-head{display:block}
+      .history-head .btn{margin-top:10px;width:100%}
     }
   </style>
 </head>
@@ -90,7 +113,8 @@
         </div>
         <div class="score-actions">
           <button class="btn" type="submit">集計する</button>
-          <button class="btn ghost" id="clearButton" type="button">クリア</button>
+          <button class="btn secondary" id="saveButton" type="button" disabled>この半荘を保存</button>
+          <button class="btn ghost" id="clearButton" type="button">点数をクリア</button>
         </div>
         <p id="message" class="calc-message" aria-live="polite">2位・3位・4位を入力してください。</p>
       </form>
@@ -113,108 +137,23 @@
       </div>
       <p class="result-note">素点 =（持ち点 − 30,000）÷ 1,000。最終 = 素点 + 順位点 + オカ。順位が同点の場合の席順処理は行わず、入力した順位をそのまま使います。</p>
     </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div><p class="eyebrow">累計</p><h2>プレイヤー別成績</h2><p class="muted">保存した半荘から自動集計します。</p></div>
+      </div>
+      <div id="statsGrid" class="stats-grid"><p class="empty-history">まだ保存データがありません。</p></div>
+    </section>
+
+    <section class="card">
+      <div class="history-head">
+        <div><p class="eyebrow">履歴</p><h2 style="margin:0">半荘ごとのデータ</h2><p class="storage-note">この履歴は現在のブラウザ内に保存されます。ブラウザのデータを消すと履歴も消えます。</p></div>
+        <button class="btn ghost" id="clearHistoryButton" type="button">履歴を全削除</button>
+      </div>
+      <div id="historyList" class="history-list"><p class="empty-history">まだ半荘が保存されていません。</p></div>
+    </section>
   </main>
 
-  <script>
-    (() => {
-      const form = document.getElementById("scoreForm");
-      const scoreInputs = [2,3,4].map(rank => document.getElementById("score" + rank));
-      const score1 = document.getElementById("score1");
-      const body = document.getElementById("resultBody");
-      const total = document.getElementById("resultTotal");
-      const message = document.getElementById("message");
-      const clearButton = document.getElementById("clearButton");
-      const rankPoints = [20,10,-10,-20];
-
-      const pointText = value => Math.round(value).toLocaleString("ja-JP") + "点";
-      const resultText = value => (value > 0 ? "+" : "") + value.toFixed(1);
-      const escapeHtml = value => {
-        const el = document.createElement("div");
-        el.textContent = value;
-        return el.innerHTML;
-      };
-
-      function readScores() {
-        const values = scoreInputs.map(input => input.value.trim());
-        if (values.some(value => value === "")) return null;
-        const lower = values.map(Number);
-        if (lower.some(value => !Number.isFinite(value))) return null;
-        return [100000 - lower[0] - lower[1] - lower[2], ...lower];
-      }
-
-      function calculate(renderTable = true) {
-        const scores = readScores();
-        if (!scores) {
-          score1.textContent = "—";
-          message.textContent = "2位・3位・4位を入力してください。";
-          if (renderTable) {
-            body.innerHTML = '<tr><td colspan="7" class="muted">点数を入力するとここに結果が出ます。</td></tr>';
-            total.textContent = "0.0";
-          }
-          return;
-        }
-
-        score1.textContent = pointText(scores[0]);
-        const rankOrderOk = scores[0] >= scores[1] && scores[1] >= scores[2] && scores[2] >= scores[3];
-        if (scores[0] < scores[1]) {
-          message.textContent = "注意：自動計算した1位の点数が2位以下になっています。入力点を確認してください。";
-        } else if (!rankOrderOk) {
-          message.textContent = "注意：2位・3位・4位の点数と順位の並びが一致していません。";
-        } else {
-          message.textContent = "1位は " + pointText(scores[0]) + " です。";
-        }
-
-        if (!renderTable) return;
-
-        const names = [1,2,3,4].map(rank => {
-          const value = document.getElementById("name" + rank).value.trim();
-          return value || (rank + "位");
-        });
-
-        const rows = scores.map((points, index) => {
-          const base = (points - 30000) / 1000;
-          const uma = rankPoints[index];
-          const oka = index === 0 ? 20 : 0;
-          return {
-            rank: index + 1,
-            name: names[index],
-            points,
-            base,
-            uma,
-            oka,
-            final: base + uma + oka
-          };
-        });
-
-        body.innerHTML = rows.map(row =>
-          '<tr>' +
-          '<td><strong>' + row.rank + '位</strong></td>' +
-          '<td>' + escapeHtml(row.name) + '</td>' +
-          '<td class="num">' + pointText(row.points) + '</td>' +
-          '<td class="num">' + resultText(row.base) + '</td>' +
-          '<td class="num">' + resultText(row.uma) + '</td>' +
-          '<td class="num">' + resultText(row.oka) + '</td>' +
-          '<td class="num final">' + resultText(row.final) + '</td>' +
-          '</tr>'
-        ).join("");
-
-        total.textContent = resultText(rows.reduce((sum, row) => sum + row.final, 0));
-      }
-
-      scoreInputs.forEach(input => input.addEventListener("input", () => calculate(true)));
-      [1,2,3,4].forEach(rank => {
-        document.getElementById("name" + rank).addEventListener("input", () => calculate(true));
-      });
-      form.addEventListener("submit", event => {
-        event.preventDefault();
-        calculate(true);
-      });
-      clearButton.addEventListener("click", () => {
-        scoreInputs.forEach(input => input.value = "");
-        calculate(true);
-        scoreInputs[0].focus();
-      });
-    })();
-  </script>
+  <script src="/mahjong.js" defer></script>
 </body>
 </html>
