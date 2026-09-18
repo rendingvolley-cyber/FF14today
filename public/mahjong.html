@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#eef4ff">
+  <meta name="description" content="25000点持ち30000点返し、順位点+20/+10/-10/-20の4人麻雀点数計算。2位・3位・4位を入力すると1位を自動計算します。">
+  <title>麻雀点数計算 | FF14 Today</title>
+  <link rel="stylesheet" href="/v2.css">
+  <style>
+    .mahjong-shell{width:min(820px,calc(100% - 28px))}
+    .mahjong-nav{margin-bottom:14px}
+    .mahjong-nav a{display:inline-block;text-decoration:none}
+    .rule-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:12px}
+    .rule-box{padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#f8fbff}
+    .rule-box small,.rule-box strong{display:block}
+    .rule-box small{color:var(--muted);margin-bottom:4px}
+    .entry-list{display:grid;gap:10px;margin-top:14px}
+    .entry-row{display:grid;grid-template-columns:54px minmax(0,1fr) minmax(130px,180px);gap:9px;align-items:center}
+    .entry-rank{font-weight:950}
+    .entry-row input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:#162438}
+    .auto-score{padding:11px 12px;border-radius:11px;background:var(--soft);color:var(--accent);font-weight:950;text-align:right}
+    .score-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+    .score-actions .btn{min-width:120px}
+    .calc-message{min-height:22px;margin:12px 0 0;color:var(--muted);font-size:13px;line-height:1.55}
+    .result-wrap{overflow-x:auto}
+    .result-table{width:100%;border-collapse:collapse;min-width:620px}
+    .result-table th,.result-table td{padding:11px 10px;border-bottom:1px solid var(--line)}
+    .result-table th{text-align:left;color:#526b86;font-size:12px}
+    .result-table .num{text-align:right;font-variant-numeric:tabular-nums}
+    .result-table .final{font-weight:950}
+    .result-table tfoot td{border-bottom:0;font-weight:900}
+    .result-note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.55}
+    @media(max-width:620px){
+      .mahjong-shell{width:min(100% - 18px,820px)}
+      .rule-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .entry-row{grid-template-columns:46px minmax(0,1fr)}
+      .entry-row .score-cell{grid-column:2}
+    }
+  </style>
+</head>
+<body>
+  <main class="shell mahjong-shell">
+    <div class="mahjong-nav"><a class="btn ghost" href="/">← FF14 Todayへ戻る</a></div>
+
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">🀄</span><div><p class="eyebrow">便利ツール</p><h1>麻雀点数計算</h1></div></div>
+      <span class="version">4人麻雀</span>
+    </header>
+
+    <section class="card">
+      <p class="eyebrow">ルール</p>
+      <h2>25,000点持ち・30,000点返し</h2>
+      <div class="rule-grid">
+        <div class="rule-box"><small>1位</small><strong>+20</strong></div>
+        <div class="rule-box"><small>2位</small><strong>+10</strong></div>
+        <div class="rule-box"><small>3位</small><strong>-10</strong></div>
+        <div class="rule-box"><small>4位</small><strong>-20</strong></div>
+      </div>
+      <p class="muted" style="margin:12px 0 0;line-height:1.6">30,000点返しなので、トップにはオカ +20 も加算します。</p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div><p class="eyebrow">入力</p><h2>2〜4位の持ち点を入力</h2><p class="muted">1位は「100,000点 − 2〜4位の合計」で自動計算します。</p></div>
+      </div>
+
+      <form id="scoreForm">
+        <div class="entry-list">
+          <div class="entry-row">
+            <div class="entry-rank">1位</div>
+            <input id="name1" type="text" value="プレイヤー1" aria-label="1位の名前">
+            <div id="score1" class="auto-score score-cell" aria-live="polite">—</div>
+          </div>
+          <div class="entry-row">
+            <div class="entry-rank">2位</div>
+            <input id="name2" type="text" value="プレイヤー2" aria-label="2位の名前">
+            <input id="score2" class="score-cell" type="number" inputmode="numeric" step="100" placeholder="例 28000" aria-label="2位の持ち点">
+          </div>
+          <div class="entry-row">
+            <div class="entry-rank">3位</div>
+            <input id="name3" type="text" value="プレイヤー3" aria-label="3位の名前">
+            <input id="score3" class="score-cell" type="number" inputmode="numeric" step="100" placeholder="例 22000" aria-label="3位の持ち点">
+          </div>
+          <div class="entry-row">
+            <div class="entry-rank">4位</div>
+            <input id="name4" type="text" value="プレイヤー4" aria-label="4位の名前">
+            <input id="score4" class="score-cell" type="number" inputmode="numeric" step="100" placeholder="例 15000" aria-label="4位の持ち点">
+          </div>
+        </div>
+        <div class="score-actions">
+          <button class="btn" type="submit">集計する</button>
+          <button class="btn ghost" id="clearButton" type="button">クリア</button>
+        </div>
+        <p id="message" class="calc-message" aria-live="polite">2位・3位・4位を入力してください。</p>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="section-head"><div><p class="eyebrow">結果</p><h2>精算表</h2></div></div>
+      <div class="result-wrap">
+        <table class="result-table">
+          <thead>
+            <tr><th>順位</th><th>名前</th><th class="num">持ち点</th><th class="num">素点</th><th class="num">順位点</th><th class="num">オカ</th><th class="num">最終</th></tr>
+          </thead>
+          <tbody id="resultBody">
+            <tr><td colspan="7" class="muted">点数を入力するとここに結果が出ます。</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td colspan="2">合計</td><td class="num">100,000点</td><td colspan="3"></td><td id="resultTotal" class="num">0.0</td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="result-note">素点 =（持ち点 − 30,000）÷ 1,000。最終 = 素点 + 順位点 + オカ。順位が同点の場合の席順処理は行わず、入力した順位をそのまま使います。</p>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const form = document.getElementById("scoreForm");
+      const scoreInputs = [2,3,4].map(rank => document.getElementById("score" + rank));
+      const score1 = document.getElementById("score1");
+      const body = document.getElementById("resultBody");
+      const total = document.getElementById("resultTotal");
+      const message = document.getElementById("message");
+      const clearButton = document.getElementById("clearButton");
+      const rankPoints = [20,10,-10,-20];
+
+      const pointText = value => Math.round(value).toLocaleString("ja-JP") + "点";
+      const resultText = value => (value > 0 ? "+" : "") + value.toFixed(1);
+      const escapeHtml = value => {
+        const el = document.createElement("div");
+        el.textContent = value;
+        return el.innerHTML;
+      };
+
+      function readScores() {
+        const values = scoreInputs.map(input => input.value.trim());
+        if (values.some(value => value === "")) return null;
+        const lower = values.map(Number);
+        if (lower.some(value => !Number.isFinite(value))) return null;
+        return [100000 - lower[0] - lower[1] - lower[2], ...lower];
+      }
+
+      function calculate(renderTable = true) {
+        const scores = readScores();
+        if (!scores) {
+          score1.textContent = "—";
+          message.textContent = "2位・3位・4位を入力してください。";
+          if (renderTable) {
+            body.innerHTML = '<tr><td colspan="7" class="muted">点数を入力するとここに結果が出ます。</td></tr>';
+            total.textContent = "0.0";
+          }
+          return;
+        }
+
+        score1.textContent = pointText(scores[0]);
+        const rankOrderOk = scores[0] >= scores[1] && scores[1] >= scores[2] && scores[2] >= scores[3];
+        if (scores[0] < scores[1]) {
+          message.textContent = "注意：自動計算した1位の点数が2位以下になっています。入力点を確認してください。";
+        } else if (!rankOrderOk) {
+          message.textContent = "注意：2位・3位・4位の点数と順位の並びが一致していません。";
+        } else {
+          message.textContent = "1位は " + pointText(scores[0]) + " です。";
+        }
+
+        if (!renderTable) return;
+
+        const names = [1,2,3,4].map(rank => {
+          const value = document.getElementById("name" + rank).value.trim();
+          return value || (rank + "位");
+        });
+
+        const rows = scores.map((points, index) => {
+          const base = (points - 30000) / 1000;
+          const uma = rankPoints[index];
+          const oka = index === 0 ? 20 : 0;
+          return {
+            rank: index + 1,
+            name: names[index],
+            points,
+            base,
+            uma,
+            oka,
+            final: base + uma + oka
+          };
+        });
+
+        body.innerHTML = rows.map(row =>
+          '<tr>' +
+          '<td><strong>' + row.rank + '位</strong></td>' +
+          '<td>' + escapeHtml(row.name) + '</td>' +
+          '<td class="num">' + pointText(row.points) + '</td>' +
+          '<td class="num">' + resultText(row.base) + '</td>' +
+          '<td class="num">' + resultText(row.uma) + '</td>' +
+          '<td class="num">' + resultText(row.oka) + '</td>' +
+          '<td class="num final">' + resultText(row.final) + '</td>' +
+          '</tr>'
+        ).join("");
+
+        total.textContent = resultText(rows.reduce((sum, row) => sum + row.final, 0));
+      }
+
+      scoreInputs.forEach(input => input.addEventListener("input", () => calculate(true)));
+      [1,2,3,4].forEach(rank => {
+        document.getElementById("name" + rank).addEventListener("input", () => calculate(true));
+      });
+      form.addEventListener("submit", event => {
+        event.preventDefault();
+        calculate(true);
+      });
+      clearButton.addEventListener("click", () => {
+        scoreInputs.forEach(input => input.value = "");
+        calculate(true);
+        scoreInputs[0].focus();
+      });
+    })();
+  </script>
+</body>
+</html>
