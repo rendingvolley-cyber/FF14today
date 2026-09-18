@@ -32,6 +32,7 @@ jobs:
           node --check public/leveling-advisor.js
           node --check public/island-guide.js
           node --check public/v2.js
+          node --check public/mahjong.js
           node --check scripts/test-v2-leveling-advisor.mjs
       - name: V2 actionable guidance regression
         run: node scripts/test-v2-leveling-advisor.mjs
