@@ -78,6 +78,29 @@ export function uniqueSpeakers(messages) {
   return speakers;
 }
 
+export function selectAiContextMessages(messages, selfSpeaker = null, limit = 40) {
+  const list = Array.isArray(messages) ? messages.filter(Boolean) : [];
+  const safeLimit = Math.max(1, Math.floor(Number(limit) || 40));
+  if (list.length <= safeLimit) return [...list];
+
+  const recent = list.slice(-safeLimit);
+  const normalizedSelf = selfSpeaker == null ? null : normalizeLine(selfSpeaker);
+  if (!normalizedSelf || recent.some(message => normalizeLine(message?.speaker) === normalizedSelf)) {
+    return recent;
+  }
+
+  let selfIndex = -1;
+  for (let index = list.length - 1; index >= 0; index -= 1) {
+    if (normalizeLine(list[index]?.speaker) === normalizedSelf) {
+      selfIndex = index;
+      break;
+    }
+  }
+  if (selfIndex < 0 || safeLimit === 1) return selfIndex >= 0 ? [list[selfIndex]] : recent;
+
+  return [list[selfIndex], ...list.slice(-(safeLimit - 1))];
+}
+
 function replaceKnownParticipantNames(value, aliases) {
   let text = String(value ?? "");
   const entries = Object.entries(aliases)
