@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#eef4ff">
+  <meta name="description" content="FFXIVのチャットログをブラウザ内で解析し、会話として読みやすく表示するFF14 TodayのChat Assist。">
+  <title>Chat Assist | FF14 Today</title>
+  <link rel="stylesheet" href="/v2.css">
+  <link rel="stylesheet" href="/chat-assist.css">
+</head>
+<body class="chat-assist-page">
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">✦</span>
+        <div><p class="eyebrow">FF14 Today</p><h1>Chat Assist</h1></div>
+      </div>
+      <a class="btn ghost" href="/">トップへ戻る</a>
+    </header>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">MVP-001</p>
+          <h2>チャットログを解析</h2>
+          <p class="muted">この段階では入力内容をサーバーやAIへ送信しません。ブラウザ内だけで発言単位に整理します。</p>
+        </div>
+        <strong class="pill" id="parseSummary">まだ解析していません</strong>
+      </div>
+
+      <div class="chat-assist-grid">
+        <div class="chat-input-panel">
+          <label for="chatLogInput"><strong>チャットログ</strong></label>
+          <textarea id="chatLogInput" spellcheck="false" placeholder="[22:14] Alice Example: 今日ルレ行かない？&#10;[22:14] Me: 何時から？&#10;[22:15] Alice Example: 21時くらい！"></textarea>
+          <div class="chat-actions">
+            <button id="parseChatButton" class="btn" type="button">解析</button>
+            <button id="clearChatButton" class="btn ghost" type="button">クリア</button>
+          </div>
+          <p class="privacy-note">MVP-001ではネットワーク送信・D1保存・FF14への自動入力は行いません。</p>
+        </div>
+
+        <div class="chat-output-panel" aria-live="polite">
+          <h3>会話</h3>
+          <div id="conversationResult" class="conversation-result">
+            <p class="muted">左の入力欄にチャットログを貼り付けてください。</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="unparsedResult" class="unparsed-result" hidden></div>
+    </section>
+  </main>
+  <script src="/chat-assist.js" type="module"></script>
+</body>
+</html>
