@@ -17,6 +17,33 @@
   min-width: 0;
 }
 
+.local-log-panel {
+  border: 1px solid #cfe0ff;
+  border-radius: 16px;
+  padding: 16px;
+  background: #f7faff;
+}
+
+.local-log-panel > div:first-child p {
+  margin-bottom: 0;
+}
+
+.local-log-card code {
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  padding: 2px 5px;
+  background: #eaf1ff;
+  font-size: 0.9em;
+}
+
+.local-log-meta {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
 .chat-input-panel label,
 .chat-output-panel h3,
 .setting-box label {

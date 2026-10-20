@@ -35,10 +35,12 @@ jobs:
           node --check public/v2.js
           node --check public/mahjong.js
           node --check public/chat-assist-core.mjs
+          node --check public/ffxiv-binlog.mjs
           node --check public/chat-assist.js
           node --check scripts/test-v2-leveling-advisor.mjs
           node --check scripts/chat-assist-parser-test.mjs
           node --check scripts/chat-assist-complete-test.mjs
+          node --check scripts/chat-assist-binlog-test.mjs
       - name: V2 actionable guidance regression
         run: node scripts/test-v2-leveling-advisor.mjs
       - name: Chat Assist regression

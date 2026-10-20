@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#eef4ff">
-  <meta name="description" content="FFXIVのチャットログを解析し、参加者名を匿名化してGeminiから返信案を作るFF14 TodayのChat Assist。">
+  <meta name="description" content="FFXIVのローカルチャットログを直接取得し、参加者名を匿名化してGeminiから返信案を作るFF14 TodayのChat Assist。">
   <title>Chat Assist | FF14 Today</title>
   <link rel="stylesheet" href="/v2.css">
   <link rel="stylesheet" href="/chat-assist.css">
@@ -19,30 +19,54 @@
       <a class="btn ghost" href="/">トップへ戻る</a>
     </header>
 
-    <section class="card">
+    <section class="card local-log-card">
       <div class="section-head">
         <div>
           <p class="eyebrow">STEP 1</p>
-          <h2>チャットログを解析</h2>
-          <p class="muted">ログ解析はブラウザ内だけで行います。解析ボタンを押した時点ではネットワーク送信しません。</p>
+          <h2>FF14のチャットログを拾う</h2>
+          <p class="muted">PCにあるFFXIVのローカル <code>FFXIV_CHR.../log/*.log</code> を直接読みます。FF14のプロセス・メモリ・通信には触れません。</p>
+        </div>
+        <strong class="pill" id="localLogStatus">停止中</strong>
+      </div>
+
+      <div class="local-log-panel">
+        <div>
+          <strong>最初に1回だけフォルダを選択</strong>
+          <p class="muted">おすすめは <code>Documents\My Games\FINAL FANTASY XIV - A Realm Reborn</code>。キャラクターフォルダや、その中の <code>log</code> フォルダを直接選んでもOKです。</p>
+        </div>
+        <div class="chat-actions">
+          <button id="pickFfxivLogButton" class="btn" type="button">FF14ログを拾う</button>
+          <button id="stopFfxivLogButton" class="btn ghost" type="button" disabled>監視を止める</button>
+        </div>
+        <p id="localLogMeta" class="local-log-meta">まだフォルダを選択していません。</p>
+        <p class="privacy-note">読み取りとbinlog解析はブラウザ内だけで行います。外部AIへ送るのは、下の「返信案を生成」を押した時だけです。</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">会話ログ</p>
+          <h2>取得した会話</h2>
+          <p class="muted">FF14ログから取得した発言をここへ追加します。手動貼り付けも予備として使えます。</p>
         </div>
         <strong class="pill" id="parseSummary">まだ解析していません</strong>
       </div>
 
       <div class="chat-assist-grid">
         <div class="chat-input-panel">
-          <label for="chatLogInput"><strong>チャットログ</strong></label>
+          <label for="chatLogInput"><strong>手動ログ入力（予備）</strong></label>
           <textarea id="chatLogInput" spellcheck="false" placeholder="[22:14] Alice Example: 今日ルレ行かない？&#10;[22:14] Me: 何時から？&#10;[22:15] Alice Example: 21時くらい！"></textarea>
           <div class="chat-actions">
-            <button id="parseChatButton" class="btn" type="button">解析</button>
-            <button id="clearChatButton" class="btn ghost" type="button">クリア</button>
+            <button id="parseChatButton" class="btn secondary" type="button">手動ログを解析</button>
+            <button id="clearChatButton" class="btn ghost" type="button">会話をクリア</button>
           </div>
         </div>
 
         <div class="chat-output-panel" aria-live="polite">
           <h3>会話</h3>
           <div id="conversationResult" class="conversation-result">
-            <p class="muted">左の入力欄にチャットログを貼り付けてください。</p>
+            <p class="muted">上の「FF14ログを拾う」から開始してください。</p>
           </div>
         </div>
       </div>
@@ -81,7 +105,7 @@
         <div>
           <p class="eyebrow">STEP 3</p>
           <h2>AIで返信案を作る</h2>
-          <p class="muted" id="privacyStatus">まずチャットログを解析してください。</p>
+          <p class="muted" id="privacyStatus">まずチャットログを取得してください。</p>
         </div>
         <strong class="pill" id="aiStatus">返信案はまだ生成していません</strong>
       </div>
