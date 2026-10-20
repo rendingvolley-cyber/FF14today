@@ -94,8 +94,9 @@ function renderMessage(message) {
 }
 
 function renderResult(result) {
-  const label = result?.source === "ffxiv" ? "FF14ログ " : "";
-  summary.textContent = `${label}${result.stats.parsed_messages}件 / 未解析 ${result.stats.unparsed_lines}件`;
+  summary.textContent = result?.source === "ffxiv"
+    ? `FF14ログ ${result.stats.parsed_messages}件 / 未解析 ${result.stats.unparsed_lines}件`
+    : `${result.stats.parsed_messages}件を解析 / 未解析 ${result.stats.unparsed_lines}件`;
   conversation.innerHTML = result.messages.length
     ? result.messages.map(renderMessage).join("")
     : '<p class="muted">取得できる会話がまだありません。</p>';
