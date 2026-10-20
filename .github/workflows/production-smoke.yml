@@ -37,7 +37,7 @@ jobs:
           for attempt in $(seq 1 18); do
             root="$(curl -fsS --max-time 20 "${BASE}/" || true)"
             health="$(curl -fsS --max-time 20 "${BASE}/api/health" || true)"
-            chat="$(curl -fsS --max-time 20 "${BASE}/chat-assist.html" || true)"
+            chat="$(curl -fsSL --max-time 20 "${BASE}/chat-assist.html" || true)"
             if [[ "$root" == *"2.2・実行手順版"* && "$health" == *'"version": "2.2.0"'* && "$health" == *'"chat_assist": true'* && "$chat" == *"返信案を生成"* ]]; then
               ok=1
               break
