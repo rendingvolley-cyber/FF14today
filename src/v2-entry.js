@@ -1,4 +1,5 @@
 import legacySingleUserApp from "./single-user.js";
+import { handleChatAssistReplies } from "./chat-assist.js";
 import { buildTimedGatheringRows } from "./time-sensitive-game-windows.js";
 import {
   buildBigFishRows,
@@ -142,7 +143,8 @@ export default {
           island_material_shortage: true,
           island_sanctuary: true,
           timed_gathering_on_demand: true,
-          fishing_on_demand: true
+          fishing_on_demand: true,
+          chat_assist: true
         });
       }
 
@@ -171,6 +173,10 @@ export default {
           ? url.searchParams.get("mode")
           : "all";
         return json(await buildFishingCandidates(character, mode));
+      }
+
+      if (url.pathname === "/api/chat-assist/replies") {
+        return handleChatAssistReplies(request, env);
       }
 
       return json({

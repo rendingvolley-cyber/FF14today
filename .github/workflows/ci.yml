@@ -27,6 +27,7 @@ jobs:
         run: |
           node --check src/v2-entry.js
           node --check src/single-user.js
+          node --check src/chat-assist.js
           node --check src/time-sensitive-game-windows.js
           node --check src/task-board-live-catalog.js
           node --check public/leveling-advisor.js
@@ -37,9 +38,10 @@ jobs:
           node --check public/chat-assist.js
           node --check scripts/test-v2-leveling-advisor.mjs
           node --check scripts/chat-assist-parser-test.mjs
+          node --check scripts/chat-assist-complete-test.mjs
       - name: V2 actionable guidance regression
         run: node scripts/test-v2-leveling-advisor.mjs
-      - name: Chat Assist parser regression
+      - name: Chat Assist regression
         run: npm run test:chat-assist
       - name: V2 Japanese homepage contract
         shell: bash
@@ -97,6 +99,8 @@ jobs:
           grep -q 'island_material_shortage: true' src/v2-entry.js
           grep -q 'timed_gathering_on_demand: true' src/v2-entry.js
           grep -q 'fishing_on_demand: true' src/v2-entry.js
+          grep -q 'chat_assist: true' src/v2-entry.js
+          grep -q '/api/chat-assist/replies' src/v2-entry.js
           ! grep -q '/api/achievements/candidates' src/v2-entry.js
           grep -q 'not_available_in_v2' src/v2-entry.js
       - name: Wrangler config JSON

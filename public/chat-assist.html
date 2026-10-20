@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#eef4ff">
-  <meta name="description" content="FFXIVのチャットログをブラウザ内で解析し、会話として読みやすく表示するFF14 TodayのChat Assist。">
+  <meta name="description" content="FFXIVのチャットログを解析し、参加者名を匿名化してGeminiから返信案を作るFF14 TodayのChat Assist。">
   <title>Chat Assist | FF14 Today</title>
   <link rel="stylesheet" href="/v2.css">
   <link rel="stylesheet" href="/chat-assist.css">
@@ -22,9 +22,9 @@
     <section class="card">
       <div class="section-head">
         <div>
-          <p class="eyebrow">MVP-001</p>
+          <p class="eyebrow">STEP 1</p>
           <h2>チャットログを解析</h2>
-          <p class="muted">この段階では入力内容をサーバーやAIへ送信しません。ブラウザ内だけで発言単位に整理します。</p>
+          <p class="muted">ログ解析はブラウザ内だけで行います。解析ボタンを押した時点ではネットワーク送信しません。</p>
         </div>
         <strong class="pill" id="parseSummary">まだ解析していません</strong>
       </div>
@@ -37,7 +37,6 @@
             <button id="parseChatButton" class="btn" type="button">解析</button>
             <button id="clearChatButton" class="btn ghost" type="button">クリア</button>
           </div>
-          <p class="privacy-note">MVP-001ではネットワーク送信・D1保存・FF14への自動入力は行いません。</p>
         </div>
 
         <div class="chat-output-panel" aria-live="polite">
@@ -49,6 +48,68 @@
       </div>
 
       <div id="unparsedResult" class="unparsed-result" hidden></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">STEP 2</p>
+          <h2>自分と相手を設定</h2>
+          <p class="muted">実キャラクター名と人物メモはこのブラウザ内で扱います。D1へは保存しません。</p>
+        </div>
+      </div>
+
+      <div class="assist-settings-grid">
+        <div class="setting-box">
+          <label for="selfSpeakerSelect"><strong>自分の発言者名</strong></label>
+          <select id="selfSpeakerSelect" disabled><option value="">自分を選択</option></select>
+          <small>自分がまだ発言していない抜粋でも利用できます。</small>
+        </div>
+
+        <div class="setting-box memo-box">
+          <label for="memoSpeakerSelect"><strong>相手別メモ</strong></label>
+          <select id="memoSpeakerSelect" disabled><option value="">相手がいません</option></select>
+          <textarea id="participantMemo" rows="4" disabled placeholder="例：普段はかなりラフ。零式仲間。語尾にwを使うことが多い。"></textarea>
+          <button id="saveMemoButton" class="btn ghost" type="button" disabled>メモを保存</button>
+          <small id="memoStatus">このメモはこのブラウザだけに保存されます。</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="card ai-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">STEP 3</p>
+          <h2>AIで返信案を作る</h2>
+          <p class="muted" id="privacyStatus">まずチャットログを解析してください。</p>
+        </div>
+        <strong class="pill" id="aiStatus">返信案はまだ生成していません</strong>
+      </div>
+
+      <div class="ai-actions">
+        <button id="generateRepliesButton" class="btn" type="button" disabled>返信案を生成</button>
+        <span class="privacy-badge">実名 → ME / PLAYER_001… に匿名化して送信</span>
+      </div>
+
+      <div class="reply-grid" aria-live="polite">
+        <article class="reply-card" data-reply-key="natural">
+          <div class="reply-head"><div><p class="eyebrow">NATURAL</p><h3>自然</h3></div></div>
+          <p class="reply-text" data-reply-text>まだ生成していません。</p>
+          <button class="btn secondary" type="button" data-copy-reply disabled>コピー</button>
+        </article>
+        <article class="reply-card" data-reply-key="short">
+          <div class="reply-head"><div><p class="eyebrow">SHORT</p><h3>短め</h3></div></div>
+          <p class="reply-text" data-reply-text>まだ生成していません。</p>
+          <button class="btn secondary" type="button" data-copy-reply disabled>コピー</button>
+        </article>
+        <article class="reply-card" data-reply-key="casual">
+          <div class="reply-head"><div><p class="eyebrow">CASUAL</p><h3>くだけた感じ</h3></div></div>
+          <p class="reply-text" data-reply-text>まだ生成していません。</p>
+          <button class="btn secondary" type="button" data-copy-reply disabled>コピー</button>
+        </article>
+      </div>
+
+      <p class="privacy-note">Chat Assistは返信文をFFXIVへ自動入力・自動送信しません。使う候補を自分でコピーして、必要なら編集してから手動で送信します。</p>
     </section>
   </main>
   <script src="/chat-assist.js" type="module"></script>
