@@ -8,7 +8,7 @@
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 migrations apply DB --local",
     "db:remote": "wrangler d1 migrations apply DB --remote",
-    "test:chat-assist": "node scripts/chat-assist-parser-test.mjs && node scripts/chat-assist-complete-test.mjs",
+    "test:chat-assist": "node scripts/chat-assist-parser-test.mjs && node scripts/chat-assist-complete-test.mjs && node scripts/chat-assist-binlog-test.mjs",
     "test:e2e": "playwright test --config=scripts/playwright.config.mjs"
   },
   "devDependencies": {
