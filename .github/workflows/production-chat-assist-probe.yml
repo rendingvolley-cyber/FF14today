@@ -1,0 +1,35 @@
+name: Production Chat Assist Probe
+
+on:
+  push:
+    branches:
+      - debug/production-chat-assist-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production Chat Assist surface
+        shell: bash
+        run: |
+          set -u
+          BASE="https://ff14-today.ff14-today.workers.dev"
+          for path in / /api/health /chat-assist.html; do
+            echo "===== ${path} ====="
+            code="$(curl -sS --max-time 30 -o body.txt -w '%{http_code}' "${BASE}${path}" || true)"
+            echo "HTTP ${code}"
+            if [[ "${path}" == "/api/health" ]]; then
+              cat body.txt
+            else
+              grep -Eo '2\.2・実行手順版|Chat Assist|返信案を生成|実名 → ME / PLAYER_001|MVP-001では入力内容を外部送信しません' body.txt | sort -u || true
+            fi
+          done
+
+          echo "===== raw speaker rejection ====="
+          code="$(curl -sS --max-time 30 -o body.txt -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{"messages":[{"speaker":"Alice Example","text":"raw name"}]}' "${BASE}/api/chat-assist/replies" || true)"
+          echo "HTTP ${code}"
+          cat body.txt
