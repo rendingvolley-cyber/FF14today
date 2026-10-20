@@ -37,7 +37,8 @@ jobs:
           for attempt in $(seq 1 18); do
             root="$(curl -fsS --max-time 20 "${BASE}/" || true)"
             health="$(curl -fsS --max-time 20 "${BASE}/api/health" || true)"
-            if [[ "$root" == *"2.2・実行手順版"* && "$health" == *'"version": "2.2.0"'* ]]; then
+            chat="$(curl -fsS --max-time 20 "${BASE}/chat-assist.html" || true)"
+            if [[ "$root" == *"2.2・実行手順版"* && "$health" == *'"version": "2.2.0"'* && "$health" == *'"chat_assist": true'* && "$chat" == *"返信案を生成"* ]]; then
               ok=1
               break
             fi
@@ -63,6 +64,10 @@ jobs:
           [[ "$health" == *'"leveling_advisor": true'* ]]
           [[ "$health" == *'"actionable_steps": true'* ]]
           [[ "$health" == *'"island_material_shortage": true'* ]]
+          [[ "$health" == *'"chat_assist": true'* ]]
+          [[ "$chat" == *"Chat Assist"* ]]
+          [[ "$chat" == *"実名 → ME / PLAYER_001"* ]]
+          [[ "$chat" == *"返信案を生成"* ]]
 
           profile="$(curl -fsS --max-time 30 "${BASE}/api/profile")"
           gathering="$(curl -fsS --max-time 60 "${BASE}/api/gathering/timed")"
@@ -71,6 +76,13 @@ jobs:
           [[ "$profile" == *'"character"'* ]]
           [[ "$gathering" == *'"ok": true'* ]]
           [[ "$fishing" == *'"ok": true'* ]]
+
+          invalid_status="$(curl -sS --max-time 30 -o chat-assist-invalid.json -w '%{http_code}' \
+            -X POST -H 'content-type: application/json' \
+            --data '{"messages":[{"speaker":"Alice Example","text":"raw name"}]}' \
+            "${BASE}/api/chat-assist/replies")"
+          [[ "$invalid_status" == "400" ]]
+          grep -q '匿名alias' chat-assist-invalid.json
 
       - name: Checkout
         if: steps.http_smoke.outcome == 'success'
@@ -161,7 +173,20 @@ jobs:
           if (fishingText.includes('取得失敗')) throw new Error(`釣り取得失敗: ${fishingText}`);
           assertNoUiEnglish('釣り', fishingText);
 
-          console.log(JSON.stringify({ samText, shortageText, islandText, gatheringText, fishingText, checkedJobs: options.length, pageErrors, consoleErrors }, null, 2));
+          const chatResponse = await page.goto('https://ff14-today.ff14-today.workers.dev/chat-assist.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
+          if (!chatResponse || !chatResponse.ok()) throw new Error(`Chat Assist navigation failed: ${chatResponse?.status()}`);
+          await page.locator('#chatLogInput').fill('[22:14] Alice Example: 今日ルレ行かない？\n[22:14] Me: 何時から？\n[22:15] Alice Example: 21時くらい！');
+          await page.locator('#parseChatButton').click();
+          const parseSummary = await page.locator('#parseSummary').innerText();
+          if (!parseSummary.includes('3件を解析')) throw new Error(`Chat Assist parse failed: ${parseSummary}`);
+          await page.locator('#selfSpeakerSelect').selectOption('Me');
+          if (await page.locator('#generateRepliesButton').isDisabled()) throw new Error('Chat Assist generate button should be enabled after self selection');
+          const privacyStatus = await page.locator('#privacyStatus').innerText();
+          if (!privacyStatus.includes('ME / PLAYER_001')) throw new Error(`Chat Assist privacy status missing: ${privacyStatus}`);
+          const chatBody = await page.locator('body').innerText();
+          if (!chatBody.includes('FFXIVへ自動入力・自動送信しません')) throw new Error('Chat Assist manual-send boundary missing');
+
+          console.log(JSON.stringify({ samText, shortageText, islandText, gatheringText, fishingText, parseSummary, privacyStatus, checkedJobs: options.length, pageErrors, consoleErrors }, null, 2));
           if (pageErrors.length) throw new Error(`pageerror: ${pageErrors.join(' | ')}`);
           if (consoleErrors.length) throw new Error(`console error: ${consoleErrors.join(' | ')}`);
           await page.screenshot({ path: 'production-smoke.png', fullPage: true });
