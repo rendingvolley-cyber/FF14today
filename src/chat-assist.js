@@ -45,10 +45,7 @@ export function normalizeChatAssistPayload(payload) {
     throw requestError("messages がありません。");
   }
 
-  const rawMessages = payload.messages.slice(-MAX_MESSAGES);
-  let totalChars = 0;
-  const aliasesInMessages = new Set();
-  const messages = rawMessages.map((message, index) => {
+  payload.messages.forEach((message, index) => {
     if (!message || typeof message !== "object" || Array.isArray(message)) {
       throw requestError(`messages[${index}] が不正です。`);
     }
@@ -56,6 +53,13 @@ export function normalizeChatAssistPayload(payload) {
     if (!ALIAS_PATTERN.test(speaker)) {
       throw requestError(`messages[${index}].speaker は匿名aliasのみ使用できます。`);
     }
+  });
+
+  const rawMessages = payload.messages.slice(-MAX_MESSAGES);
+  let totalChars = 0;
+  const aliasesInMessages = new Set();
+  const messages = rawMessages.map((message, index) => {
+    const speaker = String(message.speaker || "").trim();
     const text = cleanString(message.text, MAX_MESSAGE_CHARS, `messages[${index}].text`);
     const timestamp = cleanOptionalString(message.timestamp, 16, `messages[${index}].timestamp`);
     const channel = cleanOptionalString(message.channel, 40, `messages[${index}].channel`);
@@ -73,8 +77,15 @@ export function normalizeChatAssistPayload(payload) {
     throw requestError("notes が不正です。");
   }
 
-  const relevantNoteEntries = Object.entries(rawNotes)
-    .filter(([alias]) => /^PLAYER_\d{3}$/.test(alias) && aliasesInMessages.has(alias))
+  const noteEntries = Object.entries(rawNotes);
+  for (const [alias] of noteEntries) {
+    if (!/^PLAYER_\d{3}$/.test(alias)) {
+      throw requestError("notes のキーは匿名PLAYER aliasのみ使用できます。");
+    }
+  }
+
+  const relevantNoteEntries = noteEntries
+    .filter(([alias]) => aliasesInMessages.has(alias))
     .slice(0, MAX_NOTES);
 
   const notes = {};
