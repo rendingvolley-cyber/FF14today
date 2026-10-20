@@ -4,10 +4,18 @@ import {
   parseChatLog,
   uniqueSpeakers
 } from "/chat-assist-core.mjs";
+import {
+  localLogEntryKey,
+  parseFfxivBinlog,
+  toChatAssistMessage
+} from "/ffxiv-binlog.mjs";
 
 const SELF_STORAGE_KEY = "ff14-chat-assist:self-speaker:v1";
 const NOTES_STORAGE_KEY = "ff14-chat-assist:participant-notes:v1";
 const SELF_ABSENT = "__SELF_ABSENT__";
+const LOCAL_WATCH_INTERVAL_MS = 5000;
+const MAX_LOCAL_FILES = 8;
+const MAX_CONVERSATION_MESSAGES = 120;
 
 const input = document.querySelector("#chatLogInput");
 const parseButton = document.querySelector("#parseChatButton");
@@ -24,9 +32,17 @@ const generateButton = document.querySelector("#generateRepliesButton");
 const aiStatus = document.querySelector("#aiStatus");
 const privacyStatus = document.querySelector("#privacyStatus");
 const replyCards = [...document.querySelectorAll("[data-reply-key]")];
+const pickFfxivLogButton = document.querySelector("#pickFfxivLogButton");
+const stopFfxivLogButton = document.querySelector("#stopFfxivLogButton");
+const localLogStatus = document.querySelector("#localLogStatus");
+const localLogMeta = document.querySelector("#localLogMeta");
 
 let currentResult = null;
 let notes = loadNotes();
+let localDirectoryHandle = null;
+let localWatchTimer = null;
+let localScanRunning = false;
+let localSeenKeys = new Set();
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -78,10 +94,11 @@ function renderMessage(message) {
 }
 
 function renderResult(result) {
-  summary.textContent = `${result.stats.parsed_messages}件を解析 / 未解析 ${result.stats.unparsed_lines}件`;
+  const label = result?.source === "ffxiv" ? "FF14ログ " : "";
+  summary.textContent = `${label}${result.stats.parsed_messages}件 / 未解析 ${result.stats.unparsed_lines}件`;
   conversation.innerHTML = result.messages.length
     ? result.messages.map(renderMessage).join("")
-    : '<p class="muted">解析できる発言がありません。</p>';
+    : '<p class="muted">取得できる会話がまだありません。</p>';
 
   if (!result.unparsed.length) {
     unparsedBox.hidden = true;
@@ -96,6 +113,24 @@ function renderResult(result) {
   }
 
   refreshSpeakerControls();
+}
+
+function setConversationMessages(messages, source = "ffxiv") {
+  const normalized = (messages || []).filter(message => message?.speaker && message?.text).slice(-MAX_CONVERSATION_MESSAGES);
+  currentResult = {
+    source,
+    messages: normalized,
+    unparsed: [],
+    stats: {
+      total_lines: normalized.length,
+      parsed_messages: normalized.length,
+      unparsed_lines: 0,
+      ignored_blank_lines: 0
+    }
+  };
+  renderResult(currentResult);
+  clearReplies();
+  aiStatus.textContent = "返信案はまだ生成していません";
 }
 
 function buildOption(value, label) {
@@ -188,7 +223,7 @@ function updateGenerateAvailability() {
   const canGenerate = Boolean(currentResult?.messages?.length) && hasExplicitSelfSelection();
   generateButton.disabled = !canGenerate;
   if (!currentResult?.messages?.length) {
-    privacyStatus.textContent = "まずチャットログを解析してください。";
+    privacyStatus.textContent = "まずチャットログを取得してください。";
   } else if (!hasExplicitSelfSelection()) {
     privacyStatus.textContent = "自分の発言者名を選んでください。";
   } else {
@@ -197,10 +232,119 @@ function updateGenerateAvailability() {
 }
 
 function parseCurrentInput() {
-  currentResult = parseChatLog(input.value);
+  currentResult = { ...parseChatLog(input.value), source: "manual" };
   renderResult(currentResult);
   clearReplies();
   aiStatus.textContent = "返信案はまだ生成していません";
+}
+
+async function collectLogFiles(directory, prefix = "", depth = 0) {
+  const found = [];
+  for await (const [name, handle] of directory.entries()) {
+    const relative = prefix ? `${prefix}/${name}` : name;
+    if (handle.kind === "file") {
+      if (name.toLowerCase().endsWith(".log")) found.push({ path: relative, handle });
+      continue;
+    }
+    if (depth >= 2) continue;
+    if (name === "log" || /^FFXIV_CHR/i.test(name)) {
+      found.push(...await collectLogFiles(handle, relative, depth + 1));
+    }
+  }
+  return found;
+}
+
+async function readLocalLogSnapshot(initial = false) {
+  if (!localDirectoryHandle || localScanRunning) return;
+  localScanRunning = true;
+  try {
+    const handles = await collectLogFiles(localDirectoryHandle);
+    if (!handles.length) {
+      localLogStatus.textContent = "ログなし";
+      localLogMeta.textContent = "選択したフォルダ内に .log が見つかりません。FINAL FANTASY XIV - A Realm Reborn、FFXIV_CHR...、または log フォルダを選んでください。";
+      return;
+    }
+
+    const files = [];
+    for (const item of handles) {
+      try {
+        const file = await item.handle.getFile();
+        files.push({ ...item, file });
+      } catch {
+        // ローテーション直後など、一時的に読めないファイルは次回へ回す。
+      }
+    }
+    files.sort((a, b) => b.file.lastModified - a.file.lastModified);
+    const selectedFiles = files.slice(0, MAX_LOCAL_FILES);
+    const collected = [];
+
+    for (const item of selectedFiles) {
+      try {
+        const entries = parseFfxivBinlog(await item.file.arrayBuffer());
+        for (const entry of entries) {
+          const key = localLogEntryKey(item.path, entry);
+          const message = toChatAssistMessage(entry);
+          if (!message) continue;
+          collected.push({ key, message, epoch: entry.timestamp_seconds || 0 });
+        }
+      } catch {
+        // FFXIV以外の.logや書込途中のファイルは無視し、次のscanで再試行する。
+      }
+    }
+
+    collected.sort((a, b) => a.epoch - b.epoch);
+    if (initial) {
+      collected.forEach(item => localSeenKeys.add(item.key));
+      setConversationMessages(collected.slice(-MAX_CONVERSATION_MESSAGES).map(item => item.message));
+    } else {
+      const fresh = collected.filter(item => !localSeenKeys.has(item.key));
+      collected.forEach(item => localSeenKeys.add(item.key));
+      if (fresh.length) {
+        const previous = currentResult?.source === "ffxiv" ? currentResult.messages : [];
+        setConversationMessages([...previous, ...fresh.map(item => item.message)]);
+      }
+    }
+
+    const now = new Date();
+    localLogStatus.textContent = "監視中";
+    localLogMeta.textContent = `${handles.length}ファイルを確認 / 会話 ${currentResult?.messages?.length || 0}件 / 最終読込 ${now.toLocaleTimeString()}`;
+  } catch (error) {
+    localLogStatus.textContent = "読込エラー";
+    localLogMeta.textContent = String(error?.message || error);
+  } finally {
+    localScanRunning = false;
+  }
+}
+
+function stopLocalLogWatch() {
+  if (localWatchTimer) clearInterval(localWatchTimer);
+  localWatchTimer = null;
+  stopFfxivLogButton.disabled = true;
+  if (localDirectoryHandle) localLogStatus.textContent = "停止中";
+}
+
+async function startLocalLogWatch() {
+  if (!("showDirectoryPicker" in window)) {
+    localLogStatus.textContent = "未対応";
+    localLogMeta.textContent = "このブラウザはローカルフォルダ読み取りに対応していません。PC版Chrome / Edgeで開いてください。";
+    return;
+  }
+
+  try {
+    const directory = await window.showDirectoryPicker({ mode: "read" });
+    stopLocalLogWatch();
+    localDirectoryHandle = directory;
+    localSeenKeys = new Set();
+    localLogStatus.textContent = "読込中";
+    localLogMeta.textContent = `${directory.name} を確認しています…`;
+    stopFfxivLogButton.disabled = false;
+    await readLocalLogSnapshot(true);
+    localWatchTimer = setInterval(() => { readLocalLogSnapshot(false); }, LOCAL_WATCH_INTERVAL_MS);
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    localLogStatus.textContent = "許可が必要";
+    localLogMeta.textContent = `フォルダを読み取れませんでした: ${String(error?.message || error)}`;
+  }
 }
 
 async function copyText(text, button) {
@@ -277,12 +421,14 @@ async function generateReplies() {
   }
 }
 
+pickFfxivLogButton.addEventListener("click", startLocalLogWatch);
+stopFfxivLogButton.addEventListener("click", stopLocalLogWatch);
 parseButton.addEventListener("click", parseCurrentInput);
 clearButton.addEventListener("click", () => {
   input.value = "";
   currentResult = null;
   summary.textContent = "まだ解析していません";
-  conversation.innerHTML = '<p class="muted">左の入力欄にチャットログを貼り付けてください。</p>';
+  conversation.innerHTML = '<p class="muted">上の「FF14ログを拾う」から開始してください。</p>';
   unparsedBox.hidden = true;
   unparsedBox.innerHTML = "";
   selfSpeakerSelect.innerHTML = '<option value="">自分を選択</option>';
@@ -313,4 +459,5 @@ replyCards.forEach(card => {
   });
 });
 
+window.addEventListener("beforeunload", stopLocalLogWatch);
 updateGenerateAvailability();
