@@ -44,13 +44,8 @@ export function normalizeChatAssistPayload(payload) {
   if (!Array.isArray(payload.messages) || payload.messages.length < 1) {
     throw requestError("messages がありません。");
   }
-  if (payload.messages.length > MAX_MESSAGES) {
-    throw requestError(`messages は最大${MAX_MESSAGES}件です。`);
-  }
 
-  let totalChars = 0;
-  const aliasesInMessages = new Set();
-  const messages = payload.messages.map((message, index) => {
+  payload.messages.forEach((message, index) => {
     if (!message || typeof message !== "object" || Array.isArray(message)) {
       throw requestError(`messages[${index}] が不正です。`);
     }
@@ -58,6 +53,13 @@ export function normalizeChatAssistPayload(payload) {
     if (!ALIAS_PATTERN.test(speaker)) {
       throw requestError(`messages[${index}].speaker は匿名aliasのみ使用できます。`);
     }
+  });
+
+  const rawMessages = payload.messages.slice(-MAX_MESSAGES);
+  let totalChars = 0;
+  const aliasesInMessages = new Set();
+  const messages = rawMessages.map((message, index) => {
+    const speaker = String(message.speaker || "").trim();
     const text = cleanString(message.text, MAX_MESSAGE_CHARS, `messages[${index}].text`);
     const timestamp = cleanOptionalString(message.timestamp, 16, `messages[${index}].timestamp`);
     const channel = cleanOptionalString(message.channel, 40, `messages[${index}].channel`);
@@ -74,14 +76,20 @@ export function normalizeChatAssistPayload(payload) {
   if (!rawNotes || typeof rawNotes !== "object" || Array.isArray(rawNotes)) {
     throw requestError("notes が不正です。");
   }
+
   const noteEntries = Object.entries(rawNotes);
-  if (noteEntries.length > MAX_NOTES) throw requestError(`notes は最大${MAX_NOTES}件です。`);
+  for (const [alias] of noteEntries) {
+    if (!/^PLAYER_\d{3}$/.test(alias)) {
+      throw requestError("notes のキーは匿名PLAYER aliasのみ使用できます。");
+    }
+  }
+
+  const relevantNoteEntries = noteEntries
+    .filter(([alias]) => aliasesInMessages.has(alias))
+    .slice(0, MAX_NOTES);
 
   const notes = {};
-  for (const [alias, rawNote] of noteEntries) {
-    if (!/^PLAYER_\d{3}$/.test(alias) || !aliasesInMessages.has(alias)) {
-      throw requestError("notes のキーは会話内の匿名PLAYER aliasのみ使用できます。");
-    }
+  for (const [alias, rawNote] of relevantNoteEntries) {
     const note = cleanString(rawNote, MAX_NOTE_CHARS, `notes.${alias}`);
     totalChars += note.length;
     notes[alias] = note;

@@ -43,17 +43,36 @@ assert.throws(() => normalizeChatAssistPayload({
   messages: [{ speaker: "Alice Example", text: "raw name" }]
 }), /匿名alias/);
 
-assert.throws(() => normalizeChatAssistPayload({
+const oversized = normalizeChatAssistPayload({
   messages: Array.from({ length: 41 }, (_, index) => ({
     speaker: `PLAYER_${String((index % 2) + 1).padStart(3, "0")}`,
-    text: "x"
+    text: `x${index}`
   }))
-}), /最大40件/);
+});
+assert.equal(oversized.messages.length, 40);
+assert.equal(oversized.messages[0].text, "x1");
+assert.equal(oversized.messages.at(-1).text, "x40");
+
+const staleNote = normalizeChatAssistPayload({
+  messages: [{ speaker: "PLAYER_001", text: "hi" }],
+  notes: { PLAYER_999: "not in recent conversation" }
+});
+assert.deepEqual(staleNote.notes, {});
 
 assert.throws(() => normalizeChatAssistPayload({
   messages: [{ speaker: "PLAYER_001", text: "hi" }],
-  notes: { PLAYER_999: "not in conversation" }
-}), /会話内/);
+  notes: { "Alice Example": "raw real name key" }
+}), /匿名PLAYER alias/);
+
+assert.throws(() => normalizeChatAssistPayload({
+  messages: [
+    { speaker: "Alice Example", text: "too old but still raw" },
+    ...Array.from({ length: 40 }, (_, index) => ({
+      speaker: "PLAYER_001",
+      text: `recent${index}`
+    }))
+  ]
+}), /匿名alias/);
 
 const prompt = buildChatAssistPrompt(normalized);
 assert.match(prompt, /未信頼データ/);
